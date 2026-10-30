@@ -1,0 +1,41 @@
+# GOAT-Pro Hoops
+
+Public NBA analytics: the basketball sibling of [goat-pro](https://goatpro.dev)
+(baseball). ESPN's public feed is the data spine, LUMA Basketball Research is
+the validation reference, and every model is pre-registered before its first
+read. Linked with the baseball site by a sport switcher; deployed separately.
+
+```
+hoops_mart (vt_baseball)  ->  pipeline/hoops_export.py  ->  data/export/web
+ ESPN feed + LUMA gate         bake (--check)               |
+                                                            v
+                              pipeline/r2_sync.py  ->  R2 (prefix hoops/)  ->  web (Next.js)
+```
+
+## Layout
+
+```
+web/          Next.js app (same design system as goat-pro)
+pipeline/     hoops_export.py (the bake), r2_sync.py, paths.py
+pipeline/results/RESULTS-HOOPS.md   pre-registrations, gates, verdicts
+docs/         hoops-spec.md (owner requirements), basketball-site-plan.md
+data/export/web/   baked JSON (gitignored; rebuildable by the bake)
+```
+
+## Status
+
+Phase 1 shipped (see `docs/basketball-site-plan.md`): descriptive surfaces —
+game reports with x/y shot charts, teams, players — over the validated
+box-score spine. Models (RAPM, shot quality, lineups) are Phase 2, each
+pre-registered in `pipeline/RESULTS-HOOPS.md`.
+
+The LUMA cross-check gate (2026-10-29): 688/688 game scores 2024-25 exact,
+52/52 current season, 324 player-game boxes with every stat exact except
+assists (scorer judgment). Credit: LUMA Basketball Research (ARC v3.1,
+LOKI v3.3).
+
+## Environment
+
+`.env` (gitignored): R2 keys (`R2_*`, prefix `hoops/`), `USE_LOCAL_DATA` for
+dev against the local bake, `NEXT_PUBLIC_BASEBALL_URL` for the switcher pill.
+The mart needs nothing from this repo; this repo reads it read-only.
