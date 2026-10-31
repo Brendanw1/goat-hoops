@@ -29,7 +29,10 @@ from paths import ROOT  # noqa: E402
 
 RESULTS = ROOT / "pipeline" / "results"
 DERIVED = ROOT / "data" / "derived"
-LAMBDA_GRID = [100, 300, 1000, 3000, 10000]
+# grid re-opened on the corrected response (v3 amendment): the
+# original range was calibrated against the broken ESPN-attributed
+# response and both gate metrics still rise at its edge
+LAMBDA_GRID = [100, 300, 1000, 3000, 10000, 30000, 100000]
 SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
 
 
@@ -57,8 +60,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2025)
     a = ap.parse_args()
-    pr = pd.read_parquet(DERIVED / f"poss_rosters_{a.season}.parquet")
-    pr = pr[~pr.dead_ball].reset_index(drop=True)
+    pr = pd.read_parquet(DERIVED / f"rapm_rows_{a.season}.parquet").reset_index(drop=True)
     pr = pr[pr.on10.map(len) == 10]
     print(f"possession rows: {len(pr):,}")
 
@@ -71,7 +73,7 @@ def main() -> None:
     X = np.zeros((len(pr), nP + 1), dtype=np.float64)
     y = np.zeros(len(pr), dtype=np.float64)
     home_col = np.zeros(len(pr), dtype=np.float64)
-    gids = pr.game_id.to_numpy()
+    gids = pr.gid.to_numpy()
     for rix, row in enumerate(pr.itertuples()):
         off = row.team
         home_flag = bool(row.home)
@@ -84,7 +86,7 @@ def main() -> None:
             X[rix, pidx[aid]] = 1.0 if is_off else -1.0
         X[rix, nP] = 1.0 if home_flag else -1.0
         y[rix] = float(row.pts)
-        gids[rix] = row.game_id
+        gids[rix] = row.gid
     y = y - y.mean()  # league scoring environment absorbed; ratings per-possession
 
     # λ by 5-fold CV grouped by game, scored on GAME-LEVEL aggregate margins:
@@ -103,18 +105,14 @@ def main() -> None:
             tr, te = f != k, f == k
             beta, _ = fit_ridge(X[tr], y[tr], np.ones(tr.sum()), lam)
             pred = X @ beta
-            # aggregate predicted margin per team-game, compare to actual
-            pr_pred = pr.iloc[np.arange(len(pr))].copy()
-            pr_pred["pred"] = pred
-            gg = pr_pred[pr_pred.index.isin(np.where(te)[0])]
-            # predicted points by the offense, summed per team-game
-            agg = gg.groupby(["game_id", "team"]).agg(pred=("pred", "sum"),
-                                                      actual=("pts", "sum"),
-                                                      home=("home", "first")).reset_index()
-            # margin per game: home team's predicted vs actual minus away's
-            piv_p = agg.pivot(index="game_id", columns="home", values="pred")
-            piv_a = agg.pivot(index="game_id", columns="home", values="actual")
-            if True in piv_p and False in piv_p:
+            gg = pr.iloc[np.where(te)[0]].copy()
+            gg["pred"] = pred[te]
+            agg = gg.groupby(["gid", "team"]).agg(pred=("pred", "sum"),
+                                                  actual=("pts", "sum"),
+                                                  home=("home", "first")).reset_index()
+            piv_p = agg.pivot(index="gid", columns="home", values="pred")
+            piv_a = agg.pivot(index="gid", columns="home", values="actual")
+            if True in piv_p.columns and False in piv_p.columns:
                 sse += float(((piv_p[True] - piv_p[False]) - (piv_a[True] - piv_a[False])).pow(2).sum())
         cv[lam] = sse
         print(f"  λ={lam}: held-out game-margin SSE {cv[lam]:.0f}")
@@ -145,7 +143,7 @@ def main() -> None:
                 {"aid": players, "r": beta_h[:nP] * 100.0})
     stab_by_lam = {}
     # possession counts per player per half for the >=500 filter
-    ex = pr[["game_id"]].copy()
+    ex = pr[["gid"]].copy()
     ex["aid"] = pr.on10
     ex["half"] = half
     ex = ex.explode("aid")
@@ -164,23 +162,15 @@ def main() -> None:
         print(f"  λ={lam}: split-half r {stab_by_lam[lam]:.3f}")
     print(f"GATE stability (λ=300): {gate_stab} — r {stab_r:.3f} on {len(sel)} players (≥500 poss both halves)")
 
-    # benchmark vs LUMA
+    # benchmark vs LUMA — direct pid join (same nba.com id space)
     bench = None
     luma_f = Path.home() / "Projects/vt_baseball/hoops_mart/data/luma/xpts_rapm_2025.parquet"
     if luma_f.exists():
         lg = pd.read_parquet(luma_f)
-        # name join: our aids are ESPN athlete ids; use the box names
-        pg = pd.read_parquet(Path.home() / "Projects/vt_baseball/hoops_mart/data/mart/player_game.parquet")
-        nm = pg.dropna(subset=["name"]).set_index("athlete_id").name.to_dict()
-        ratings["name"] = ratings.aid.map(nm)
-        ratings["norm"] = ratings.name.map(norm)
-        reg = pd.read_parquet(Path.home() / "Projects/vt_baseball/hoops_mart/data/pbpstats/players.parquet")
-        pid2name = dict(zip(reg.id.astype(str), reg.name))
-        lg["norm"] = lg.pid.astype(str).map(pid2name).map(norm)
-        # possession counts for the >=250 filter
+        ratings["pid_int"] = ratings.aid.astype(int)
         pcnt = pr.explode("on10").groupby("on10").size().rename("poss")
         ratings["poss"] = ratings.aid.map(pcnt)
-        mrg = ratings.merge(lg[["norm", "xpts_net"]], on="norm", how="inner")
+        mrg = ratings.merge(lg[["pid", "xpts_net"]], left_on="pid_int", right_on="pid", how="inner")
         sel = mrg[mrg.poss >= 250]
         bench_by_lam = {lam: float(sel[f"rapm_{lam}"].corr(sel.xpts_net)) for lam in LAMBDA_GRID}
         for lam in LAMBDA_GRID:
@@ -191,7 +181,6 @@ def main() -> None:
         bench = {"r": bench_r, "n": int(len(sel)), "pass": gate_b == "PASS",
                  "by_lambda": {str(k): round(v2, 3) for k, v2 in bench_by_lam.items()},
                  "stability_by_lambda": {str(k): round(v2, 3) for k, v2 in stab_by_lam.items()}}
-        ratings.drop(columns=["norm"], inplace=True)
 
     RESULTS.mkdir(parents=True, exist_ok=True)
     ratings.to_csv(RESULTS / f"rapm_{a.season}_players.csv", index=False)

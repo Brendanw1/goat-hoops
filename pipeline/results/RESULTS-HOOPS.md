@@ -143,3 +143,39 @@ check as its gate. On-court sets come from the same source's playing-time
 intervals — **minutes gate PASSED (median |Δ| 0.28 min, 14,461
 player-games)**. rapm.py (possession-level ridge, both gates, λ-sensitivity
 diagnosis table) is committed and will read on the corrected response.
+
+### §1 read v3 (2026-10-31, corrected response): FAIL on the benchmark gate — model family validated, bar not met
+
+Response fixed (pbpstats possessions; points MAE 0.16 vs ESPN box, 99.8%
+within ±2 — two-source agreement), rosters from official intervals (minutes
+gate 0.28 min). Grid re-opened as a documented amendment (the original range
+was calibrated against the broken response). 132,066 possession rows with
+exact-5v5 rosters, 516 players.
+
+| λ | split-half r | LUMA benchmark r |
+|---|---|---|
+| 100 | 0.054 | 0.294 |
+| 300 | 0.098 | 0.321 |
+| 1000 | 0.167 | 0.361 |
+| 3000 | 0.278 | 0.407 |
+| 10000 | 0.454 | 0.454 |
+| 30000 | 0.575 | **0.464 (peak)** |
+| 100000 | **0.631** | 0.455 |
+
+**Verdict: FAIL — no λ meets both gates.** Stability crosses its 0.60 bar at
+λ≈100000; the benchmark peaks at 0.464 (λ=30000) against the 0.70 bar.
+
+The model is real: the λ=30000 top-10 is SGA, Jokic, Tatum, Mobley, then the
+impact-role tier (Isaiah Joe, Horford, Dort, Kornet, Jarrett Allen), with
+Washington's young core at the bottom — the ordering passes inspection. The
+0.46 ceiling vs LUMA measures the design distance, not a data bug: their
+xpts_rapm is a multi-season, shot-quality-expected (xPTS) model with priors;
+ours is a single-season, raw-points, no-prior RAPM. Roadmap to the bar, in
+order of expected gain:
+1. **Multi-season fit** — the same backbone extends to 2022-23/2023-24 (the
+   pt/possessions pulls are per-season); multi-season RAPM is the
+   literature's main lever.
+2. **xPTS response** — our Phase-2 shot-quality model replaces raw points
+   (the "x" in LUMA's xpts is exactly this).
+3. Priors/aging — last.
+Shipping rule: no surface. The evidence file keeps the verdict and the table.
