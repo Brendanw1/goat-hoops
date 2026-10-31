@@ -115,3 +115,31 @@ Diagnosis (data vs handling vs modeling): **handling — the λ selector.**
   (sum of possession points per team-game) — the quantity ratings are judged
   on. Gates unchanged; the λ grid unchanged; this is the prereg's own
   failure-diagnosis loop, not a gate edit.
+
+### §1 handling-iteration log, part 2 (2026-10-30, still no model verdict)
+
+The v2 read (λ=300 verdict slot) never happened: forensic validation of the
+response killed it first — **the possession points summed −54 to −77 per
+team-game against the box scores, exact matches 0%**. Root cause chain:
+1. `idx` only advanced on segment-opening plays, so every score-delta window
+   read the wrong plays (fixed: uniform per-play indexing).
+2. Boundary convention double-counted each scoring closer (fixed: the
+   transfer play belongs to the new segment).
+3. **ESPN's feed misorders plays around scoring sequences** (proven: a
+   turnover row sits before the made basket that followed it; running-score
+   evidence is authoritative, play order is not) — so ANY play-attribution
+   of points to possessions is unreliable, however correct the bookkeeping.
+   The five earlier possession-gate failures (±1.37 MAE floor) were the same
+   disease showing in counts.
+
+**Architecture change (v6, in flight): the RAPM response moves to pbpstats'
+own possessions** (`get-possessions`, official NBA.com logs — immune to ESPN's
+misordering): per-team-season pulls landed at the correct scale (ATL 8,426
+offensive possessions) after fixing the 500-row page-cap truncation (7-day
+date slices). Points derive as 2×FG2M + 3×FG3M + made FTs from the Events
+text — validated −862/10,973 (−7.9%) for ATL, attributed to FT-attribution
+phrasing (and-one/technical FTs); the parser fix is next, with the box-sum
+check as its gate. On-court sets come from the same source's playing-time
+intervals — **minutes gate PASSED (median |Δ| 0.28 min, 14,461
+player-games)**. rapm.py (possession-level ridge, both gates, λ-sensitivity
+diagnosis table) is committed and will read on the corrected response.
