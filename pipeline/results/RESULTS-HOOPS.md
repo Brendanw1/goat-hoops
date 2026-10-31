@@ -179,3 +179,46 @@ order of expected gain:
    (the "x" in LUMA's xpts is exactly this).
 3. Priors/aging — last.
 Shipping rule: no surface. The evidence file keeps the verdict and the table.
+
+## §2 — Multi-season RAPM 2022-23 → 2024-25 (pre-registered 2026-10-31, before any fit)
+
+**Why.** §1 v3's verdict: single-season raw-points RAPM peaks at 0.464 vs the
+0.70 benchmark bar; the literature's main lever is multi-season data. The
+backbone (pbpstats intervals + possessions) is per-season pullable and both
+its gates passed for 2024-25 (minutes 0.28 min; points MAE 0.16).
+
+**Data.** Three regular seasons on the identical lineage: 2022-23, 2023-24
+(pulls in flight), 2024-25 (in hand). Response = possession points
+(2×FG2M + 3×FG3M + made FTs by the (N PTS) marker), validated per season
+against ESPN box sums (the §1 gate: MAE < 1.0/team-game). Rosters = official
+interval spans containing the possession midpoint; exact-5v5 windows only.
+Handling gates per season: minutes vs box (median |Δ| ≤ 0.5) and points vs
+box (MAE < 1.0) — a season failing either is excluded and the failure
+diagnosed before any fit.
+
+**Model (fixed).** One row per possession across all three seasons; player
+coefficients GLOBAL (one rating per player, shared across seasons); season
+scoring environments absorbed by centering y within each season; home-court
+fixed effect per row (unpenalized); ridge with the amended grid
+{100 … 100000}, λ chosen by 5-fold game-grouped CV on team-game aggregate
+margins (the §1-amended criterion, applied unchanged).
+
+**Judged (read once).**
+1. *Benchmark*: Pearson r vs LUMA `xpts_rapm` season-2025 `xpts_net` on
+   shared players with ≥250 possessions — **bar 0.70** (unchanged; a
+   multi-season rating must still track the most recent season for active
+   players).
+2. *Stability*: split-half (even/odd game ids, pooled) r on players with
+   ≥500 possessions in both halves — **bar 0.60**.
+Failure diagnosis: data (older-season backbone) vs handling (λ, pooling) vs
+modeling (design), in that order.
+
+**Shipping rule.** Both gates pass → the first shipped model surface (a
+RAPM column on the players board, labelled with the gate date and LUMA
+credit). Any gate fails → verdict + diagnosis recorded, no surface; the
+next lever (xPTS response via the Phase-2 shot-quality model) is §3.
+
+**Expected.** Benchmark 0.55–0.72: multi-season closes most of the
+single-season noise gap; the residual distance is the xPTS-vs-points and
+priors difference. Risk: 2022-23 roster churn (players with 1 season of
+data) and λ landing at the grid edge again.
