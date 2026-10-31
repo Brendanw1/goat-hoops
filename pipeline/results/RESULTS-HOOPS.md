@@ -57,3 +57,37 @@ should track their xPTS-based RAPM on the strong-minute players); the
 weakest agreement on low-minute players, which the ≥250-possession filter
 excludes. Risk: possession-definition mismatch vs pbpstats (gate 0 catches
 it before the fit), and starters' OT inheritance biasing late-game stints.
+
+### §1 handling-iteration log (2026-10-30, no model read has happened)
+
+Gate status after five derivation iterations (689 games, 2024-25):
+
+| Iteration | Possession gate | Minutes gate | Change |
+|---|---|---|---|
+| v1 naive | FAIL 34.6% / MAE 3.54 | — | baseline state machine |
+| v2 +timeout/kicked non-control | FAIL 78.5% / MAE 1.60 | — | defensive timeouts were splitting possessions ~13×/game |
+| v3 blanket dead-ball FT | FAIL 28.2% / MAE 4.15 | — | overcorrected: killed the FT team's possession |
+| v4 exit-always subs | FAIL 36.8% / MAE 3.67 | FAIL 6.2 min | half the stints dropped (4-man windows) |
+| v5 current (carryover + simple FT flip) | **FAIL 84.8% / MAE 1.37** | FAIL 14.7 min | best; MAE under the 1.5 bar, within±2 still short |
+
+Diagnosed causes, each verified forensically:
+1. **Timeouts/violations are non-control** (fixed, v2): a defensive timeout
+   used to transfer possession.
+2. **ESPN's sub log is direction-consistent but INCOMPLETE**: the play text's
+   "enters" name matches participants[0] 3,280:0 (direction settled), yet
+   re-entries appear without a logged exit+entry pair (forensic: Risacher out
+   at idx 58, back on court by idx 73 with no sub row). Sub-classification
+   over 100 games: 43% forward, 31% look-reversed, 16% both-on, 10% stale —
+   the non-forward share is our state drifting against an incomplete feed,
+   not direction ambiguity.
+3. **Lineups carry across periods** (fixed): resetting Q2–Q4 to Q1 starters
+   poisoned every later period (the hidden cascade behind v1's "0 skips").
+4. Next fix (designed, not yet implemented): **evidence-based drift
+   correction** — when a non-sub play's primary participant (shot/FT
+   shooter, rebounder) is not in his team's on-court set, add him and split
+   the stint at the correction; the set of five re-validates continuously
+   from the play stream itself. Subs remain the primary signal; the play
+   stream heals the gaps. This is the standard approach for incomplete PBP
+   feeds and should clear both gates; the three-way check (ours vs pbpstats
+   vs the classic FGA−OREB+TOV estimate) stays queued to attribute any
+   residual convention difference.
