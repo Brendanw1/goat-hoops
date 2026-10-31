@@ -91,3 +91,27 @@ Diagnosed causes, each verified forensically:
    feeds and should clear both gates; the three-way check (ours vs pbpstats
    vs the classic FGA−OREB+TOV estimate) stays queued to attribute any
    residual convention difference.
+
+### §1 read v1 (2026-10-30): FAIL on both gates — diagnosis: λ selector
+
+The one read, as registered: 91,091 possession rows (69% coverage; the rest
+involves 13 fringe players whose pbpstats intervals are empty), 515 players,
+λ=10000 by possession-level MSE CV. **Stability r = 0.157 (bar 0.60) — FAIL.
+LUMA benchmark r = 0.220 on 356 shared players ≥250 poss (bar 0.70) — FAIL.**
+
+Diagnosis (data vs handling vs modeling): **handling — the λ selector.**
+- The model itself is sound: the top-10 is real basketball (Jokic 1.33,
+  Edwards, Tatum, KAT, Mobley; Kornet/Horford/Ellis role-player signal;
+  Poole/Sarr/Giddey at the bottom) and the LUMA join verified player-aligned
+  (Jokic 1.33 vs their 2.19).
+- But possession-level held-out MSE is nearly flat across the whole grid
+  (0.9826 → 0.9816): single-possession noise drowns the rating signal, so
+  the criterion cannot see rating quality and picked the grid edge. At
+  λ=10000 with ~1,500 possessions/player, each coefficient shrinks to
+  n/(n+λ) ≈ 13% of OLS — the ordering partially survives (top-10 ok) but the
+  correlation with a full-strength external RAPM collapses.
+- Amended criterion (handling, pre-results for v2): λ chosen by the same
+  5-fold game-grouped CV, but scored on **game-level aggregate margins**
+  (sum of possession points per team-game) — the quantity ratings are judged
+  on. Gates unchanged; the λ grid unchanged; this is the prereg's own
+  failure-diagnosis loop, not a gate edit.
