@@ -140,9 +140,21 @@ def main() -> None:
         if len(espn_spans) < 10:
             n_nopt += 1
             continue
-        # our possession segments for this game (from the mart walk, with wall clock)
+        # running-score arrays: points across any play-index window are the
+        # score deltas at its edges — robust to the feed's play misordering
+        hs = one.home_score.astype(float).tolist()
+        as_ = one.away_score.astype(float).tolist()
+        els = [game_elapsed(r.period, r.period_elapsed) for r in one.itertuples()]
+        def window_pts(a, b):
+            """score delta across play-index window [a, b)"""
+            pa = max(0, a - 1)
+            return (hs[b - 1] - hs[pa], as_[b - 1] - as_[pa])
+        # our possession segments for this game (from the mart walk, with wall
+        # clock). idx indexes EVERY play uniformly; end_i is exclusive, so
+        # window_pts telescopes exactly over the partition.
         segs = []
         cur = None
+        idx = 0
         for r in one.itertuples():
             tl = (r.type_text or "").lower()
             tid = str(r.team_id) if pd.notna(r.team_id) else None
@@ -161,38 +173,49 @@ def main() -> None:
             non_control = (is_foul or is_block or "timeout" in tl or "kicked" in tl
                            or "challenge" in tl or "replay" in tl or "delay" in tl)
             is_ft = bool(r.is_scoring) and (r.points_attempted or 0) == 1
+            this_idx = idx
+            idx += 1
             if cur is None:
                 if not non_control and not is_ft:
-                    cur = {"team": tid, "pts": {}, "start": el, "end": el}
+                    cur = {"team": tid, "start_i": this_idx, "start": el}
                 continue
-            if tid == cur["team"]:
-                if r.is_scoring and r.score_value:
-                    cur["pts"][tid] = cur["pts"].get(tid, 0) + int(r.score_value)
-                cur["end"] = el
-                if is_turnover:
-                    segs.append(cur)
-                    cur = None
-                continue
-            if is_ft:
-                if r.is_scoring and r.score_value:
-                    cur["pts"][tid] = cur["pts"].get(tid, 0) + int(r.score_value)
+            closes = is_turnover or is_ft or (tid != cur["team"] and not non_control)
+            if closes:
+                # the transfer play belongs to the NEW segment: end exclusive
+                cur["end_i"] = this_idx
                 cur["end"] = el
                 segs.append(cur)
-                cur = {"team": tid, "pts": {}, "start": el, "end": el,
-                       "opened_by_ft": True}
-                continue
-            if non_control:
-                if r.is_scoring and r.score_value:
-                    cur["pts"][tid] = cur["pts"].get(tid, 0) + int(r.score_value)
-                continue
-            cur["end"] = el
-            segs.append(cur)
-            cur = {"team": tid, "pts": {}, "start": el, "end": el}
+                cur = {"team": tid, "start_i": this_idx, "start": el,
+                       **({"opened_by_ft": True} if is_ft else {})}
+            continue
         if cur:
+            cur["end_i"] = len(one)
+            cur["end"] = els[-1] if els else None
             segs.append(cur)
-        # mark dead-ball FT-only segments
+        # fill any None edges from the nearest defined elapsed (some rows
+        # carry no clock); drop segments that still cannot be placed
+        last_known = None
+        for j, e in enumerate(els):
+            if e is not None:
+                last_known = e
+            if last_known is not None:
+                els[j] = last_known
         for sgg in segs:
-            sgg["dead_ball"] = bool(sgg.get("opened_by_ft"))
+            if sgg.get("end") is None and sgg.get("end_i"):
+                sgg["end"] = els[min(sgg["end_i"], len(els)) - 1]
+            if sgg.get("start") is None:
+                sgg["start"] = sgg.get("end")
+        segs = [sgg for sgg in segs if sgg.get("start") is not None and sgg.get("end") is not None]
+        # points from score deltas; dead-ball = FT-opened segments with no
+        # score movement beyond the FT itself is left simple: FT-opened
+        # segments whose whole score delta equals one FT are dead-ball
+        for sgg in segs:
+            wa, wb = sgg["start_i"], sgg.get("end_i", len(one))
+            hd, ad = window_pts(wa, wb)
+            sgg["home_pts"] = hd
+            sgg["away_pts"] = ad
+            dead = bool(sgg.get("opened_by_ft")) and (hd + ad) <= 1
+            sgg["dead_ball"] = dead
         # stint edges: boundaries of every player span
         bounds = sorted({b for sp in espn_spans.values() for iv in sp for b in iv})
         for si in range(len(bounds) - 1):
@@ -210,20 +233,23 @@ def main() -> None:
             mine = [s for s in segs
                     if s["start"] is not None and lo <= (s["start"] + s["end"]) / 2 < hi]
             live = [s for s in mine if not s.get("dead_ball")]
-            hp = sum(s["pts"].get(str(gr.home_team_id), 0) for s in mine)
-            ap_ = sum(s["pts"].get(str(gr.away_team_id), 0) for s in mine)
+            hp = sum(s["home_pts"] for s in mine)
+            ap_ = sum(s["away_pts"] for s in mine)
             rows_stint.append({"game_id": gid_espn, "period": None,
                                "home_tid": str(gr.home_team_id), "away_tid": str(gr.away_team_id),
                                "home": sorted(homes), "away": sorted(aways),
                                "home_pts": hp, "away_pts": ap_, "n_poss": len(live),
                                "start_el": lo, "end_el": hi})
-            # possession-level rows with the on-court 10 (the RAPM design)
+            # possession-level rows with the on-court 10 (the RAPM design):
+            # points = the offense team's score delta across the segment
             for sgg in mine:
                 on10 = sorted(homes) + sorted(aways)
+                off_pts = (sgg["home_pts"] if sgg["team"] == str(gr.home_team_id)
+                           else sgg["away_pts"])
                 rows_poss_roster.append({
                     "game_id": gid_espn, "team": sgg["team"],
                     "home": sgg["team"] == str(gr.home_team_id),
-                    "pts": sgg["pts"].get(sgg["team"], 0),
+                    "pts": off_pts,
                     "dead_ball": bool(sgg.get("dead_ball")),
                     "on10": on10, "mid": (sgg["start"] + sgg["end"]) / 2})
         for aid, sp in espn_spans.items():
