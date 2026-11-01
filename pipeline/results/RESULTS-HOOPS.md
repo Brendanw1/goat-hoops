@@ -246,3 +246,37 @@ xPTS-vs-raw-points difference and LUMA's priors — exactly §3's lever (the
 Phase-2 shot-quality model replacing raw points as the response). No
 surface ships. The spine assets (intervals, possessions, id joins, three
 seasons deep) are permanent.
+
+## §3 — xPTS response (pre-registered 2026-11-01, before any fit)
+
+**Why.** §2's verdict: multi-season raw-points RAPM peaks at 0.618 vs the
+0.70 bar; the remaining distance is the response — LUMA's xpts_rapm uses
+expected points from shot quality, ours used raw points. §3 replaces the
+response: same design, same backbone, xPTS instead of points.
+
+**The shot-value surface (fixed).** League FG% by (distance-from-rim bucket
+{0-4, 4-9, 9-14, 14-19, 19-22.5, 22.5-24.5, 24.5+} × shot value {2, 3}),
+estimated per season from our validated ESPN shot table (the same table the
+game reports render; x/y normalized to the attacking half, rim at
+(25, 5.25) ft). xPTS per shot = FG% × shot value. FT xPTS = league FT% for
+the season × FTAs in the possession. The surface is an in-sample descriptive
+transformation (the league's own shot values), not a forecast model — the
+registered quality claim stays with the RAPM gates.
+
+**The response.** Possession xPTS = Σ the segment's FGA xPTS + FT xPTS.
+Segments come from the same ESPN control walk (§1); shots join their segment
+by play index (same feed — validated 100% match); the on10 come from the
+pbpstats intervals as in §2 (validated minutes 0.28 min). Coverage gate: ≥95%
+of FGA matched into exact-5v5 segments.
+
+**Judged (read once).** The §2 gates unchanged:
+1. *Benchmark*: r vs LUMA xpts_net season-2025, shared players ≥250
+   possessions — **bar 0.70**.
+2. *Stability*: pooled split-half r, players ≥500 possessions both halves —
+   **bar 0.60**.
+The xPTS response predicts: benchmark ≥ §2's 0.618 peak (the response is the
+only change). Failure diagnosis: data vs handling vs modeling, in order.
+
+**Shipping rule.** Both gates pass → the first shipped model surface (RAPM
+column, gate-dated, LUMA credited). Otherwise verdict + diagnosis recorded;
+the next lever is priors (multi-year shrinkage targets).
