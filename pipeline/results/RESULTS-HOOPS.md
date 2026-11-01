@@ -301,3 +301,15 @@ not) — the surface lookup then runs on correctly-grouped shots. The
 single-season xPTS read then repeats on the matched response; the
 multi-season xPTS fit follows (the 2023-24/2022-23 x/y shots require the
 same clock-matching against their pulled possessions).
+
+### §3 amendment (2026-11-01, after the v1 diagnosis): clock-matched shot assignment
+
+The v1 failure diagnosed shot-to-segment attribution as the disease. The
+corrected §3: shots match **pbpstats possessions by game clock** — each
+possession's [StartTime, EndTime] converted to game-elapsed seconds, each
+ESPN FG shot assigned to the window containing its elapsed position (the
+window's offense is the possessing team from the pull it came from); shots
+with no containing window join the nearest window within ±3 seconds, else
+drop (counted). xPTS per possession = Σ assigned shots' surface values +
+made-FT count × 1.0 (the (N PTS) marker count, same accounting the validated
+points response uses). The gates are unchanged.
