@@ -366,3 +366,27 @@ the stability gate applies to the single-season fit as in §1).
 **Judged (read once).** The richer response must beat §3's 0.621 (the same
 data, one surface richer — the §3 number is the direct comparison).
 Shipping rule as before: both gates pass → surface; else verdict recorded.
+
+### §4 read (2026-11-01): the richer surface delivers on both axes — benchmark 0.658, stability PASSES; verdict FAIL by 0.04
+
+| λ | split-half r | LUMA benchmark r |
+|---|---|---|
+| 1,000 | 0.216 | 0.555 |
+| 10,000 | 0.501 | 0.659 |
+| 30,000 | **0.607 ✓** | 0.658 |
+| 100,000 | **0.650 ✓** | 0.643 |
+
+**Verdict: FAIL — benchmark 0.658 at the stability-passing λ (bar 0.70).**
+The four-design progression: 0.464 (§1 single-season points) → 0.618 (§2
+multi-season) → 0.621 (§3 single-season xPTS) → **0.658 (§4 type-rich
+xPTS)** — each lever measured on the same gates. The type classes carry real
+signal (the pooled surface: rim dunks 91.7%, layups 66.8%, fadeaways 45.3%).
+
+The remaining 0.04: LUMA's expected-points model conditions on context ours
+lacks (defender positioning, shot clock, shooter identity — the last is
+deliberately excluded until the descriptive/descriptive line is respected),
+plus their priors. Next levers, in order: §5 multi-year shrinkage priors
+(box-score prior ratings regressed into the ridge — standard xRAPM
+practice); defender context when the tracking levers land.
+
+No surface ships; the evidence file keeps the full table.

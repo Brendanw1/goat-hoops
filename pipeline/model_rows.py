@@ -135,26 +135,58 @@ def main() -> None:
         wins_by_team[k].sort()
     print(f"possession rows: {len(pr):,} ({pr.pts.sum():,.0f} points)")
 
-    # ---- §3 xPTS per possession, from their own Events text ----------------
-    # every FGA line carries its distance ("27' 3PT ..."); the surface
-    # (league FG% by distance bucket × point value, from our validated ESPN
-    # shot table) converts each FGA to an expected value; made FTs count 1.0
-    # (the (N PTS) marker). All within pbpstats' own possession grouping —
-    # no cross-source matching, immune to the misordering.
-    sh = pd.read_parquet(MART / "shots.parquet")
-    sh = sh[sh.game_id.isin(games.game_id) & (~sh.is_ft)].copy()
-    sh["dist"] = ((sh.x - 25) ** 2 + (sh.y - 5.25) ** 2).pow(0.5)
-    sh["bucket"] = sh.dist.map(bucket_of)
-    sh["val"] = sh.points_attempted.astype(int)
-    surf = sh.groupby(["bucket", "val"], observed=True).made.mean()
+    # ---- §3/§4 xPTS per possession, from their own Events text --------------
+    ft_re = re.compile(r"free throw", re.I)
+    mark = re.compile(r"\(\d+ PTS\)")
+    TYPE_RULES = [("dunk", "Dunk"), ("layup", "Layup"), ("fade", "Fadeaway"),
+                  ("hook", "Hook"), ("tip", "Tip"), ("pullup", "Pullup"),
+                  ("floating", "Floating"), ("jump shot", "JumpShot")]
+    def class_of(line):
+        ll = line.lower()
+        for pat, cls in TYPE_RULES:
+            if pat in ll:
+                return cls
+        return "Other"
+    # every FGA line carries its distance ("27' 3PT ..."); the §4 surface
+    # (pooled 3-season FG% by distance bucket × value × type class, parsed
+    # from the Events text itself) converts each FGA to an expected value;
+    # made FTs count 1.0. All within pbpstats' own possession grouping — no
+    # cross-source matching, immune to the misordering.
     FGA_RE = re.compile(r"(\d+)' ")
+    class_rules = TYPE_RULES
+    def class_of2(line):
+        ll = line.lower()
+        for pat, cls in class_rules:
+            if pat in ll:
+                return cls
+        return "Other"
+    rich = []
+    for ssn in ("2022-23", "2023-24", "2024-25"):
+        for f in sorted(PT.glob(f"poss_{ssn}_*.json.gz")):
+            for p in json.load(gzip.open(f)):
+                for line in (p.get("Events") or "").splitlines():
+                    if ft_re.search(line.lower()): continue
+                    mm = re.search(r"(\d+)' ", line)
+                    if not mm: continue
+                    rich.append((int(mm.group(1)), 3 if "3PT" in line else 2,
+                                 class_of2(line), not line.startswith("MISS")))
+    rt = pd.DataFrame(rich, columns=["dist", "val", "cls", "made"])
+    rt["bucket"] = rt.dist.map(bucket_of)
+    surf3 = rt.groupby(["bucket", "val", "cls"], observed=True).made.mean()
+    surf2 = rt.groupby(["bucket", "val"], observed=True).made.mean()
+    surf1 = rt.val.mean() / 2.0  # league-average FG% proxy (per-shot value/2)
+    def xps_of(dd, v, cls):
+        key3 = (bucket_of(dd), v, cls)
+        if key3 in surf3.index:
+            return float(surf3.loc[key3]) * v
+        key2 = (bucket_of(dd), v)
+        if key2 in surf2.index:
+            return float(surf2.loc[key2]) * v
+        return float(surf1) * v
+    print(f"§4 surface: {len(surf3)} rich cells from {len(rt):,} FGA (3 seasons pooled)")
     ft_re = re.compile(r"free throw", re.I)
     mark = re.compile(r"\(\d+ PTS\)")
     nfga = 0
-    for r in pr.itertuples():
-        # NOTE: the Events text is not carried in the rows — parsed in the
-        # pulls loop below via a second pass over the poss files
-        pass
     xpts_by_key = {}
     for f in sorted(PT.glob(f"poss_{season_str}_*.json.gz")):
         tid = f.stem.split("_")[-1].replace(".json", "")
@@ -168,7 +200,7 @@ def main() -> None:
                 if mm:
                     dd = int(mm.group(1))
                     v = 3 if "3PT" in line else 2
-                    x += float(surf.get((bucket_of(dd), v), 0.5)) * v
+                    x += xps_of(dd, v, class_of2(line))
                     nfga += 1
             ft = sum(1 for line in (p.get("Events") or "").splitlines()
                      if ft_re.search(line) and mark.search(line))
