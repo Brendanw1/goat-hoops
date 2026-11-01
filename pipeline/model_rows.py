@@ -40,29 +40,33 @@ def game_elapsed(period: int, clock: str) -> float:
 
 
 def spans_for(pid: int, season: str, gap: float = 50.0) -> dict:
-    f = PT / f"pt_{season}_{pid}.json.gz"
-    if not f.exists():
-        return {}
-    try:
-        d = json.load(gzip.open(f))
-    except Exception:
+    """Merge every (player, team-stint) file — traded players have one file
+    per team they logged games with."""
+    files = sorted(PT.glob(f"pt_{season}_{pid}.json.gz")) + \
+            sorted(PT.glob(f"pt_{season}_{pid}_*.json.gz"))
+    if not files:
         return {}
     out = {}
-    for row in d.get("results", []):
-        ivs = sorted((float(p["StartTime"]), float(p["EndTime"]))
-                     for p in row.get("Possessions", []) if p.get("EndTime") is not None)
-        if not ivs:
+    for f in files:
+        try:
+            d = json.load(gzip.open(f))
+        except Exception:
             continue
-        merged = [list(ivs[0])]
-        for st, en in ivs[1:]:
-            if st - merged[-1][1] <= gap:
-                merged[-1][1] = max(merged[-1][1], en)
-            else:
-                merged.append([st, en])
-        # the player's side: " at X" = away, "vs X" = home (their team is the
-        # other side of the named opponent)
-        home = not row.get("Opponent", "").strip().lower().startswith("at")
-        out[row["GameId"]] = {"spans": [(a, b) for a, b in merged], "home": home}
+        for row in d.get("results", []):
+            ivs = sorted((float(p["StartTime"]), float(p["EndTime"]))
+                         for p in row.get("Possessions", []) if p.get("EndTime") is not None)
+            if not ivs:
+                continue
+            merged = [list(ivs[0])]
+            for st, en in ivs[1:]:
+                if st - merged[-1][1] <= gap:
+                    merged[-1][1] = max(merged[-1][1], en)
+                else:
+                    merged.append([st, en])
+            # the player's side: " at X" = away, "vs X" = home (their team is
+            # the other side of the named opponent)
+            home = not row.get("Opponent", "").strip().lower().startswith("at")
+            out[row["GameId"]] = {"spans": [(a, b) for a, b in merged], "home": home}
     return out
 
 

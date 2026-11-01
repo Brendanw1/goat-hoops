@@ -222,3 +222,27 @@ next lever (xPTS response via the Phase-2 shot-quality model) is §3.
 single-season noise gap; the residual distance is the xPTS-vs-points and
 priors difference. Risk: 2022-23 roster churn (players with 1 season of
 data) and λ landing at the grid edge again.
+
+### §2 read (2026-10-31): FAIL on both gates — benchmark 0.464 → 0.618, the multi-season lever delivered
+
+Backbone: three seasons on the traded-player-corrected lineage (one
+interval pull per player-team stint; capture coverage jumped to 71–85% of
+possessions per season from 39–54%). Pooled 554,869 possessions, 740
+players, global coefficients, per-season centering.
+
+| λ | split-half r | LUMA benchmark r |
+|---|---|---|
+| 100 | 0.284 | 0.528 |
+| 1,000 | 0.323 | 0.554 |
+| 10,000 (CV-selected) | 0.481 | 0.611 |
+| 30,000 | 0.592 | **0.618 (peak)** |
+| 100,000 | **0.671** ✓ | 0.596 |
+
+**Verdict: FAIL — at the λ-selected row, stability 0.481 (bar 0.60) and
+benchmark 0.611 (bar 0.70).** The single-season→multi-season move closed
+roughly a third of the benchmark gap (0.464 → 0.618 peak) and the curves
+keep climbing where §1's flattened. The remaining distance to 0.70 is the
+xPTS-vs-raw-points difference and LUMA's priors — exactly §3's lever (the
+Phase-2 shot-quality model replacing raw points as the response). No
+surface ships. The spine assets (intervals, possessions, id joins, three
+seasons deep) are permanent.
