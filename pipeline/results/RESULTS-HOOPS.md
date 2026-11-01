@@ -448,3 +448,24 @@ full coverage) and the whole evidence chain are permanent. The model is
 usable internally as a descriptive rating at λ=30k-100k (labelled
 "descriptive, not a forecast"), with the gate re-opened when the tracking
 levers land.
+
+## §6 — Prior-the-prior: xPTS ridge shrinking toward the multi-season rating (pre-registered 2026-11-01, before any fit)
+
+**Why.** §5's Game Score prior delivered +0.018 (0.658 → 0.676); the
+remaining variance is estimator noise that a *rating-quality* prior absorbs
+better than a box prior. The two best designs correlate 0.97 — the §2
+multi-season rating is a high-quality shrinkage target.
+
+**The prior (fixed).** The §2 multi-season points-RAPM rating at its
+benchmark-peak λ=30,000 (`rapm_multi_players.csv`, `rapm_30000`), centered
+over the players shared with the response season. Everything else identical
+to §4/§5: the type-rich xPTS response (single season 2024-25), prior rows
+with τ = 250, prior rows excluded from the stability gate, λ grid +
+game-margin CV, both gates unchanged (LUMA 2025 r ≥ 0.70 on ≥250 poss;
+split-half r ≥ 0.60).
+
+**Judged (read once).** The prior-the-prior fit must beat §5's 0.676 (the
+direct predecessor). Shipping rule: both gates pass → the first shipped
+model surface. Else verdict + diagnosis recorded; the RAPM family stands at
+its ceiling for this data tier and §6's remaining gap goes to the tracking
+tier.
