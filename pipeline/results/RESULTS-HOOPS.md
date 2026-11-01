@@ -469,3 +469,29 @@ direct predecessor). Shipping rule: both gates pass → the first shipped
 model surface. Else verdict + diagnosis recorded; the RAPM family stands at
 its ceiling for this data tier and §6's remaining gap goes to the tracking
 tier.
+
+### §6 read (2026-11-01): prior-the-prior TIES §5 — the shrinkage target is not a lever; the family ceiling is the finding
+
+| λ | split-half r | LUMA benchmark r |
+|---|---|---|
+| 3,000 | 0.341 | 0.617 |
+| 10,000 | 0.508 | 0.660 |
+| 30,000 | **0.611 ✓** | 0.658 |
+| 100,000 | **0.653 ✓** | 0.643 |
+
+**Verdict: FAIL — benchmark 0.658 at λ=30k (§5's Game Score prior: 0.676),
+within noise of each other.** The estimator has converged: two materially
+different shrinkage targets (box prior vs the multi-season rating) produce
+the same ceiling, and the two best designs correlate 0.97. The family's
+ceiling at this data tier is **~0.66-0.68 vs the 0.70 bar**.
+
+The gap to 0.70 is INFORMATION, not estimation: LUMA's expected-points
+surface is tracking-informed (defender context, shot quality conditioned on
+the contest), and no shrinkage choice recovers information the response
+doesn't carry. The gate re-opens when the tracking tier lands — the BDL
+GOAT trial's tracking fields or the nba.com dashboards via the egress fix.
+
+**Standing state after six preregistered reads**: the model is real, stable
+(split-half 0.61-0.65), validated at every layer, and usable internally as
+a descriptive rating (λ=30k-100k, labelled). No surface ships at the 0.70
+bar; the evidence file holds the complete map.
