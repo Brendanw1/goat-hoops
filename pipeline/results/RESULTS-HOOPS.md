@@ -313,3 +313,30 @@ with no containing window join the nearest window within ±3 seconds, else
 drop (counted). xPTS per possession = Σ assigned shots' surface values +
 made-FT count × 1.0 (the (N PTS) marker count, same accounting the validated
 points response uses). The gates are unchanged.
+
+### §3 read v2 (2026-11-01, corrected): the xPTS lever CONFIRMED — single-season 0.464 → 0.621; combined read FAIL
+
+The Events-text response (possession xPTS from pbpstats' own FGA lines:
+distance parsed from the text, surface applied, made FTs × 1.0; 196k FGA
+parsed, full coverage — zero cross-source matching) was read two ways:
+
+| design | benchmark peak | stability at peak | bars |
+|---|---|---|---|
+| §1 single-season points | 0.464 | — | 0.70 / 0.60 |
+| §2 multi-season points | 0.618 | 0.592 | 0.70 / 0.60 |
+| **§3 single-season xPTS** | **0.621** | 0.545 | 0.70 / 0.60 |
+| §3 multi-season xPTS | 0.524 | 0.577 | 0.70 / 0.60 |
+
+**Verdict: FAIL — but the xPTS lever is confirmed**: the single-season xPTS
+response beats §1's single-season points by +0.157 on identical data, and
+matches §2's multi-season points. The levers do NOT stack: the multi-season
+xPTS fit (0.524) dilutes against the season-specific benchmark (a 3-season
+averaged rating regresses toward older seasons while LUMA's slice is 2025).
+The remaining 0.08 to the bar = surface richness (LUMA's expected-points
+model almost certainly conditions on more than distance) and their priors.
+
+**Shipping rule: no surface.** The standing assets: validated three-season
+spine (intervals 0.28 min, points MAE 0.16, xPTS full coverage), the
+Events-text parser, and the λ-sensitivity maps for four designs. §4
+candidates, in order: a richer surface (shot type from the Events text,
+defender-context when tracking lands), then multi-year shrinkage priors.
