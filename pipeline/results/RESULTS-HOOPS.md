@@ -340,3 +340,29 @@ spine (intervals 0.28 min, points MAE 0.16, xPTS full coverage), the
 Events-text parser, and the λ-sensitivity maps for four designs. §4
 candidates, in order: a richer surface (shot type from the Events text,
 defender-context when tracking lands), then multi-year shrinkage priors.
+
+## §4 — Richer xPTS surface: shot-type context (pre-registered 2026-11-01, before any fit)
+
+**Why.** §3 confirmed the xPTS lever (single-season 0.464 → 0.621) with a
+distance-only surface; the remaining 0.08 to the bar is surface richness
+first. The Events text carries the shot type on every FGA line ("3PT Pullup
+Jump Shot", "Cutting Dunk Shot", "Putback Layup") — a pull-up from 25 feet
+and a catch-and-shoot from 25 feet have very different values, and a
+distance-only surface averages them away.
+
+**The type classes (fixed).** Parsed from the FGA line's text, first match
+wins: Dunk ("dunk"), Layup ("layup"), Fadeaway ("fade"), Hook ("hook"), Tip
+("tip"), Pullup ("pullup"), Floating ("floating"), JumpShot ("jump shot"),
+else Other. Made/missed: the "MISS " prefix.
+
+**The surface (fixed).** Pooled across the three pulled seasons (2022-23 →
+2024-25, ~590k FGA): FG% by (distance bucket × value × type class) with the
+deterministic fallback chain (bucket, val, class) → (bucket, val) → (val)
+league average — pre-registered, no tuning. The response: single-season
+2024-25 possession xPTS (the benchmark-aligned basis per §3), gates
+unchanged (LUMA 2025 r ≥ 0.70 on ≥250 poss; pooled split-half r ≥ 0.60 —
+the stability gate applies to the single-season fit as in §1).
+
+**Judged (read once).** The richer response must beat §3's 0.621 (the same
+data, one surface richer — the §3 number is the direct comparison).
+Shipping rule as before: both gates pass → surface; else verdict recorded.
