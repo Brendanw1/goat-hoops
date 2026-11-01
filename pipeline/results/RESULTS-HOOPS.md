@@ -390,3 +390,31 @@ plus their priors. Next levers, in order: §5 multi-year shrinkage priors
 practice); defender context when the tracking levers land.
 
 No surface ships; the evidence file keeps the full table.
+
+## §5 — Box-score priors in the xPTS ridge (pre-registered 2026-11-01, before any fit)
+
+**Why.** §4: benchmark 0.658 with stability passing; the remaining 0.04 is
+partly LUMA's priors. The standard xRAPM practice: shrink each player toward
+a box-score prior rating instead of toward zero — the ridge recovers player
+impact faster for low-minute players and stabilizes the high-minute ones.
+
+**The prior (fixed).** NBA Game Score (a public, pre-existing formula — no
+fitted coefficients): GmSc = PTS + 0.4×FGM − 0.7×FGA − 0.4×(FTA−FTM) +
+0.7×ORB + 0.3×DREB + STL + 0.7×AST + 0.7×BLK − 0.7×PF − TOV. Prior rating
+per 100 = 100 × GmSc / (MIN × 2.0) (league pace convention), minus the
+league-mean prior per 100 (centering). Season: the response's own season
+(2024-25).
+
+**The implementation (fixed).** Standard prior rows: one extra design row per
+player — response = the player's centered prior per possession (prior/100),
+predictors = +1 on that player only, weight = τ = 250 pseudo-possessions
+(fixed; no τ selection). Everything else identical to §4: the type-rich xPTS
+response, λ grid + game-margin CV, both gates (LUMA 2025 r ≥ 0.70 on ≥250
+poss; pooled split-half r ≥ 0.60 — split-half computed on the real
+possession rows only, prior rows excluded).
+
+**Judged (read once).** The prior-augmented fit must beat §4 on the
+benchmark at comparable stability (direct comparison: §4 = 0.658 peak /
+0.607 stability-passing). Shipping rule: both gates pass → the first
+shipped surface (RAPM column, gate-dated, LUMA credited). Else verdict +
+diagnosis; the remaining levers are defender context (tracking-gated).
