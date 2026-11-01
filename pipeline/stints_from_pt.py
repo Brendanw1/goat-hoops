@@ -58,6 +58,18 @@ def norm(s: str) -> str:
     return " ".join(t for t in s.split() if t and t not in SUFFIXES)
 
 
+BUCKETS = [(0, 4), (4, 9), (9, 14), (14, 19), (19, 22.5), (22.5, 24.5), (24.5, 100)]
+
+
+def dist_bucket(x, y):
+    """Distance from the rim in feet -> the preregistered bucket's upper edge."""
+    d = ((x - 25) ** 2 + (y - 5.25) ** 2) ** 0.5
+    for lo, hi in BUCKETS:
+        if lo < d <= hi:
+            return hi
+    return BUCKETS[-1][1]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2025)
@@ -68,12 +80,21 @@ def main() -> None:
 
     g = pd.read_parquet(MART / "games.parquet")
     games = g[(g.season_year == a.season) & (g.season_type == 2) & g.completed & (g.n_plays > 0)].copy()
+    # the §3 shot-value surface: league FG% by (distance bucket, shot value)
+    # and league FT%, from our validated shot table, this season only
+    sh = pd.read_parquet(MART / "shots.parquet")
+    sh = sh[sh.game_id.isin(games.game_id)].copy()
+    sh["dist"] = ((sh.x - 25) ** 2 + (sh.y - 5.25) ** 2).pow(0.5)
+    sh["bucket"] = sh.dist.map(lambda d: next((hi for lo, hi in BUCKETS if lo < d <= hi), BUCKETS[-1][1]))
+    fg = sh[~sh.is_ft]
+    surf = fg.groupby(["bucket", "points_attempted"], observed=True).made.mean()
+    ft_pct = float(sh[sh.is_ft].made.mean())
+    SURFACE = {(k[0], int(k[1])): float(v) for k, v in surf.items()}
+    shots_by_play = {str(r.play_id): (r.x, r.y) for r in fg.itertuples()}
+    print(f"surface: {len(SURFACE)} buckets | league FT% {ft_pct:.3f}")
     games["home_x"] = games.home_abbr.map(norm_team := (lambda x: None if pd.isna(x) else XWALK.get(x, x)))
     pg = pd.read_parquet(MART / "player_game.parquet")
     pb = pd.read_parquet(MART / "pbp.parquet")
-
-    xw = json.loads((PT_DIR / f"pt_ids_{season_str}.json").read_text())
-    pid_by_norm_name = {norm(n): pid for n, pid in xw.items()}
 
     # pbpstats spine for the GameId + possession-count join
     pbs = pd.read_parquet(PT_DIR / "games.parquet")
@@ -83,34 +104,41 @@ def main() -> None:
     print(f"games joined to the spine: {len(m)} of {len(games)}")
 
     # load per-player intervals once: pid -> {nba GameId: [spans]}
-    def spans_for(pid: int, gap: float) -> dict:
-        f = PT_DIR / f"pt_{season_str}_{pid}.json.gz"
-        if not f.exists():
-            return {}
-        try:
-            d = json.load(gzip.open(f))
-        except Exception:
+    def spans_for(pid: int, season: str, gap: float) -> dict:
+        """Merge every (player, team-stint) file; flag the player's side."""
+        files = sorted(PT_DIR.glob(f"pt_{season}_{pid}.json.gz")) + \
+                sorted(PT_DIR.glob(f"pt_{season}_{pid}_*.json.gz"))
+        if not files:
             return {}
         out = {}
-        for row in d.get("results", []):
-            ivs = sorted((float(p["StartTime"]), float(p["EndTime"]))
-                         for p in row.get("Possessions", []) if p.get("EndTime") is not None)
-            if not ivs:
+        for f in files:
+            try:
+                d = json.load(gzip.open(f))
+            except Exception:
                 continue
-            merged = [list(ivs[0])]
-            for st, en in ivs[1:]:
-                if st - merged[-1][1] <= gap:
-                    merged[-1][1] = max(merged[-1][1], en)
-                else:
-                    merged.append([st, en])
-            out[row["GameId"]] = [(a, b) for a, b in merged]
+            for row in d.get("results", []):
+                ivs = sorted((float(p["StartTime"]), float(p["EndTime"]))
+                             for p in row.get("Possessions", []) if p.get("EndTime") is not None)
+                if not ivs:
+                    continue
+                merged = [list(ivs[0])]
+                for st, en in ivs[1:]:
+                    if st - merged[-1][1] <= gap:
+                        merged[-1][1] = max(merged[-1][1], en)
+                    else:
+                        merged.append([st, en])
+                home = not row.get("Opponent", "").strip().lower().startswith("at")
+                out[row["GameId"]] = {"spans": [(a, b) for a, b in merged], "home": home}
         return out
 
     pt_cache = {}
     def intervals(pid):
         if pid not in pt_cache:
-            pt_cache[pid] = spans_for(pid, a.gap)
+            pt_cache[pid] = spans_for(pid, season_str, a.gap)
         return pt_cache[pid]
+    all_pids = sorted(int(f.stem.split("_")[-1].replace(".json", ""))
+                      for f in Path.home().joinpath("Projects/vt_baseball/hoops_mart/data/pbpstats")
+                      .glob(f"pt_{season_str}_*.json.gz"))
 
     rows_stint = []
     rows_poss_roster = []
@@ -121,22 +149,23 @@ def main() -> None:
         one = pb[pb.game_id == gid_espn].sort_values(["period", "seq"]).reset_index(drop=True)
         prow = pg[(pg.game_id == gid_espn) & pg.pts.notna()]
         # name -> (espn athlete id, nba.com pid) within this game
-        roster = {}
-        for r in prow.itertuples():
-            if pd.isna(r.name):
-                continue
-            pid = pid_by_norm_name.get(norm(r.name))
-            if pid:
-                roster[str(r.athlete_id)] = (r.name, pid)
+        # roster = the season's pid set (the intervals themselves are the
+        # roster; the ESPN box is no longer part of the §3 path)
+        roster = {str(pid): pid for pid in all_pids}
         if len(roster) < 10:
             n_nojoin += 1
             continue
         # player -> spans (game elapsed seconds); keyed by ESPN athlete id
+        # pid-native: spans keyed by nba.com player id, home flag per player
         espn_spans = {}
-        for aid, (name, pid) in roster.items():
-            sp = intervals(pid).get(gid_nba)
-            if sp:
-                espn_spans[aid] = sp
+        home_flags = {}
+        for pid in all_pids:
+            if pid not in pt_cache:
+                pt_cache[pid] = spans_for(pid, season_str, a.gap)
+            sp_info = pt_cache[pid].get(gid_nba)
+            if sp_info:
+                espn_spans[str(pid)] = sp_info["spans"]
+                home_flags[str(pid)] = sp_info["home"]
         if len(espn_spans) < 10:
             n_nopt += 1
             continue
@@ -216,6 +245,25 @@ def main() -> None:
             sgg["away_pts"] = ad
             dead = bool(sgg.get("opened_by_ft")) and (hd + ad) <= 1
             sgg["dead_ball"] = dead
+        # xPTS per segment: the surface lookup needs the shots' distance from
+        # the rim; the shots table carries x/y already normalized
+        for sgg in segs:
+            wa, wb = sgg["start_i"], sgg.get("end_i", len(one))
+            xpts = 0.0
+            ftas = 0
+            for j in range(wa, min(wb, len(one))):
+                rj = one.iloc[j]
+                if not rj.is_shooting:
+                    continue
+                if (rj.points_attempted or 0) == 1:
+                    ftas += 1
+                    continue
+                sh_row = shots_by_play.get(str(rj.play_id))
+                if sh_row is None:
+                    continue
+                val = int(rj.points_attempted or 2)
+                xpts += SURFACE.get((dist_bucket(sh_row[0], sh_row[1]), val), 0.0)
+            sgg["xpts"] = xpts + ftas * ft_pct
         # stint edges: boundaries of every player span
         bounds = sorted({b for sp in espn_spans.values() for iv in sp for b in iv})
         for si in range(len(bounds) - 1):
@@ -225,8 +273,7 @@ def main() -> None:
                 cov = sum(max(0.0, min(hi, b) - max(lo, a)) for a, b in sp)
                 if cov > (hi - lo) * 0.5:
                     on[aid] = cov
-            homes = [aid for aid in on
-                     if str(int(prow[prow.athlete_id.astype(str) == aid].team_id.iloc[0])) == str(gr.home_team_id)]
+            homes = [aid for aid in on if home_flags.get(aid, False)]
             aways = [aid for aid in on if aid not in homes]
             if len(homes) != 5 or len(aways) != 5:
                 continue
@@ -241,7 +288,8 @@ def main() -> None:
                                "home_pts": hp, "away_pts": ap_, "n_poss": len(live),
                                "start_el": lo, "end_el": hi})
             # possession-level rows with the on-court 10 (the RAPM design):
-            # points = the offense team's score delta across the segment
+            # points = the offense team's score delta across the segment;
+            # xpts = the §3 surface value of the segment's shots + FT xPTS
             for sgg in mine:
                 on10 = sorted(homes) + sorted(aways)
                 off_pts = (sgg["home_pts"] if sgg["team"] == str(gr.home_team_id)
@@ -250,6 +298,7 @@ def main() -> None:
                     "game_id": gid_espn, "team": sgg["team"],
                     "home": sgg["team"] == str(gr.home_team_id),
                     "pts": off_pts,
+                    "xpts": sgg.get("xpts", 0.0),
                     "dead_ball": bool(sgg.get("dead_ball")),
                     "on10": on10, "mid": (sgg["start"] + sgg["end"]) / 2})
         for aid, sp in espn_spans.items():
@@ -264,6 +313,10 @@ def main() -> None:
     DERIVED.mkdir(parents=True, exist_ok=True)
     st.to_parquet(DERIVED / f"stints_pt_{a.season}.parquet", index=False)
     pr.to_parquet(DERIVED / f"poss_rosters_{a.season}.parquet", index=False)
+    rx = pr[(~pr.dead_ball) & (pr.on10.map(len) == 10)][["game_id", "team", "home", "xpts", "on10"]] \
+        .rename(columns={"xpts": "pts"})
+    rx.to_parquet(DERIVED / f"rapm_xpts_{a.season}.parquet", index=False)
+    print(f"rapm_xrows: {len(rx):,}")
 
     # gate: minutes vs box
     mr = pd.DataFrame(minute_rows)

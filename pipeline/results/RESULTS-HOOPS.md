@@ -280,3 +280,24 @@ only change). Failure diagnosis: data vs handling vs modeling, in order.
 **Shipping rule.** Both gates pass → the first shipped model surface (RAPM
 column, gate-dated, LUMA credited). Otherwise verdict + diagnosis recorded;
 the next lever is priors (multi-year shrinkage targets).
+
+### §3 read v1 (2026-11-01): FAIL on both gates — the misordering re-enters via shot attribution
+
+The xPTS response (league surface: 13 distance×value buckets from our
+validated shot table, FT% 0.778; possession xPTS = Σ shot xPTS + FT xPTS,
+matched to segments by play index) UNDERPERFORMED raw points:
+benchmark peaks 0.313 (vs §1's 0.464 single-season points), stability flat
+~0.10 across the whole grid.
+
+**Diagnosis (handling):** the xPTS response reintroduces play attribution —
+each shot must land in its possession's window, and ESPN's misordered
+scoring sequences put shots in the neighbor segment's window exactly where
+the shots are dense. §2's score-delta response was immune because pbpstats'
+possessions carry their own points from ordered logs.
+
+**The corrected §3 (next):** keep the xPTS response but match ESPN shots to
+*pbpstats possessions by game clock* (their windows are ordered; ours are
+not) — the surface lookup then runs on correctly-grouped shots. The
+single-season xPTS read then repeats on the matched response; the
+multi-season xPTS fit follows (the 2023-24/2022-23 x/y shots require the
+same clock-matching against their pulled possessions).

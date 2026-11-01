@@ -43,11 +43,12 @@ def fit_ridge(X, y, w, lam):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seasons", nargs="+", type=int, default=[2025, 2024, 2023])
+    ap.add_argument("--rows", default="rapm_rows", help="rapm_rows (points) or rapm_xpts")
     a = ap.parse_args()
 
     frames = []
     for season in a.seasons:
-        f = DERIVED / f"rapm_rows_{season}.parquet"
+        f = DERIVED / f"{a.rows}_{season}.parquet"
         df = pd.read_parquet(f)
         df["season"] = season
         frames.append(df)
@@ -63,7 +64,7 @@ def main():
 
     X = np.zeros((len(pr), nP + 1), dtype=np.float64)
     y = np.zeros(len(pr), dtype=np.float64)
-    gids = pr.gid.to_numpy()
+    gids = pr.game_id.to_numpy()
     seasons = pr.season.to_numpy()
     homes = pr.home.to_numpy()
     for rix, row in enumerate(pr.itertuples()):
@@ -93,11 +94,11 @@ def main():
             pred = X @ beta
             gg = pr.iloc[np.where(te)[0]].copy()
             gg["pred"] = pred[te]
-            agg = gg.groupby(["gid", "team"]).agg(pred=("pred", "sum"),
+            agg = gg.groupby(["game_id", "team"]).agg(pred=("pred", "sum"),
                                                   actual=("pts", "sum"),
                                                   home=("home", "first")).reset_index()
-            piv_p = agg.pivot(index="gid", columns="home", values="pred")
-            piv_a = agg.pivot(index="gid", columns="home", values="actual")
+            piv_p = agg.pivot(index="game_id", columns="home", values="pred")
+            piv_a = agg.pivot(index="game_id", columns="home", values="actual")
             if True in piv_p.columns and False in piv_p.columns:
                 sse += float(((piv_p[True] - piv_p[False]) - (piv_a[True] - piv_a[False])).pow(2).sum())
         cv[lam] = sse
@@ -107,7 +108,7 @@ def main():
     # game-margin CV; sensitivity across the grid reported alongside)
     sens = {}
     half = np.array([int(g) % 2 for g in gids])
-    ex = pr[["gid"]].copy()
+    ex = pr[["game_id"]].copy()
     ex["aid"] = pr.on10
     ex["half"] = half
     ex = ex.explode("aid")
