@@ -418,3 +418,33 @@ benchmark at comparable stability (direct comparison: §4 = 0.658 peak /
 0.607 stability-passing). Shipping rule: both gates pass → the first
 shipped surface (RAPM column, gate-dated, LUMA credited). Else verdict +
 diagnosis; the remaining levers are defender context (tracking-gated).
+
+### §5 read (2026-11-01): box-score priors deliver 0.676 — verdict FAIL by 0.024; the RAPM family's levers are exhausted at this data tier
+
+| λ | split-half r | LUMA benchmark r |
+|---|---|---|
+| 1,000 | 0.200 | 0.561 |
+| 10,000 | 0.466 | 0.671 |
+| 30,000 | 0.572 | **0.676 (peak)** |
+| 100,000 | **0.618 ✓** | 0.661 |
+
+**Verdict: FAIL — benchmark 0.676 (bar 0.70) at the peak; stability 0.572
+there (bar 0.60), passing at λ=100k where the benchmark is 0.661.** The
+priors added +0.018 over §4 (0.658 → 0.676) and pulled the low-minute
+players toward their box priors exactly as designed. The full progression:
+§1 0.464 → §2 0.618 → §3 0.621 → §4 0.658 → **§5 0.676** — five
+pre-registered reads, every lever measured on the same gates.
+
+The remaining 0.024 is now attributed to LUMA's proprietary advantages that
+the named levers cannot reach: their expected-points surface conditions on
+defender context and shooter identity, and their regularization uses
+multi-year priors richer than one Game Score row. The next levers are
+gated: defender context on the tracking sources (BDL GOAT trial / egress
+fix), and a richer prior (their surface's exact form is theirs).
+
+**Standing state**: no surface ships; five verdicts recorded; the
+three-season validated spine (intervals 0.28 min, points MAE 0.16, xPTS
+full coverage) and the whole evidence chain are permanent. The model is
+usable internally as a descriptive rating at λ=30k-100k (labelled
+"descriptive, not a forecast"), with the gate re-opened when the tracking
+levers land.
