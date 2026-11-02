@@ -54,6 +54,21 @@ export type HoopsPlayerDoc = {
     games: HoopsPlayerGame[];
   }>;
 };
+export type HoopsContractDeal = {
+  type: string | null; status: string | null;
+  start: number | null; end: number | null; years: number | null;
+  total_value: number | null; avg_salary: number | null;
+  guaranteed: number | null; guaranteed_signing: number | null;
+  signed_using: string | null; fa_year: number | null; fa_status: string | null;
+  notes: string | null; team: string | null;
+};
+export type HoopsContractDoc = {
+  deals: Record<string, HoopsContractDeal[]>;
+  salaries: Record<string, {
+    season: number | null; cap_hit: number | null; base_salary: number | null; team: string | null;
+  }>;
+  unmapped: number; note: string;
+};
 export type HoopsBoxRow = {
   name: string; pos: string | null; starter: boolean; dnp: boolean;
   min: number | null; pts: number | null; reb: number | null; ast: number | null;
@@ -98,6 +113,9 @@ export const getHoopsPlayers = cache(async (): Promise<HoopsPlayersDoc | null> =
 
 export const getHoopsPlayer = cache(async (id: string): Promise<HoopsPlayerDoc | null> =>
   (await fetchGzippedJson<HoopsPlayerDoc>(`player/${id}.json.gz`)) ?? null);
+
+export const getHoopsContracts = cache(async (): Promise<HoopsContractDoc | null> =>
+  (await fetchFromR2<HoopsContractDoc>("contracts.json").catch(() => null)) ?? null);
 
 /** Seasons the bake covers, newest first (falls back to nothing before the first bake). */
 export async function hoopsSeasons(): Promise<number[]> {

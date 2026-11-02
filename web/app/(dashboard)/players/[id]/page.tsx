@@ -1,19 +1,35 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
-import { getHoopsPlayer } from "@/lib/data-hoops";
+import { getHoopsContracts, getHoopsPlayer } from "@/lib/data-hoops";
+import type { HoopsContractDeal } from "@/lib/data-hoops";
 
 export const dynamic = "force-dynamic";
 
-/** One player: per-season lines (per game + per 36) and the game log. */
+const money = (v: number | null | undefined) => {
+  if (v == null) return "—";
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `$${Math.round(v / 1e3)}K`;
+  return `$${v}`;
+};
+
+const dealSpan = (d: HoopsContractDeal) =>
+  d.start != null && d.end != null ? `${d.start}-${String(d.end).slice(2)}` :
+  d.start != null ? `${d.start}-` : "—";
+
+/** One player: contract panel, per-season lines (per game + per 36), game log. */
 export default async function HoopsPlayerPage({ params }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const doc = await getHoopsPlayer(id);
+  const [doc, cdoc] = [await getHoopsPlayer(id), await getHoopsContracts()];
   if (!doc || !Object.keys(doc.seasons).length) notFound();
   const seasons = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
   const latest = doc.seasons[seasons[0]];
+  const deals = cdoc?.deals[id] ?? [];
+  const salary = cdoc?.salaries[id];
+  const current = deals.find((d) => d.status === "CURRENT") ?? deals[0];
+  const prior = current ? deals.filter((d) => d !== current) : deals;
 
   return (
     <div className="space-y-5">
@@ -24,6 +40,53 @@ export default async function HoopsPlayerPage({ params }: {
           {[...new Set(seasons.map((s) => doc.seasons[s].team).filter(Boolean))].join(" · ")}
         </p>
       </div>
+
+      {(current || salary) && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs space-y-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+            <h2 className="text-sm font-medium text-text-primary">Contract</h2>
+            {salary && (
+              <span className="text-text-secondary tabular-nums">
+                {salary.season ? `${salary.season - 1}-${String(salary.season).slice(2)} · ` : ""}
+                cap hit {money(salary.cap_hit)}
+                {salary.base_salary != null && salary.base_salary !== salary.cap_hit &&
+                  ` · base ${money(salary.base_salary)}`}
+                {salary.team ? ` · ${salary.team}` : ""}
+              </span>
+            )}
+          </div>
+          {current && (
+            <>
+              <div className="text-text-secondary">
+                <span className="text-text-primary font-medium">{current.type ?? "Deal"}</span>
+                {current.team ? ` · ${current.team}` : ""}
+                {current.years != null && <> · {dealSpan(current)} ({current.years} yr{current.years === 1 ? "" : "s"})</>}
+                {current.total_value != null && <> · {money(current.total_value)}</>}
+                {current.avg_salary != null && <> · {money(current.avg_salary)}/yr</>}
+              </div>
+              <div className="text-text-dim">
+                {current.guaranteed != null && <>guaranteed {money(current.guaranteed)} · </>}
+                {current.signed_using && <>signed using {current.signed_using} · </>}
+                {current.fa_year != null &&
+                  <>FA {current.fa_year}{current.fa_status ? ` (${current.fa_status})` : ""}</>}
+              </div>
+              {current.notes && <div className="text-text-dim">{current.notes}</div>}
+            </>
+          )}
+          {prior.length > 0 && (
+            <div className="text-text-dim tabular-nums pt-0.5 border-t border-border-subtle/50">
+              {prior.map((d, i) => (
+                <span key={i}>
+                  {i > 0 && " · "}
+                  {d.type ?? "Deal"} {dealSpan(d)}
+                  {d.total_value != null ? ` (${money(d.total_value)})` : ""}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="text-[10px] text-text-dim/70">balldontlie snapshot — internal research</div>
+        </div>
+      )}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl">
         {seasons.map((s) => {

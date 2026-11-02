@@ -21,6 +21,8 @@ Files (keys under the hoops/ prefix on R2; goatpro/ is the sibling's):
   team/{abbr}.json.gz          one club: season aggregates + game list
   players.json                 player-season board rows (leaderboard)
   player/{id}.json.gz          one player: season lines + game log
+  contracts.json               balldontlie deal/salary snapshot, name-bridged
+                               to ESPN ids (docs/bdl-profile-schemas.md)
 """
 
 import argparse
@@ -37,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "export" / "web"
 MART = Path(os.environ.get("HOOPS_MART",
                            Path.home() / "Projects" / "vt_baseball" / "hoops_mart" / "data" / "mart"))
+BDL = MART.parent / "bdl"
 
 TYPE_LABEL = {1: "preseason", 2: "regular", 3: "postseason"}
 # ESPN abbreviations -> franchise names (static; the mart carries ids/abbrs
@@ -50,6 +53,22 @@ NBA_TEAMS = {
     "ORL": "Magic", "PHI": "76ers", "PHX": "Suns", "POR": "Trail Blazers",
     "SAC": "Kings", "SA": "Spurs", "TOR": "Raptors", "UTAH": "Jazz", "WSH": "Wizards",
 }
+# balldontlie's abbreviations are the standard ones; ESPN's six oddballs:
+BDL_ABBR2ESPN = {"GSW": "GS", "NOP": "NO", "NYK": "NY", "SAS": "SA", "UTA": "UTAH", "WAS": "WSH"}
+_NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+
+def norm_name(s) -> str | None:
+    """The name bridge used for the LUMA join: lowercase, punctuation off,
+    generational suffixes off, collapsed spaces."""
+    try:
+        if s is None or pd.isna(s):
+            return None
+    except (TypeError, ValueError):
+        pass
+    t = str(s).lower().replace(".", "").replace("'", "").replace("-", " ")
+    toks = [t for t in t.split() if t and t not in _NAME_SUFFIXES]
+    return " ".join(toks) or None
 
 
 def clean(obj):
@@ -281,6 +300,79 @@ def bake(out_dir: Path | None = None) -> dict:
         jwrite_gz(out / "player" / f"{ath}.json.gz",
                   {"id": str(ath), "name": name, "seasons": seasons})
     counts["player_files"] = pgx_played.athlete_id.nunique()
+
+    # contracts.json — balldontlie snapshot, name-bridged to ESPN ids -----------
+    teams_f, agg_f = BDL / "contracts_teams_2026.parquet", BDL / "contracts_agg_current.batches.jsonl"
+    if teams_f.exists() and agg_f.exists():
+        # identity by BDL player_id (register names), falling back to the
+        # embedded name only when the register lacks the id — embedded names
+        # in the contracts feeds have been observed to drift (Grant/MEM row)
+        espn_of: dict[str, set] = {}
+        for ath, nm in pg[["athlete_id", "name"]].dropna().drop_duplicates().itertuples(index=False):
+            n = norm_name(nm)
+            if n:
+                espn_of.setdefault(n, set()).add(int(ath))
+        espn_of = {n: next(iter(ids)) for n, ids in espn_of.items() if len(ids) == 1}
+        tdf = pd.read_parquet(teams_f)
+        bdl_team = {int(r["team.id"]): BDL_ABBR2ESPN.get(r["team.abbreviation"], r["team.abbreviation"])
+                    for _, r in tdf.drop_duplicates("team.id").iterrows()}
+        reg_f = BDL / "nba_players_active.parquet"
+        bdl2espn: dict[int, int] = {}
+        if reg_f.exists():
+            rdf = pd.read_parquet(reg_f)
+            for _, r in rdf.iterrows():
+                e = espn_of.get(norm_name(f"{r['first_name']} {r['last_name']}"))
+                if e:
+                    bdl2espn[int(r["id"])] = e
+        deals: dict[str, list] = {}
+        unmapped = 0
+        # the jsonl holds batch lines {key, rows:[deal, ...]} — flatten
+        agg_rows = [r for l in agg_f.read_text().splitlines() if l.strip()
+                    for r in json.loads(l).get("rows", [])]
+        for d in agg_rows:
+            eid = bdl2espn.get(int(d.get("player_id") or (d.get("player") or {}).get("id") or -1))
+            if not eid:
+                p = d.get("player") or {}
+                eid = espn_of.get(norm_name(f"{p.get('first_name', '')} {p.get('last_name', '')}"))
+            if not eid:
+                unmapped += 1
+                continue
+            deals.setdefault(str(eid), []).append({
+                "type": d.get("contract_type"), "status": d.get("contract_status"),
+                "start": d.get("start_year"), "end": d.get("end_year"),
+                "years": d.get("contract_years"), "total_value": d.get("total_value"),
+                "avg_salary": d.get("average_salary"),
+                "guaranteed": d.get("total_guaranteed"),
+                "guaranteed_signing": d.get("guaranteed_at_signing"),
+                "signed_using": d.get("signed_using"), "fa_year": d.get("free_agent_year"),
+                "fa_status": d.get("free_agent_status"), "notes": d.get("contract_notes"),
+                "team": bdl_team.get(d.get("team_id"))})
+        for v in deals.values():
+            v.sort(key=lambda d: -(d["start"] or 0))
+        salaries = {}
+        salary_team_mismatch = 0
+        for _, r in tdf.iterrows():
+            eid = bdl2espn.get(int(r["player_id"]))
+            if eid:
+                team = bdl_team.get(int(r["team.id"]))
+                cur = deals.get(str(eid), [])
+                cur_team = next((d["team"] for d in cur if d["status"] == "CURRENT"), None)
+                if cur_team and team and cur_team != team:
+                    salary_team_mismatch += 1  # feeds disagree — keep the row, count it
+                salaries[str(eid)] = {"season": iv(r["season"]),
+                                      "cap_hit": iv(r["cap_hit"]),
+                                      "base_salary": iv(r["base_salary"]),
+                                      "team": team}
+        jwrite(out / "contracts.json", {
+            "deals": deals, "salaries": salaries, "unmapped": unmapped,
+            "salary_team_mismatch": salary_team_mismatch,
+            "note": "balldontlie GOAT-trial snapshot 2026-11-02; internal research — "
+                    "public surfaces carry these numbers only while a subscription is active"})
+        counts["contracts_deals"] = sum(len(v) for v in deals.values())
+        counts["contracts_salaries"] = len(salaries)
+        counts["contracts_salary_team_mismatch"] = salary_team_mismatch
+    else:
+        print("contracts: BDL snapshot files missing — contracts.json skipped")
 
     # game/{gid}.json.gz -----------------------------------------------------------------
     pg_by = {k: v for k, v in pgx.groupby("game_id")}
