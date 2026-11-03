@@ -301,34 +301,65 @@ def bake(out_dir: Path | None = None) -> dict:
                   {"id": str(ath), "name": name, "seasons": seasons})
     counts["player_files"] = pgx_played.athlete_id.nunique()
 
-    # contracts.json — balldontlie snapshot, name-bridged to ESPN ids -----------
-    teams_f, agg_f = BDL / "contracts_teams_2026.parquet", BDL / "contracts_agg_current.batches.jsonl"
-    if teams_f.exists() and agg_f.exists():
-        # identity by BDL player_id (register names), falling back to the
-        # embedded name only when the register lacks the id — embedded names
-        # in the contracts feeds have been observed to drift (Grant/MEM row)
-        espn_of: dict[str, set] = {}
-        for ath, nm in pg[["athlete_id", "name"]].dropna().drop_duplicates().itertuples(index=False):
-            n = norm_name(nm)
-            if n:
-                espn_of.setdefault(n, set()).add(int(ath))
-        espn_of = {n: next(iter(ids)) for n, ids in espn_of.items() if len(ids) == 1}
-        tdf = pd.read_parquet(teams_f)
+    # bridge: norm-name -> ESPN id, and BDL player_id -> ESPN id (shared by
+    # the contracts + season-average-category docs below). Ambiguous norms
+    # (two ESPN ids share a name) are dropped, not guessed.
+    espn_of: dict[str, set] = {}
+    for ath, nm in pg[["athlete_id", "name"]].dropna().drop_duplicates().itertuples(index=False):
+        n = norm_name(nm)
+        if n:
+            espn_of.setdefault(n, set()).add(int(ath))
+    espn_of = {n: next(iter(ids)) for n, ids in espn_of.items() if len(ids) == 1}
+    bdl_team = {}
+    if (BDL / "contracts_teams_2026.parquet").exists():
+        tdf = pd.read_parquet(BDL / "contracts_teams_2026.parquet")
         bdl_team = {int(r["team.id"]): BDL_ABBR2ESPN.get(r["team.abbreviation"], r["team.abbreviation"])
                     for _, r in tdf.drop_duplicates("team.id").iterrows()}
-        reg_f = BDL / "nba_players_active.parquet"
-        bdl2espn: dict[int, int] = {}
-        if reg_f.exists():
-            rdf = pd.read_parquet(reg_f)
-            for _, r in rdf.iterrows():
-                e = espn_of.get(norm_name(f"{r['first_name']} {r['last_name']}"))
-                if e:
-                    bdl2espn[int(r["id"])] = e
+    bdl2espn: dict[int, int] = {}
+    reg_f = BDL / "nba_players_active.parquet"
+    if reg_f.exists():
+        rdf = pd.read_parquet(reg_f)
+        for _, r in rdf.iterrows():
+            e = espn_of.get(norm_name(f"{r['first_name']} {r['last_name']}"))
+            if e:
+                bdl2espn[int(r["id"])] = e
+
+    # contracts.json — balldontlie snapshot, name-bridged to ESPN ids -----------
+    teams_f = BDL / "contracts_teams_2026.parquet"
+    agg_f = BDL / "contracts_agg_current.batches.jsonl"   # in-flight source
+    agg_parquet = BDL / "contracts_agg_current.parquet"   # completed source
+    if teams_f.exists() and (agg_f.exists() or agg_parquet.exists()):
+        # identity by BDL player_id (register names above); embedded names in
+        # the contracts feeds have been observed to drift (Grant/MEM row)
         deals: dict[str, list] = {}
         unmapped = 0
-        # the jsonl holds batch lines {key, rows:[deal, ...]} — flatten
-        agg_rows = [r for l in agg_f.read_text().splitlines() if l.strip()
-                    for r in json.loads(l).get("rows", [])]
+        if agg_f.exists():
+            # the jsonl holds batch lines {key, rows:[deal, ...]} — flatten
+            agg_rows = [r for l in agg_f.read_text().splitlines() if l.strip()
+                        for r in json.loads(l).get("rows", [])]
+        else:
+            # the completed pull deletes its jsonl; the parquet is flat —
+            # rebuild just the fields the deal builder reads (numpy-safe)
+            pdf = pd.read_parquet(agg_parquet)
+            need = ("player_id", "start_year", "end_year", "contract_type", "contract_status",
+                    "contract_years", "total_value", "average_salary", "total_guaranteed",
+                    "guaranteed_at_signing", "signed_using", "free_agent_year",
+                    "free_agent_status", "contract_notes", "team_id")
+            agg_rows = []
+            for _, r in pdf.iterrows():
+                d: dict = {}
+                for k in need:
+                    v = r.get(k)
+                    if hasattr(v, "__len__") and not isinstance(v, str):
+                        d[k] = None  # degenerate array cell — builder needs none of it
+                    elif pd.isna(v):
+                        d[k] = None
+                    else:
+                        try:
+                            d[k] = round(float(v), 3)
+                        except (TypeError, ValueError):
+                            d[k] = str(v)
+                agg_rows.append(d)
         for d in agg_rows:
             eid = bdl2espn.get(int(d.get("player_id") or (d.get("player") or {}).get("id") or -1))
             if not eid:
@@ -373,6 +404,83 @@ def bake(out_dir: Path | None = None) -> dict:
         counts["contracts_salary_team_mismatch"] = salary_team_mismatch
     else:
         print("contracts: BDL snapshot files missing — contracts.json skipped")
+
+    # seasavgs_{season}.json.gz — curated category season averages -----------
+    # docs/bdl-profile-schemas.md; docs keyed by ESPN id, one entry per player
+    def ss_pick(row, keys, prefix="stats."):
+        out = {}
+        for k in keys:
+            col = f"{prefix}{k}"
+            if col not in row.index:
+                continue
+            v = row[col]
+            if hasattr(v, "__len__") and not isinstance(v, str):
+                continue  # degenerate array cell — nothing to show
+            if pd.isna(v):
+                continue
+            try:
+                out[k] = round(float(v), 3)
+            except (TypeError, ValueError):
+                out[k] = str(v)
+        return out
+
+    PT_KEYS = ("play_type", "gp", "poss", "ppp", "pts", "fga", "fg_pct", "efg_pct",
+               "poss_pct", "percentile", "tov_poss_pct", "ft_poss_pct")
+    ZONES = ("restricted_area", "in_the_paint_(non-ra)", "mid-range",
+             "left_corner_3", "right_corner_3", "above_the_break_3", "backcourt")
+    BANDS = ("less_than_5_ft", "5-9_ft", "10-14_ft", "15-19_ft", "20-24_ft",
+             "25-29_ft", "30-34_ft", "35-39_ft", "40+_ft")
+    for ss_season in ("2025", "2024", "2023"):
+        ss_files = sorted(BDL.glob(f"seasavgs_{ss_season}_*.parquet"))
+        if len(ss_files) < 40:
+            continue
+        players: dict[str, dict] = {}
+        for f in ss_files:
+            tag = f.stem.replace(f"seasavgs_{ss_season}_", "")
+            df = pd.read_parquet(f)
+            if tag.startswith("playtype_"):
+                for _, r in df.iterrows():
+                    eid = bdl2espn.get(int(r["player.id"]))
+                    if not eid:
+                        continue
+                    players.setdefault(str(eid), {}).setdefault(
+                        "playtype", []).append(ss_pick(r, PT_KEYS))
+            elif tag.startswith("tracking_") or tag in ("hustle", "defense_overall",
+                                                        "clutch_advanced", "general_advanced"):
+                key = {"tracking_speeddistance": "speed", "tracking_drives": "drives",
+                       "tracking_passing": "passing", "tracking_painttouch": "paint",
+                       "tracking_catchshoot": "catch_shoot", "tracking_pullupshot": "pullup",
+                       "tracking_posttouch": "post", "tracking_elbowtouch": "elbow",
+                       "tracking_rebounding": "reb_tracking", "tracking_efficiency": "eff",
+                       "tracking_possessions": "poss_t", "tracking_defense": "def_t",
+                       "hustle": "hustle", "defense_overall": "defense",
+                       "clutch_advanced": "clutch", "general_advanced": "adv"}.get(tag, tag)
+                for _, r in df.iterrows():
+                    eid = bdl2espn.get(int(r["player.id"]))
+                    if not eid:
+                        continue
+                    players.setdefault(str(eid), {})[key] = ss_pick(r, tuple(
+                        c.replace("stats.", "") for c in df.columns if c.startswith("stats.")))
+            elif tag == "shooting_by_zone":
+                for _, r in df.iterrows():
+                    eid = bdl2espn.get(int(r["player.id"]))
+                    if not eid:
+                        continue
+                    players.setdefault(str(eid), {})["zones"] = {
+                        z: ss_pick(r, ("fga", "fgm", "fg_pct"), prefix=f"stats.{z}_") for z in ZONES}
+            elif tag == "shooting_5ft_range":
+                for _, r in df.iterrows():
+                    eid = bdl2espn.get(int(r["player.id"]))
+                    if not eid:
+                        continue
+                    players.setdefault(str(eid), {})["bands"] = {
+                        b: ss_pick(r, ("fga", "fgm", "fg_pct"), prefix=f"stats.{b}._") for b in BANDS}
+        for v in players.values():
+            if "playtype" in v:
+                v["playtype"].sort(key=lambda d: -(d.get("poss") or 0))
+        jwrite_gz(out / f"seasavgs_{ss_season}.json.gz",
+                  {"season": int(ss_season), "players": players})
+        counts[f"seasavgs_{ss_season}"] = len(players)
 
     # game/{gid}.json.gz -----------------------------------------------------------------
     pg_by = {k: v for k, v in pgx.groupby("game_id")}

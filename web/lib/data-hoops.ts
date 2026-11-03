@@ -114,6 +114,17 @@ export const getHoopsPlayers = cache(async (): Promise<HoopsPlayersDoc | null> =
 export const getHoopsPlayer = cache(async (id: string): Promise<HoopsPlayerDoc | null> =>
   (await fetchGzippedJson<HoopsPlayerDoc>(`player/${id}.json.gz`)) ?? null);
 
+export type HoopsSSCat = Record<string, number | string | null>;
+export type HoopsSSPlayer = {
+  playtype?: HoopsSSCat[];
+  zones?: Record<string, HoopsSSCat>;
+  bands?: Record<string, HoopsSSCat>;
+} & { [k: string]: HoopsSSCat | HoopsSSCat[] | undefined };
+export type HoopsSeasAvgsDoc = { season: number; players: Record<string, HoopsSSPlayer> };
+
+export const getHoopsSeasAvgs = cache(async (season: number): Promise<HoopsSeasAvgsDoc | null> =>
+  (await fetchGzippedJson<HoopsSeasAvgsDoc>(`seasavgs_${season}.json.gz`)) ?? null);
+
 export const getHoopsContracts = cache(async (): Promise<HoopsContractDoc | null> =>
   (await fetchFromR2<HoopsContractDoc>("contracts.json").catch(() => null)) ?? null);
 
