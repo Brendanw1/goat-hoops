@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
-import { getHoopsContracts, getHoopsPlayer, getHoopsSeasAvgs } from "@/lib/data-hoops";
+import { ShotHeatMap } from "@/components/ui/shot-heatmap";
+import { getHoopsContracts, getHoopsPlayer, getHoopsPlayerShots, getHoopsSeasAvgs } from "@/lib/data-hoops";
 import type { HoopsContractDeal, HoopsSSCat } from "@/lib/data-hoops";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,12 @@ const dealSpan = (d: HoopsContractDeal) =>
   d.start != null && d.end != null ? `${d.start}-${String(d.end).slice(2)}` :
   d.start != null ? `${d.start}-` : "—";
 
+const ord = (n: number) => {
+  const v = Math.round(n * 100);
+  const mod10 = v % 10, mod100 = v % 100;
+  return `${v}${mod10 === 1 && mod100 !== 11 ? "st" : mod10 === 2 && mod100 !== 12 ? "nd" : mod10 === 3 && mod100 !== 13 ? "rd" : "th"}`;
+};
+
 const RateChip = ({ label, value }: { label: string; value: number | string | null | undefined }) => (
   <div className="bg-white/[0.03] rounded px-2 py-1">
     <div className="text-text-dim text-[10px]">{label}</div>
@@ -41,11 +48,16 @@ export default async function HoopsPlayerPage({ params }: {
   if (!doc || !Object.keys(doc.seasons).length) notFound();
   const seasons = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
   const latest = doc.seasons[seasons[0]];
-  const [cdoc, ss25, ss24] = [await getHoopsContracts(), await getHoopsSeasAvgs(2025), await getHoopsSeasAvgs(2024)];
+  const [cdoc, ss25, ss24, ps27, ps25] = [
+    await getHoopsContracts(), await getHoopsSeasAvgs(2025), await getHoopsSeasAvgs(2024),
+    await getHoopsPlayerShots(2027), await getHoopsPlayerShots(2025)];
   const ssDoc = ss25 ?? ss24;
   const ss = ssDoc?.players[id];
   const pt = ss?.playtype ?? [];
   const adv = ss?.adv;
+  const ranks = ss?.pct_ranks;
+  const ps = ps27?.players[id] ? { grid: ps27.players[id], label: "2026-27 (live)" }
+    : ps25?.players[id] ? { grid: ps25.players[id], label: "2024-25" } : null;
   const deals = cdoc?.deals[id] ?? [];
   const salary = cdoc?.salaries[id];
   const current = deals.find((d) => d.status === "CURRENT") ?? deals[0];
@@ -129,6 +141,29 @@ export default async function HoopsPlayerPage({ params }: {
               <div className="text-[10px] text-text-dim/70 mt-1">balldontlie snapshot — internal research</div>
             </div>
           )}
+          {ss && (
+            <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs">
+              <h2 className="text-sm font-medium text-text-primary mb-1.5">
+                League percentile <span className="text-text-dim font-normal text-[10px]">· {ssLabel} · among bridged tracked players</span>
+              </h2>
+              <div className="grid grid-cols-4 gap-1.5">
+                {([["TS%", ranks?.["adv.ts_pct"]], ["USG%", ranks?.["adv.usg_pct"]],
+                   ["Net rtg", ranks?.["adv.net_rating"]], ["PIE", ranks?.["adv.pie"]],
+                   ["Drive pts", ranks?.["drives.drive_pts"]], ["AST pts created", ranks?.["passing.ast_points_created"]],
+                   ["Distance", ranks?.["speed.dist_miles"]], ["Deflections", ranks?.["hustle.deflections"]]] as const)
+                  .filter(([, v]) => typeof v === "number")
+                  .map(([label, v]) => (
+                    <div key={label} className="bg-white/[0.03] rounded px-2 py-1">
+                      <div className="text-text-dim text-[10px]">{label}</div>
+                      <div className={`font-medium tabular-nums ${Number(v) >= 0.85 ? "text-usf-green" : Number(v) <= 0.15 ? "text-[#e0654f]" : "text-text-primary"}`}>
+                        {typeof v === "number" ? ord(v) : "—"}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              <div className="text-[10px] text-text-dim/70 mt-1">computed at bake time from the balldontlie category rows — internal research</div>
+            </div>
+          )}
           {pt.length > 0 && (
             <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs">
               <h2 className="text-sm font-medium text-text-primary mb-1.5">
@@ -196,6 +231,15 @@ export default async function HoopsPlayerPage({ params }: {
                 </tbody>
               </table>
               <div className="text-[10px] text-text-dim/70 mt-1">balldontlie snapshot — internal research</div>
+            </div>
+          )}
+          {ps && (
+            <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+              <h2 className="text-sm font-medium text-text-primary mb-1.5">
+                Shot heat map <span className="text-text-dim font-normal text-[10px]">· ESPN shot x/y · 2.5 ft bins</span>
+              </h2>
+              <ShotHeatMap grid={ps.grid} label={ps.label} />
+              <div className="text-[10px] text-text-dim/70">ESPN-derived coordinates — internal research</div>
             </div>
           )}
         </div>

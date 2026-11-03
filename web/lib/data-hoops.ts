@@ -119,11 +119,17 @@ export type HoopsSSPlayer = {
   playtype?: HoopsSSCat[];
   zones?: Record<string, HoopsSSCat>;
   bands?: Record<string, HoopsSSCat>;
-} & { [k: string]: HoopsSSCat | HoopsSSCat[] | undefined };
+  pct_ranks?: Record<string, number>;
+} & { [k: string]: HoopsSSCat | HoopsSSCat[] | Record<string, number> | undefined };
 export type HoopsSeasAvgsDoc = { season: number; players: Record<string, HoopsSSPlayer> };
+export type HoopsShotGrid = { n: number; fgm: number; cells: [number, number, number, number][] };
+export type HoopsPlayerShotsDoc = { season: number; binsize: number; players: Record<string, HoopsShotGrid> };
 
 export const getHoopsSeasAvgs = cache(async (season: number): Promise<HoopsSeasAvgsDoc | null> =>
   (await fetchGzippedJson<HoopsSeasAvgsDoc>(`seasavgs_${season}.json.gz`)) ?? null);
+
+export const getHoopsPlayerShots = cache(async (season: number): Promise<HoopsPlayerShotsDoc | null> =>
+  (await fetchGzippedJson<HoopsPlayerShotsDoc>(`playershots_${season}.json.gz`)) ?? null);
 
 export const getHoopsContracts = cache(async (): Promise<HoopsContractDoc | null> =>
   (await fetchFromR2<HoopsContractDoc>("contracts.json").catch(() => null)) ?? null);

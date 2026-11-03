@@ -31,6 +31,7 @@ import json
 import os
 import sys
 import tempfile
+import unicodedata
 from pathlib import Path
 
 import pandas as pd
@@ -60,13 +61,16 @@ _NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
 
 def norm_name(s) -> str | None:
     """The name bridge used for the LUMA join: lowercase, punctuation off,
-    generational suffixes off, collapsed spaces."""
+    generational suffixes off, diacritics folded (ESPN 'Dončić' vs BDL
+    'Doncic'), collapsed spaces."""
     try:
         if s is None or pd.isna(s):
             return None
     except (TypeError, ValueError):
         pass
-    t = str(s).lower().replace(".", "").replace("'", "").replace("-", " ")
+    t = unicodedata.normalize("NFD", str(s).lower())
+    t = "".join(ch for ch in t if not unicodedata.combining(ch))
+    t = t.replace(".", "").replace("'", "").replace("-", " ")
     toks = [t for t in t.split() if t and t not in _NAME_SUFFIXES]
     return " ".join(toks) or None
 
@@ -478,9 +482,49 @@ def bake(out_dir: Path | None = None) -> dict:
         for v in players.values():
             if "playtype" in v:
                 v["playtype"].sort(key=lambda d: -(d.get("poss") or 0))
+        # league percentile ranks (0 lowest .. 1 highest) for the chip panel
+        RANK_METRICS = ("adv.ts_pct", "adv.usg_pct", "adv.net_rating", "adv.pie",
+                        "drives.drive_pts", "drives.drive_fg_pct",
+                        "passing.ast_points_created", "paint.paint_touch_pts",
+                        "catch_shoot.catch_shoot_fg_pct", "pullup.pull_up_efg_pct",
+                        "speed.dist_miles", "hustle.deflections", "defense.d_fg_pct")
+        for path in RANK_METRICS:
+            sec, k = path.split(".")
+            vals = []
+            for eid, cats in players.items():
+                v = (cats.get(sec) or {}).get(k)
+                if isinstance(v, (int, float)):
+                    vals.append((eid, v))
+            if len(vals) < 30:
+                continue
+            vals.sort(key=lambda t: t[1])
+            for i, (eid, _) in enumerate(vals):
+                players[eid].setdefault("pct_ranks", {})[path] = round(i / (len(vals) - 1), 3)
         jwrite_gz(out / f"seasavgs_{ss_season}.json.gz",
                   {"season": int(ss_season), "players": players})
         counts[f"seasavgs_{ss_season}"] = len(players)
+
+    # playershots_{season}.json.gz — half-court heat grids from ESPN x/y ------
+    # coordinates are feet on the attacking half (x 0-50, y 0 baseline -> 47);
+    # sentinels and wild values are dropped at the court boundary
+    sh_ok = sh[(sh.x >= -5) & (sh.x <= 55) & (sh.y >= -5) & (sh.y <= 50)].copy()
+    sh_ok["season_year"] = sh_ok.game_id.map(gg["season_year"])
+    for hs in (2027, 2025):
+        hg = sh_ok[sh_ok.season_year == hs]
+        if len(hg) < 1000:
+            continue
+        grid_players: dict[str, dict] = {}
+        for ath, rows in hg.groupby("shooter_id"):
+            xs = (rows.x // 2.5).astype(int)
+            ys = (rows.y // 2.5).astype(int)
+            cells = []
+            for (ix, iy), cr in rows.groupby([xs, ys]):
+                cells.append([int(ix), int(iy), int(len(cr)), int(cr.made.sum())])
+            grid_players[str(int(ath))] = {"n": int(len(rows)), "fgm": int(rows.made.sum()),
+                                           "cells": sorted(cells)}
+        jwrite_gz(out / f"playershots_{hs}.json.gz",
+                  {"season": int(hs), "binsize": 2.5, "players": grid_players})
+        counts[f"playershots_{hs}"] = len(grid_players)
 
     # game/{gid}.json.gz -----------------------------------------------------------------
     pg_by = {k: v for k, v in pgx.groupby("game_id")}

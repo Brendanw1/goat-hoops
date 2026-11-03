@@ -12,7 +12,7 @@ import type { HoopsShot } from "@/lib/data-hoops";
 
 const RIM = { x: 25, y: 5.25 };
 
-function Court() {
+export function Court() {
   return (
     <g stroke="rgba(148,163,184,0.35)" fill="none" strokeWidth={0.35}>
       <rect x={0} y={-5} width={50} height={52} stroke="none" fill="rgba(15,23,42,0.35)" />
