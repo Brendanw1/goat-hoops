@@ -495,3 +495,59 @@ GOAT trial's tracking fields or the nba.com dashboards via the egress fix.
 (split-half 0.61-0.65), validated at every layer, and usable internally as
 a descriptive rating (λ=30k-100k, labelled). No surface ships at the 0.70
 bar; the evidence file holds the complete map.
+
+## §7 — Tracking SPM prior in the xPTS ridge (pre-registered 2026-11-04 on the owner OK, before any fit)
+
+**Why.** §6: the RAPM family's ceiling at the box tier is ~0.66-0.68 vs the
+0.70 bar, and the gap was attributed to information (tracking), not
+estimation. The BDL trial landed that tier (hoops_mart `bdl_mart.py`,
+`bdl_season.parquet`: 47 season-average categories incl. drives, touches,
+passing, rebound chances, defended-at-rim, hustle incl. screen assists and
+contests, play types, defender-distance shooting; 99.8% bridged to nba.com
+ids). Standard practice for this lever is a statistical-plus-minus (SPM)
+prior: regress a multi-season RAPM on box + tracking rates, then shrink each
+player toward his SPM prediction instead of a box formula. This is the
+single lever this read tests.
+
+**The SPM target (fixed, out of season).** A two-season points-RAPM on
+2022-23 + 2023-24 only (`rapm_multi.py --seasons 2024 2023`, the §2 design,
+λ = 30,000 — §2's benchmark-peak λ), written to its own output files so §2's
+are untouched. The response season 2024-25 never enters the SPM fit.
+
+**The SPM features (fixed rule, wide then select).** Every `bdl_season`
+column for the player's 2022-23 and 2023-24 seasons, possession-weighted
+across the two. Counting columns become per-36 using `general_base.min`;
+columns whose name contains `pct`, `percentage`, `freq`, `ratio`, `avg`,
+`speed`, `dist` or `rating` stay as they are; `gp`, `w`, `l`, `age` dropped
+(`age` re-added once as a plain feature). Missing values: median fill plus a
+missing flag per category. Players with ≥ 500 possessions in the target.
+
+**The SPM fit (fixed).** Elastic net on standardized features, α and the
+l1 ratio (0.1, 0.5, 0.9) chosen by 5-fold cross-validation grouped by
+player, weighted by possessions, nested inside an outer 5-fold to report the
+SPM's own out-of-fold r vs its target (reported, not gated). No LUMA number
+enters the SPM fit: LUMA stays a benchmark only (its house rule: no
+reconstruction of its ratings).
+
+**The prior (fixed).** The SPM fitted on 2022-23 + 2023-24, applied to each
+player's 2024-25 `bdl_season` row (same transform), centered over the
+response season's players, per 100 possessions → per possession. Players
+without a 2024-25 BDL row fall back to their §5 Game Score prior; the count
+is reported. Implementation identical to §5: one prior row per player,
+weight τ = 250, the type-rich xPTS response (2024-25), λ grid + game-margin
+CV, prior rows excluded from the stability gate; both gates unchanged (LUMA
+2025 r ≥ 0.70 on ≥ 250 possessions; split-half r ≥ 0.60).
+
+**Judged (read once).** Against §5's 0.676 (the direct predecessor, same
+implementation, box prior). Verdict at the CV-selected λ and the table over
+the grid as before. Pass = both gates at one λ. Caveat stated in advance:
+LUMA's surface is itself tracking-informed, so a gain partly measures shared
+inputs; split-half stability is the gate that does not share them.
+
+**Diagnosis plan if it fails.** (a) data: SPM out-of-fold r < 0.5 means the
+features don't carry RAPM signal at this sample (report per-category
+importance); (b) handling: the τ = 250 weight was fixed for a box prior and
+is not re-tuned here (a later read can pre-register τ); (c) modeling: if the
+SPM is strong but the ridge gain is small, the response, not the prior, is
+the limit (defender context per shot is still absent: BDL tracking is
+player-game aggregates, not per shot).
