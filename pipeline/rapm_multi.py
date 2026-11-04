@@ -44,6 +44,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seasons", nargs="+", type=int, default=[2025, 2024, 2023])
     ap.add_argument("--rows", default="rapm_rows", help="rapm_rows (points) or rapm_xpts")
+    ap.add_argument("--tag", default="", help="output suffix, e.g. _spmtarget (§7), so §2's files are untouched")
     a = ap.parse_args()
 
     frames = []
@@ -149,12 +150,12 @@ def main():
           f"GATE benchmark: {gate_b} ({row_sel['benchmark']} on {row_sel['n_bench']} players)")
 
     RESULTS.mkdir(parents=True, exist_ok=True)
-    ratings.to_csv(RESULTS / "rapm_multi_players.csv", index=False)
+    ratings.to_csv(RESULTS / f"rapm_multi{a.tag}_players.csv", index=False)
     verdict = {"seasons": a.seasons, "lambda_selected": lam_sel, "cv": cv,
                "sensitivity": sens_rows, "gate_stability": gate_stab,
                "gate_benchmark": gate_b,
                "n_possessions": int(len(pr)), "n_players": nP}
-    (RESULTS / "rapm_multi.json").write_text(json.dumps(verdict, indent=2))
+    (RESULTS / f"rapm_multi{a.tag}.json").write_text(json.dumps(verdict, indent=2))
     print(json.dumps({k: v2 for k, v2 in verdict.items() if k != "cv"}, indent=2))
 
 
