@@ -551,3 +551,14 @@ is not re-tuned here (a later read can pre-register τ); (c) modeling: if the
 SPM is strong but the ridge gain is small, the response, not the prior, is
 the limit (defender context per shot is still absent: BDL tracking is
 player-game aggregates, not per shot).
+
+**Implementation notes (written before the read, 2026-11-04).** `pipeline/rapm_spm.py` reuses §5's
+code verbatim from the design matrix on, so the comparison with §5 is like for like. Two consequences
+are recorded now, not after: (1) §5's split-half code assigns the prior rows (no game id) to the
+even half, so they shape the even-half fit and not the odd one; the text above says "excluded", the
+code §5 was measured with does not fully exclude them, and §7 keeps §5's code unchanged for
+comparability. (2) The verdict is read at the CV-selected λ (minimum held-out game-margin SSE), with
+"pass" meaning both gates at one grid λ, and the λ = 30,000 row (§5's slot) shown for the direct
+comparison. Also fixed before the read: the feature rule matches its keep-list on the full column
+name (`category.stat`), so every `tracking_speeddistance` column stays per game; `*_rank` columns are
+counting-style under the rule and go per 36 as written; non-numeric columns are dropped.
