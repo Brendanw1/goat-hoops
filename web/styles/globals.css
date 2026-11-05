@@ -7,6 +7,16 @@
   --color-usf-green: oklch(0.35 0.08 165);
   --color-usf-gold: oklch(0.82 0.16 80);
 
+  /* Semantic data colors — judgment lives here and only here. pos/neg say
+     good/bad against league context (percentile chips, vs-league cells, W/L,
+     plus/minus); flag marks partial or small-sample data, so "low
+     confidence" never borrows judgment colors and gold stays a brand
+     accent. Everywhere a value is colored, one of these three decides —
+     ad-hoc hexes are how a dashboard starts lying with its palette. */
+  --color-pos: oklch(0.74 0.14 155);
+  --color-neg: oklch(0.68 0.15 25);
+  --color-flag: oklch(0.72 0.12 300);
+
   /* Pitch Type Colors — balanced perceived brightness */
   --color-pitch-fastball: oklch(0.60 0.20 25);
   --color-pitch-sinker: oklch(0.65 0.17 45);

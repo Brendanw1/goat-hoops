@@ -72,7 +72,7 @@ export default async function HoopsPlayersPage({ searchParams }: {
                   <Link href={`/players/${r.id}`} className="text-text-primary hover:underline">{r.name}</Link>
                 </td>
                 <td>{r.team ?? "—"}</td><td>{r.pos ?? "—"}</td>
-                <td>{r.gp}</td><td>{r.gs}</td><td>{r.min}</td>
+                <td>{r.gp}</td><td>{r.gs ?? "—"}</td><td>{r.min}</td>
                 <td className="font-medium">{r.pts}</td><td>{r.reb}</td><td>{r.ast}</td>
                 <td>{r.stl}</td><td>{r.blk}</td><td>{r.tov}</td>
                 <td>{r.pts36 ?? "—"}</td><td>{r.reb36 ?? "—"}</td><td>{r.ast36 ?? "—"}</td>

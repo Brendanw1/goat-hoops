@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { ShotHeatMap } from "@/components/ui/shot-heatmap";
-import { getHoopsContracts, getHoopsPlayer, getHoopsPlayerShots, getHoopsSeasAvgs } from "@/lib/data-hoops";
+import {
+  getHoopsAdvAgg, getHoopsCareers, getHoopsContracts, getHoopsMeta, getHoopsPlayer,
+  getHoopsPlayerShots, getHoopsSeasAvgs,
+} from "@/lib/data-hoops";
 import type { HoopsContractDeal, HoopsSSCat } from "@/lib/data-hoops";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +22,10 @@ const fnum = (v: number | string | null | undefined, dp = 1) => {
   if (v == null) return "—";
   return v;
 };
-const rate = (v: number | string | null | undefined) =>
-  typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "—";
+const rate = (v: number | string | null | undefined, dp = 1) =>
+  typeof v === "number" ? `${(v * 100).toFixed(dp)}%` : "—";
+const makePct = (m?: number | null, a?: number | null) =>
+  m != null && a != null && a > 0 ? `${((m / a) * 100).toFixed(1)}%` : "—";
 
 const dealSpan = (d: HoopsContractDeal) =>
   d.start != null && d.end != null ? `${d.start}-${String(d.end).slice(2)}` :
@@ -32,14 +37,96 @@ const ord = (n: number) => {
   return `${v}${mod10 === 1 && mod100 !== 11 ? "st" : mod10 === 2 && mod100 !== 12 ? "nd" : mod10 === 3 && mod100 !== 13 ? "rd" : "th"}`;
 };
 
-const RateChip = ({ label, value }: { label: string; value: number | string | null | undefined }) => (
+const seasonLabel = (s: string | number) => `${Number(s) - 1}-${String(s).slice(2)}`;
+
+/** League-distribution percentiles baked per season in advagg.json.gz. */
+type Dist = Record<string, number | undefined>;
+const distOf = (lg: Record<string, unknown> | undefined, key: string): Dist | undefined =>
+  (lg?.[`${key}|dist`] as Dist | undefined) ?? undefined;
+
+/**
+ * Judgment color, one rule for every vs-league value: top decile green
+ * (medium weight), bottom decile red, next bands tinted, middle neutral.
+ * `lower` flips the direction for allowance stats (DRtg, opp FG%...).
+ */
+const tier = (v: number | null | undefined, d: Dist | undefined, lower = false): string => {
+  if (typeof v !== "number" || !d || d.p25 == null || d.p75 == null) return "text-text-primary";
+  if (d.p10 != null && d.p90 != null) {
+    if (lower ? v <= d.p10 : v >= d.p90) return "text-pos font-medium";
+    if (lower ? v >= d.p90 : v <= d.p10) return "text-neg font-medium";
+  }
+  if (lower ? v <= d.p25 : v >= d.p75) return "text-pos";
+  if (lower ? v >= d.p75 : v <= d.p25) return "text-neg";
+  return "text-text-primary";
+};
+
+const RateChip = ({ label, value, cls }: { label: string; value: React.ReactNode; cls?: string }) => (
   <div className="bg-white/[0.03] rounded px-2 py-1">
     <div className="text-text-dim text-[10px]">{label}</div>
-    <div className="text-text-primary font-medium tabular-nums">{fnum(value, 1)}</div>
+    <div className={`font-medium tabular-nums ${cls ?? "text-text-primary"}`}>{value}</div>
   </div>
 );
 
-/** One player: contract, category panels, per-season lines, game log. */
+const PanelNote = ({ children }: { children: React.ReactNode }) => (
+  <div className="text-[10px] text-text-dim/70 mt-1">{children}</div>
+);
+
+/** Career arc: PPG bars over a TS% line, one season per step (2005-26). */
+function CareerArc({ rows }: { rows: number[][] }) {
+  if (!rows?.length) return null;
+  const W = 560, padL = 26, padR = 12, gapT = 8;
+  const hPpg = 78, hTs = 62, hAxis = 18, padT = 6;
+  const H = padT + hPpg + gapT + hTs + hAxis;
+  const n = rows.length;
+  const step = (W - padL - padR) / n;
+  const bw = Math.min(step * 0.62, 26);
+  const maxP = Math.max(...rows.map((r) => r[4] ?? 0), 10);
+  const yPpg = (v: number) => padT + hPpg * (1 - v / maxP);
+  const tsLo = 0.42, tsHi = 0.75;
+  const yTs = (v: number) => padT + hPpg + gapT + hTs * (1 - (v - tsLo) / (tsHi - tsLo));
+  const xc = (i: number) => padL + step * (i + 0.5);
+  const tsPts = rows.map((r, i) => (r[7] != null ? `${xc(i)},${yTs(r[7])}` : null)).filter(Boolean) as string[];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
+      aria-label="Career scoring and true-shooting arc by season">
+      <text x={2} y={padT + 10} className="fill-current text-text-dim" fontSize="9">ppg</text>
+      {rows.map((r, i) => {
+        const p = r[4] ?? 0;
+        return (
+          <g key={r[0]}>
+            <rect x={xc(i) - bw / 2} y={yPpg(p)} width={bw} height={Math.max(yPpg(0) - yPpg(p), 0)}
+              rx={2} className="fill-current text-usf-green/70">
+              <title>{`${seasonLabel(r[0])} · ${r[2]} gp · ${fnum(r[3])} mpg · ${fnum(r[4])} ppg · ${fnum(r[5])} rpg · ${fnum(r[6])} apg`}</title>
+            </rect>
+            {i === n - 1 && (
+              <text x={xc(i)} y={yPpg(p) - 3} fontSize="9" textAnchor="middle"
+                className="fill-current text-text-primary">{fnum(p)}</text>
+            )}
+          </g>
+        );
+      })}
+      <text x={2} y={padT + hPpg + gapT + 10} className="fill-current text-text-dim" fontSize="9">TS%</text>
+      {tsPts.length > 1 && (
+        <polyline points={tsPts.join(" ")} fill="none" strokeWidth="1.5"
+          className="stroke-current text-usf-gold/80" />
+      )}
+      {rows.map((r, i) => r[7] != null ? (
+        <circle key={r[0]} cx={xc(i)} cy={yTs(r[7])} r={2.5} className="fill-current text-usf-gold">
+          <title>{`${seasonLabel(r[0])} · TS ${(r[7] * 100).toFixed(1)}% · USG ${r[8] != null ? (r[8] * 100).toFixed(1) : "—"}%`}</title>
+        </circle>
+      ) : null)}
+      <line x1={padL} x2={W - padR} y1={padT + hPpg + gapT + hTs + 6} y2={padT + hPpg + gapT + hTs + 6}
+        className="stroke-current text-white/10" strokeWidth="1" />
+      <text x={padL} y={H - 2} fontSize="9" className="fill-current text-text-dim">{seasonLabel(rows[0][0])}</text>
+      <text x={W - padR} y={H - 2} fontSize="9" textAnchor="end" className="fill-current text-text-dim">
+        {seasonLabel(rows[n - 1][0])}
+      </text>
+    </svg>
+  );
+}
+
+/** One player: full stat tables (basic + advanced), career arc, category
+ *  panels, and game logs across every baked season. */
 export default async function HoopsPlayerPage({ params }: {
   params: Promise<{ id: string }>;
 }) {
@@ -47,11 +134,11 @@ export default async function HoopsPlayerPage({ params }: {
   const doc = await getHoopsPlayer(id);
   if (!doc || !Object.keys(doc.seasons).length) notFound();
   const seasons = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
-  const latest = doc.seasons[seasons[0]];
-  const [cdoc, ss25, ss24, ps27, ps25] = [
-    await getHoopsContracts(), await getHoopsSeasAvgs(2025), await getHoopsSeasAvgs(2024),
+  const [cdoc, advDoc, careers, meta, ss26, ss25, ps27, ps25] = [
+    await getHoopsContracts(), await getHoopsAdvAgg(), await getHoopsCareers(), await getHoopsMeta(),
+    await getHoopsSeasAvgs(2026), await getHoopsSeasAvgs(2025),
     await getHoopsPlayerShots(2027), await getHoopsPlayerShots(2025)];
-  const ssDoc = ss25 ?? ss24;
+  const ssDoc = ss26 ?? ss25;
   const ss = ssDoc?.players[id];
   const pt = ss?.playtype ?? [];
   const adv = ss?.adv;
@@ -62,7 +149,20 @@ export default async function HoopsPlayerPage({ params }: {
   const salary = cdoc?.salaries[id];
   const current = deals.find((d) => d.status === "CURRENT") ?? deals[0];
   const prior = current ? deals.filter((d) => d !== current) : deals;
-  const ssLabel = ssDoc ? `${ssDoc.season - 1}-${String(ssDoc.season).slice(2)}` : "";
+  const ssLabel = ssDoc ? seasonLabel(ssDoc.season) : "";
+  const arc = careers?.players[id];
+  const advSeasons = advDoc
+    ? Object.keys(advDoc.seasons).sort((a, b) => Number(b) - Number(a))
+        .filter((s) => advDoc.seasons[s]?.players?.[id])
+    : [];
+  const defSeason = advSeasons.find((s) => (advDoc.seasons[s].players[id].min ?? 0) > 0);
+  const defP = defSeason ? advDoc.seasons[defSeason].players[id] : null;
+  const defLg = defSeason ? advDoc.league[defSeason] : undefined;
+  const lower = new Set(advDoc?.lower_better ?? []);
+  const partial = (s: string) => {
+    const m = meta?.seasons[s];
+    return m && m.games < 800 ? { games: m.games, src: (m as { source?: string }).source } : null;
+  };
 
   return (
     <div className="space-y-5">
@@ -80,7 +180,7 @@ export default async function HoopsPlayerPage({ params }: {
             <h2 className="text-sm font-medium text-text-primary">Contract</h2>
             {salary && (
               <span className="text-text-secondary tabular-nums">
-                {salary.season ? `${salary.season - 1}-${String(salary.season).slice(2)} · ` : ""}
+                {salary.season ? `${seasonLabel(salary.season)} · ` : ""}
                 cap hit {money(salary.cap_hit)}
                 {salary.base_salary != null && salary.base_salary !== salary.cap_hit &&
                   ` · base ${money(salary.base_salary)}`}
@@ -121,24 +221,134 @@ export default async function HoopsPlayerPage({ params }: {
         </div>
       )}
 
+      {/* Season statistics — every baked season, basic box line -------------- */}
+      <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs overflow-x-auto">
+        <h2 className="text-sm font-medium text-text-primary mb-1.5">Season statistics</h2>
+        <table className="w-full text-[11px] tabular-nums min-w-[640px]">
+          <thead>
+            <tr className="text-text-dim text-left">
+              <th className="font-normal pr-2">Season</th><th className="font-normal">Team</th>
+              <th className="font-normal">GP</th><th className="font-normal">GS</th>
+              <th className="font-normal">MPG</th>
+              <th className="font-normal">FG%</th><th className="font-normal">3P%</th>
+              <th className="font-normal">FT%</th>
+              <th className="font-normal">RPG</th><th className="font-normal">APG</th>
+              <th className="font-normal">SPG</th><th className="font-normal">BPG</th>
+              <th className="font-normal">TOV</th><th className="font-normal">PPG</th>
+            </tr>
+          </thead>
+          <tbody>
+            {seasons.map((s) => {
+              const r = doc.seasons[s];
+              const sh = r.shoot;
+              const flag = partial(s);
+              return (
+                <tr key={s} className="border-t border-border-subtle/50">
+                  <td className="pr-2 text-text-secondary whitespace-nowrap">
+                    {seasonLabel(s)}
+                    {flag && <span className="text-flag text-[9px] ml-1" title={`${flag.games} games covered${flag.src === "bdl" ? " — balldontlie partial" : ""}`}>partial</span>}
+                  </td>
+                  <td>{r.team ?? "—"}</td>
+                  <td>{r.gp}</td><td>{r.gs ?? "—"}</td><td>{r.per_game.min}</td>
+                  <td>{makePct(sh?.fg[0], sh?.fg[1])}</td>
+                  <td>{makePct(sh?.tp[0], sh?.tp[1])}</td>
+                  <td>{makePct(sh?.ft[0], sh?.ft[1])}</td>
+                  <td>{r.per_game.reb}</td><td>{r.per_game.ast}</td>
+                  <td>{r.per_game.stl}</td><td>{r.per_game.blk}</td>
+                  <td>{r.per_game.tov}</td>
+                  <td className="font-medium text-text-primary">{r.per_game.pts}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <PanelNote>
+          sources: <span className="text-text-secondary">ESPN</span> for {seasons.filter((s) => doc.seasons[s].gs != null).map(seasonLabel).join(", ") || "—"},
+          balldontlie for the rest — the cross-source agreement check (2024-25: 688/688 games, box lines exact)
+          is in meta.json. &ldquo;partial&rdquo; seasons carry fewer than 800 league games.
+        </PanelNote>
+      </div>
+
+      {/* Career arc ----------------------------------------------------------- */}
+      {arc && arc.length > 1 && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">
+            Career arc <span className="text-text-dim font-normal text-[10px]">· {seasonLabel(arc[0][0])} → {seasonLabel(arc[arc.length - 1][0])} · hover a point for the line</span>
+          </h2>
+          <CareerArc rows={arc} />
+          <PanelNote>balldontlie season averages, regular seasons — internal research</PanelNote>
+        </div>
+      )}
+
+      {/* Advanced rates by season --------------------------------------------- */}
+      {advDoc && advSeasons.length > 0 && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs overflow-x-auto">
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">
+            Advanced rates <span className="text-text-dim font-normal text-[10px]">· green top quartile, red bottom · vs league, per season</span>
+          </h2>
+          <table className="w-full text-[11px] tabular-nums min-w-[640px]">
+            <thead>
+              <tr className="text-text-dim text-left">
+                <th className="font-normal pr-2">Season</th><th className="font-normal">GP</th>
+                <th className="font-normal">TS%</th><th className="font-normal">eFG%</th>
+                <th className="font-normal">USG%</th><th className="font-normal">AST%</th>
+                <th className="font-normal">ORB%</th><th className="font-normal">DRB%</th>
+                <th className="font-normal">ORtg</th><th className="font-normal">DRtg</th>
+                <th className="font-normal">NET</th><th className="font-normal">PIE</th>
+              </tr>
+            </thead>
+            <tbody>
+              {advSeasons.map((s) => {
+                const p = advDoc.seasons[s].players[id];
+                const lg = advDoc.league[s];
+                const flagCovered = (Number(lg?.rows ?? 0) || 0) < 20000;
+                const v = (k: string) => (typeof p[k] === "number" ? (p[k] as number) : null);
+                return (
+                  <tr key={s} className="border-t border-border-subtle/50">
+                    <td className="pr-2 text-text-secondary whitespace-nowrap">
+                      {seasonLabel(s)}
+                      {flagCovered && <span className="text-flag text-[9px] ml-1" title="the advanced feed covered only part of this season">partial</span>}
+                    </td>
+                    <td>{p.gp}</td>
+                    <td className={tier(v("ts_pct"), distOf(lg, "ts_pct"))}>{rate(v("ts_pct"))}</td>
+                    <td className={tier(v("efg_pct"), distOf(lg, "efg_pct"))}>{rate(v("efg_pct"))}</td>
+                    <td>{rate(v("usg_pct"))}</td>
+                    <td className={tier(v("ast_pct"), distOf(lg, "ast_pct"))}>{rate(v("ast_pct"))}</td>
+                    <td className={tier(v("orb_pct"), distOf(lg, "orb_pct"))}>{rate(v("orb_pct"))}</td>
+                    <td className={tier(v("drb_pct"), distOf(lg, "drb_pct"))}>{rate(v("drb_pct"))}</td>
+                    <td className={tier(v("ortg"), distOf(lg, "ortg"))}>{fnum(v("ortg"))}</td>
+                    <td className={tier(v("drtg"), distOf(lg, "drtg"), true)}>{fnum(v("drtg"))}</td>
+                    <td className={tier(v("net"), distOf(lg, "net"))}>{fnum(v("net"))}</td>
+                    <td className={tier(v("pie"), distOf(lg, "pie"))}>{rate(v("pie"))}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <PanelNote>
+            balldontlie v2-advanced game rows rolled up per season (minutes-weighted rates) — internal research
+          </PanelNote>
+        </div>
+      )}
+
       {ss && (
         <div className="max-w-3xl space-y-3">
           {adv && (
             <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs">
               <h2 className="text-sm font-medium text-text-primary mb-1.5">
-                Advanced rates <span className="text-text-dim font-normal text-[10px]">· {ssLabel}</span>
+                Category rates <span className="text-text-dim font-normal text-[10px]">· {ssLabel} (balldontlie season averages)</span>
               </h2>
               <div className="grid grid-cols-4 gap-1.5">
                 <RateChip label="TS%" value={rate(adv.ts_pct)} />
                 <RateChip label="eFG%" value={rate(adv.efg_pct)} />
                 <RateChip label="USG%" value={rate(adv.usg_pct)} />
                 <RateChip label="AST%" value={rate(adv.ast_pct)} />
-                <RateChip label="ORtg" value={adv.off_rating} />
-                <RateChip label="DRtg" value={adv.def_rating} />
-                <RateChip label="Net" value={adv.net_rating} />
-                <RateChip label="PIE" value={adv.pie} />
+                <RateChip label="ORtg" value={fnum(adv.off_rating)} />
+                <RateChip label="DRtg" value={fnum(adv.def_rating)} />
+                <RateChip label="Net" value={fnum(adv.net_rating)} />
+                <RateChip label="PIE" value={fnum(adv.pie)} />
               </div>
-              <div className="text-[10px] text-text-dim/70 mt-1">balldontlie snapshot — internal research</div>
+              <PanelNote>balldontlie snapshot — internal research</PanelNote>
             </div>
           )}
           {ss && (
@@ -155,13 +365,13 @@ export default async function HoopsPlayerPage({ params }: {
                   .map(([label, v]) => (
                     <div key={label} className="bg-white/[0.03] rounded px-2 py-1">
                       <div className="text-text-dim text-[10px]">{label}</div>
-                      <div className={`font-medium tabular-nums ${Number(v) >= 0.85 ? "text-usf-green" : Number(v) <= 0.15 ? "text-[#e0654f]" : "text-text-primary"}`}>
+                      <div className={`font-medium tabular-nums ${Number(v) >= 0.85 ? "text-pos" : Number(v) <= 0.15 ? "text-neg" : "text-text-primary"}`}>
                         {typeof v === "number" ? ord(v) : "—"}
                       </div>
                     </div>
                   ))}
               </div>
-              <div className="text-[10px] text-text-dim/70 mt-1">computed at bake time from the balldontlie category rows — internal research</div>
+              <PanelNote>computed at bake time from the balldontlie category rows — internal research</PanelNote>
             </div>
           )}
           {pt.length > 0 && (
@@ -170,16 +380,20 @@ export default async function HoopsPlayerPage({ params }: {
                 Play type <span className="text-text-dim font-normal text-[10px]">· {ssLabel} · poss per game · bar = league percentile</span>
               </h2>
               <div className="space-y-1">
-                {pt.filter((d) => Number(d.poss) > 0).map((d) => (
-                  <div key={String(d.play_type)} className="flex items-center gap-2">
-                    <span className="w-20 text-text-secondary shrink-0">{String(d.play_type).replace("nba_", "")}</span>
-                    <div className="flex-1 h-2.5 bg-white/[0.04] rounded-sm overflow-hidden">
-                      <div className="h-full bg-usf-green/70" style={{ width: `${Math.round(Number(d.percentile ?? 0) * 100)}%` }} />
+                {pt.filter((d) => Number(d.poss) > 0).map((d) => {
+                  const pc = Number(d.percentile ?? 0);
+                  return (
+                    <div key={String(d.play_type)} className="flex items-center gap-2">
+                      <span className="w-20 text-text-secondary shrink-0">{String(d.play_type).replace("nba_", "")}</span>
+                      <div className="flex-1 h-2.5 bg-white/[0.04] rounded-sm overflow-hidden">
+                        <div className={`h-full ${pc >= 0.85 ? "bg-pos/70" : pc <= 0.15 ? "bg-neg/70" : "bg-white/30"}`}
+                          style={{ width: `${Math.round(pc * 100)}%` }} />
+                      </div>
+                      <span className="w-16 text-right text-text-primary tabular-nums">{fnum(d.ppp, 2)} ppp</span>
+                      <span className="w-16 text-right text-text-dim tabular-nums">{fnum(d.poss)} poss</span>
                     </div>
-                    <span className="w-16 text-right text-text-primary tabular-nums">{fnum(d.ppp, 2)} ppp</span>
-                    <span className="w-16 text-right text-text-dim tabular-nums">{fnum(d.poss)} poss</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -211,67 +425,89 @@ export default async function HoopsPlayerPage({ params }: {
               </div>
             ) : null;
           })()}
-          {ss.zones && (
-            <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
-              <h2 className="text-sm font-medium text-text-primary mb-1.5">Shot zones</h2>
-              <table className="w-full text-[11px] tabular-nums">
-                <thead>
-                  <tr className="text-text-dim text-left">
-                    <th className="font-normal pr-2">Zone</th><th className="font-normal">FGA</th><th className="font-normal">FG%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(ss.zones).filter(([, z]) => Number(z.fga) > 0).map(([z, v]) => (
-                    <tr key={z} className="border-t border-border-subtle/50">
-                      <td className="pr-2 text-text-secondary">{z.replace(/_/g, " ")}</td>
-                      <td className="text-text-primary">{fnum(v.fga, 0)}</td>
-                      <td>{rate(Number(v.fg_pct))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="text-[10px] text-text-dim/70 mt-1">balldontlie snapshot — internal research</div>
-            </div>
-          )}
-          {ps && (
-            <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
-              <h2 className="text-sm font-medium text-text-primary mb-1.5">
-                Shot heat map <span className="text-text-dim font-normal text-[10px]">· ESPN shot x/y · 2.5 ft bins</span>
-              </h2>
-              <ShotHeatMap grid={ps.grid} label={ps.label} />
-              <div className="text-[10px] text-text-dim/70">ESPN-derived coordinates — internal research</div>
-            </div>
-          )}
         </div>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl">
-        {seasons.map((s) => {
-          const r = doc.seasons[s];
-          return (
-            <div key={s} className="rounded-lg border border-border-subtle px-3 py-2 text-xs">
-              <div className="text-text-primary font-medium mb-1">
-                {Number(s) - 1}-{String(s).slice(2)} · {r.team ?? "—"} · {r.gp} GP ({r.gs} GS)
-              </div>
-              <div className="text-text-secondary tabular-nums">
-                {r.per_game.pts} pts · {r.per_game.reb} reb · {r.per_game.ast} ast ·
-                {" "}{r.per_game.stl} stl · {r.per_game.blk} blk · {r.per_game.tov} tov ·
-                {" "}{r.per_game.min} min
-              </div>
-              <div className="text-text-dim tabular-nums mt-0.5">
-                per 36: {r.per36.pts ?? "—"} / {r.per36.reb ?? "—"} / {r.per36.ast ?? "—"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Defense & activity — v2-advanced matchup/tracking roll-up ----------- */}
+      {defP && defSeason && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">
+            Defense &amp; activity <span className="text-text-dim font-normal text-[10px]">
+              · {seasonLabel(defSeason)} · per 36 · colored vs league bands
+            </span>
+          </h2>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+            {([
+              ["Matchup min", fnum((defP.matchup_min ?? 0) as number), false, "matchup_min"],
+              ["Opp FG% matched", rate(defP.matchup_fg_pct as number | null), true, "matchup_fg_pct"],
+              ["Opp 3P% matched", rate(defP.matchup_3pt_pct as number | null), true, "matchup_3pt_pct"],
+              ["Rim FG% allowed", rate(defP.d_rim_fg_pct as number | null), true, "d_rim_fg_pct"],
+              ["Contested", fnum(defP.contested as number | null, 1), false, "contested"],
+              ["Contested FG%", rate(defP.contested_fg_pct as number | null), true, "contested_fg_pct"],
+              ["Deflections", fnum(defP.deflections as number | null, 1), false, "deflections"],
+              ["Charges", fnum(defP.charges as number | null, 1), false, "charges"],
+              ["Box outs", fnum(defP.boxouts as number | null, 1), false, "boxouts"],
+              ["Screen ast", fnum(defP.screen_ast as number | null, 1), false, "screen_ast"],
+              ["Loose balls", fnum(defP.loose as number | null, 1), false, "loose"],
+              ["Reb chances", fnum(defP.reb_ch as number | null, 1), false, "reb_ch"],
+              ["Passes", fnum(defP.passes as number | null, 1), false, "passes"],
+              ["Touches", fnum(defP.touches as number | null, 1), false, "touches"],
+              ["2nd ast", fnum(defP.sec_ast as number | null, 1), false, "sec_ast"],
+              ["Blocks against", fnum(defP.blka as number | null, 1), true, "blka"],
+            ] as [string, string, boolean, string][]).map(([label, value, isLower, key]) => (
+              <RateChip key={label} label={label} value={value}
+                cls={typeof defP[key] === "number" ? tier(defP[key] as number, distOf(defLg, key), isLower) : undefined} />
+            ))}
+          </div>
+          <PanelNote>
+            matchup minutes, contested shots, box outs and rebound chances from balldontlie&apos;s
+            v2-advanced feed — internal research
+          </PanelNote>
+        </div>
+      )}
 
+      {ss && ss.zones && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">Shot zones</h2>
+          <table className="w-full text-[11px] tabular-nums">
+            <thead>
+              <tr className="text-text-dim text-left">
+                <th className="font-normal pr-2">Zone</th><th className="font-normal">FGA</th><th className="font-normal">FG%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(ss.zones).filter(([, z]) => Number(z.fga) > 0).map(([z, v]) => (
+                <tr key={z} className="border-t border-border-subtle/50">
+                  <td className="pr-2 text-text-secondary">{z.replace(/_/g, " ")}</td>
+                  <td className="text-text-primary">{fnum(v.fga, 0)}</td>
+                  <td>{rate(Number(v.fg_pct))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <PanelNote>balldontlie snapshot — internal research</PanelNote>
+        </div>
+      )}
+      {ps && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">
+            Shot heat map <span className="text-text-dim font-normal text-[10px]">· ESPN shot x/y · 2.5 ft bins</span>
+          </h2>
+          <ShotHeatMap grid={ps.grid} label={ps.label} />
+          <div className="text-[10px] text-text-dim/70">ESPN-derived coordinates — internal research</div>
+        </div>
+      )}
+
+      {/* Game logs — every baked season --------------------------------------- */}
       {seasons.map((s) => {
         const r = doc.seasons[s];
+        const flag = partial(s);
         return (
           <div key={s} className="space-y-1">
             <h2 className="text-sm font-medium text-text-primary">
-              {Number(s) - 1}-{String(s).slice(2)} game log
+              {seasonLabel(s)} game log
+              {r.team ? <span className="text-text-dim font-normal"> · {r.team}</span> : null}
+              {flag && <span className="text-flag text-[10px] font-normal"> · partial ({flag.games} league games covered)</span>}
             </h2>
             <table className="w-full text-[11px] tabular-nums">
               <thead>
@@ -287,23 +523,24 @@ export default async function HoopsPlayerPage({ params }: {
                 </tr>
               </thead>
               <tbody>
-                {[...r.games].reverse().map((g) => (
-                  <tr key={g.id} className="border-t border-border-subtle/50 hover:bg-white/[0.03]">
-                    <td className="pr-2">
-                      <Link href={`/games/${g.id}`} className="text-text-primary hover:underline tabular-nums">
-                        {g.date}
-                      </Link>
-                    </td>
-                    <td>{g.home ? "vs" : "@"} {g.opp}</td>
-                    <td className={g.res === "W" ? "text-usf-green" : "text-[#e0654f]"}>{g.res}</td>
-                    <td>{g.min ?? "—"}</td><td className="font-medium">{g.pts}</td>
-                    <td>{g.reb}</td><td>{g.ast}</td><td>{g.stl}</td><td>{g.blk}</td>
-                    <td>{g.tov}</td><td>{g.pf}</td>
-                    <td>{g.fg}</td><td>{g.tp}</td><td>{g.ft}</td>
-                    <td className={g.pm != null && g.pm > 0 ? "text-usf-green" : g.pm != null && g.pm < 0 ? "text-[#e0654f]" : ""}>
-                      {g.pm ?? "—"}</td>
-                  </tr>
-                ))}
+                {[...r.games].reverse().map((g) => {
+                  const dateCell = g.ext
+                    ? <span className="tabular-nums text-text-secondary">{g.date}</span>
+                    : <Link href={`/games/${g.id}`} className="text-text-primary hover:underline tabular-nums">{g.date}</Link>;
+                  return (
+                    <tr key={g.id + g.date} className="border-t border-border-subtle/50 hover:bg-white/[0.03]">
+                      <td className="pr-2">{dateCell}</td>
+                      <td>{g.home ? "vs" : "@"} {g.opp}</td>
+                      <td className={g.res === "W" ? "text-pos" : "text-neg"}>{g.res}</td>
+                      <td>{g.min ?? "—"}</td><td className="font-medium">{g.pts}</td>
+                      <td>{g.reb}</td><td>{g.ast}</td><td>{g.stl}</td><td>{g.blk}</td>
+                      <td>{g.tov}</td><td>{g.pf}</td>
+                      <td>{g.fg ?? "—"}</td><td>{g.tp ?? "—"}</td><td>{g.ft ?? "—"}</td>
+                      <td className={g.pm != null && g.pm > 0 ? "text-pos" : g.pm != null && g.pm < 0 ? "text-neg" : ""}>
+                        {g.pm ?? "—"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

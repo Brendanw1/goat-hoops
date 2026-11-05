@@ -11,6 +11,8 @@ export type HoopsGameRow = {
   id: string; date: string; season: number; type: string;
   away: string | null; home: string | null;
   away_score: number; home_score: number; ot: number | null;
+  /** balldontlie game id — no /games/{id} report exists for it */
+  ext?: number;
 };
 export type HoopsGamesDoc = { season: number; label: string; games: HoopsGameRow[] };
 export type HoopsValidation = {
@@ -18,7 +20,7 @@ export type HoopsValidation = {
   credit: string; boxes_ast_note: string;
 };
 export type HoopsMeta = {
-  seasons: Record<string, { games: number; first: string; last: string }>;
+  seasons: Record<string, { games: number; first: string; last: string; source?: "espn" | "bdl" }>;
   validation: HoopsValidation; note: string;
 };
 export type HoopsTeamAgg = {
@@ -31,29 +33,54 @@ export type HoopsTeamsDoc = { seasons: Record<string, HoopsTeamAgg[]> };
 export type HoopsTeamGame = {
   id: string; date: string; type: string; opp: string | null; home: boolean;
   pts: number; opp_pts: number; res: string;
+  /** balldontlie game id — no /games/{id} page exists for it */
+  ext?: number;
 };
 export type HoopsTeamDoc = { seasons: Record<string, HoopsTeamAgg & { games: HoopsTeamGame[] }> };
 export type HoopsPlayerRow = {
   id: string; name: string; pos: string | null; team: string | null;
-  gp: number; gs: number; min: number; pts: number; reb: number; ast: number;
+  gp: number; gs: number | null; min: number; pts: number; reb: number; ast: number;
   stl: number; blk: number; tov: number; pts36: number | null; reb36: number | null; ast36: number | null;
+  oreb?: number | null; dreb?: number | null;
+  fgp?: number | null; tpp?: number | null; ftp?: number | null;
+  src?: "espn" | "bdl";
 };
 export type HoopsPlayersDoc = { seasons: Record<string, HoopsPlayerRow[]> };
 export type HoopsPlayerGame = {
   id: string; date: string; opp: string | null; home: boolean; res: string;
   min: number | null; pts: number; reb: number; ast: number; stl: number; blk: number;
-  tov: number; pf: number; pm: number | null; fg: string; tp: string; ft: string;
+  tov: number; pf: number; pm: number | null; fg: string | null; tp: string | null; ft: string | null;
+  /** balldontlie game id — the site's /games/{id} pages are ESPN ids only */
+  ext?: number;
 };
 export type HoopsPlayerDoc = {
   id: string; name: string;
   seasons: Record<string, {
-    team: string | null; gp: number; gs: number;
+    team: string | null; gp: number; gs: number | null;
     totals: { min: number; pts: number; reb: number; ast: number; stl: number; blk: number; tov: number };
     per_game: { min: number; pts: number; reb: number; ast: number; stl: number; blk: number; tov: number };
     per36: { pts: number | null; reb: number | null; ast: number | null };
+    shoot?: { fg: [number, number]; tp: [number, number]; ft: [number, number];
+             oreb: number | null; dreb: number | null };
     games: HoopsPlayerGame[];
   }>;
 };
+/** season roll-ups of balldontlie's v2-advanced game rows (advagg.json.gz) */
+export type HoopsAdvAggPlayer = { gp: number; min: number | null } & Record<string, number | null>;
+export type HoopsAdvAggLeague = Record<string, number | Record<string, number> | null>;
+export type HoopsAdvAggDoc = {
+  seasons: Record<string, Record<string, HoopsAdvAggPlayer>>;
+  league: Record<string, HoopsAdvAggLeague>;
+  lower_better: string[];
+  note: string;
+};
+/** row = [season, age, gp, mpg, ppg, rpg, apg, ts_pct, usg_pct], seasons ascending */
+export type HoopsCareersDoc = { players: Record<string, number[][]>; note: string };
+export type HoopsStandRow = {
+  abbr: string; conference: string | null; w: number; l: number; pct: number | null;
+  conf_rank: number | null; home: [number, number] | null; road: [number, number] | null;
+};
+export type HoopsStandingsDoc = { seasons: Record<string, HoopsStandRow[]>; note: string };
 export type HoopsContractDeal = {
   type: string | null; status: string | null;
   start: number | null; end: number | null; years: number | null;
@@ -133,6 +160,15 @@ export const getHoopsPlayerShots = cache(async (season: number): Promise<HoopsPl
 
 export const getHoopsContracts = cache(async (): Promise<HoopsContractDoc | null> =>
   (await fetchFromR2<HoopsContractDoc>("contracts.json").catch(() => null)) ?? null);
+
+export const getHoopsAdvAgg = cache(async (): Promise<HoopsAdvAggDoc | null> =>
+  (await fetchGzippedJson<HoopsAdvAggDoc>("advagg.json.gz").catch(() => null)) ?? null);
+
+export const getHoopsCareers = cache(async (): Promise<HoopsCareersDoc | null> =>
+  (await fetchGzippedJson<HoopsCareersDoc>("careers.json.gz").catch(() => null)) ?? null);
+
+export const getHoopsStandings = cache(async (): Promise<HoopsStandingsDoc | null> =>
+  (await fetchFromR2<HoopsStandingsDoc>("standings.json").catch(() => null)) ?? null);
 
 /** Seasons the bake covers, newest first (falls back to nothing before the first bake). */
 export async function hoopsSeasons(): Promise<number[]> {

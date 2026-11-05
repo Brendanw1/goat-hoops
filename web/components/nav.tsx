@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Games" },
   { href: "/teams", label: "Teams" },
   { href: "/players", label: "Players" },
+  { href: "/stats", label: "Stats" },
 ] as const;
 
 /**

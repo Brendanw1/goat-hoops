@@ -50,17 +50,30 @@ export default async function HoopsGamesPage({ searchParams }: {
       </div>
 
       <div className="grid gap-1.5 sm:grid-cols-2">
-        {shown.map((g) => (
-          <Link key={g.id} href={`/games/${g.id}`}
-            className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2 text-xs text-text-primary hover:bg-white/[0.04]">
-            <span>
-              {g.away} {g.away_score} @ {g.home} {g.home_score}
-              {g.ot ? <span className="text-text-dim"> · {g.ot}OT</span> : null}
-              {g.type !== "regular" ? <span className="text-text-dim"> · {g.type}</span> : null}
-            </span>
-            <span className="text-text-dim tabular-nums">{g.date}</span>
-          </Link>
-        ))}
+        {shown.map((g) =>
+          // balldontlie-sourced seasons (2024, 2026) have no game report page —
+          // final scores render as text rather than a link that 404s
+          (g as { ext?: number }).ext ? (
+            <div key={g.id}
+              className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2 text-xs text-text-secondary opacity-80">
+              <span>
+                {g.away} {g.away_score} @ {g.home} {g.home_score}
+                {g.ot ? <span className="text-text-dim"> · {g.ot}OT</span> : null}
+                {g.type !== "regular" ? <span className="text-text-dim"> · {g.type}</span> : null}
+              </span>
+              <span className="text-text-dim tabular-nums">{g.date}</span>
+            </div>
+          ) : (
+            <Link key={g.id} href={`/games/${g.id}`}
+              className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2 text-xs text-text-primary hover:bg-white/[0.04]">
+              <span>
+                {g.away} {g.away_score} @ {g.home} {g.home_score}
+                {g.ot ? <span className="text-text-dim"> · {g.ot}OT</span> : null}
+                {g.type !== "regular" ? <span className="text-text-dim"> · {g.type}</span> : null}
+              </span>
+              <span className="text-text-dim tabular-nums">{g.date}</span>
+            </Link>
+          ))}
       </div>
 
       <div className="flex gap-3 text-[11px] text-text-dim">

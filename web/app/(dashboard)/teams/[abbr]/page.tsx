@@ -43,18 +43,30 @@ export default async function HoopsTeamPage({ params }: {
               opp {agg.opp_pts} · REB {agg.reb} · AST {agg.ast} · TOV {agg.tov}
             </h2>
             <div className="grid gap-1.5 sm:grid-cols-2">
-              {agg.games.map((g) => (
-                <Link key={g.id} href={`/games/${g.id}`}
-                  className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-1.5 text-xs hover:bg-white/[0.04]">
-                  <span className="text-text-primary">
-                    <span className={g.res === "W" ? "text-usf-green font-medium" : "text-[#e0654f]"}>
-                      {g.res}
-                    </span>{" "}
-                    {g.home ? `vs ${g.opp}` : `@ ${g.opp}`} {g.pts}–{g.opp_pts}
-                  </span>
-                  <span className="text-text-dim tabular-nums">{g.date}</span>
-                </Link>
-              ))}
+              {agg.games.map((g) =>
+                g.ext ? (
+                  <div key={g.id}
+                    className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-1.5 text-xs opacity-80">
+                    <span className="text-text-secondary">
+                      <span className={g.res === "W" ? "text-pos font-medium" : "text-neg"}>
+                        {g.res}
+                      </span>{" "}
+                      {g.home ? `vs ${g.opp}` : `@ ${g.opp}`} {g.pts}–{g.opp_pts}
+                    </span>
+                    <span className="text-text-dim tabular-nums">{g.date}</span>
+                  </div>
+                ) : (
+                  <Link key={g.id} href={`/games/${g.id}`}
+                    className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-1.5 text-xs hover:bg-white/[0.04]">
+                    <span className="text-text-primary">
+                      <span className={g.res === "W" ? "text-pos font-medium" : "text-neg"}>
+                        {g.res}
+                      </span>{" "}
+                      {g.home ? `vs ${g.opp}` : `@ ${g.opp}`} {g.pts}–{g.opp_pts}
+                    </span>
+                    <span className="text-text-dim tabular-nums">{g.date}</span>
+                  </Link>
+                ))}
             </div>
           </div>
         );
