@@ -1075,6 +1075,7 @@ def bake(out_dir: Path | None = None) -> dict:
         if len(ss_files) < 40:
             continue
         players: dict[str, dict] = {}
+        zone_lg: dict[str, list] = {}   # per §9: league zone fga/fgm sums
         for f in ss_files:
             tag = f.stem.replace(f"seasavgs_{bdl_yr}_", "")
             df = pd.read_parquet(f)
@@ -1108,6 +1109,20 @@ def bake(out_dir: Path | None = None) -> dict:
                         continue
                     players.setdefault(str(eid), {})["zones"] = {
                         z: ss_pick(r, ("fga", "fgm", "fg_pct"), prefix=f"stats.{z}_") for z in ZONES}
+                    # §9 league sums: the category rows are PER-GAME averages, so
+                    # season totals need the gp from general_advanced (runs
+                    # earlier in this same loop) — league rates are gp-weighted
+                    gp = (players[str(eid)].get("adv") or {}).get("gp")
+                    gp = float(gp) if isinstance(gp, (int, float)) and gp else 0.0
+                    if gp <= 0:
+                        continue
+                    for z in ZONES:
+                        fa = r.get(f"stats.{z}_fga")
+                        fm = r.get(f"stats.{z}_fgm")
+                        if pd.notna(fa) and pd.notna(fm):
+                            acc = zone_lg.setdefault(z, [0.0, 0.0])
+                            acc[0] += float(fa) * gp
+                            acc[1] += float(fm) * gp
             elif tag == "shooting_5ft_range":
                 for _, r in df.iterrows():
                     eid = bdl2espn.get(int(r["player.id"]))
@@ -1118,6 +1133,46 @@ def bake(out_dir: Path | None = None) -> dict:
         for v in players.values():
             if "playtype" in v:
                 v["playtype"].sort(key=lambda d: -(d.get("poss") or 0))
+        # §9 zone shot-making benchmark — league zones + per-player xefg.
+        # Preregistered in RESULTS-HOOPS §9 before this code ran; amended there
+        # for units (category rows are per-game averages; league rates are
+        # gp-weighted season rates; floors restated in season attempts 25/100).
+        # Descriptive vs the same-season pool; eFG valued (3s ×1.5).
+        lgz = {}
+        for z, (fa, fm) in zone_lg.items():
+            if fa >= 20:
+                fgp = fm / fa
+                lgz[z] = {"fga": int(round(fa)), "fgp": round(fgp, 3),
+                          "efgp": round(fgp * 1.5, 3) if "3" in z else round(fgp, 3)}
+        gate = None
+        need = {"restricted_area", "in_the_paint_(non-ra)", "above_the_break_3"}
+        if need <= set(lgz):
+            g = lgz
+            corners = [g[z]["fgp"] for z in ("left_corner_3", "right_corner_3") if z in g]
+            gate = (g["restricted_area"]["fgp"] > g["in_the_paint_(non-ra)"]["fgp"]
+                    and (not corners or max(corners) > g["above_the_break_3"]["fgp"]))
+        if gate:
+            for eid, cats in players.items():
+                zones = cats.get("zones") or {}
+                gp = (cats.get("adv") or {}).get("gp")
+                gp = float(gp) if isinstance(gp, (int, float)) and gp else 0.0
+                if gp <= 0:
+                    continue
+                num = den = 0.0
+                for z, zz in zones.items():
+                    fa, lz = zz.get("fga"), lgz.get(z)
+                    fa_s = fa * gp if isinstance(fa, (int, float)) else 0
+                    if lz and fa_s >= 25:   # 25+ season attempts enter the diet
+                        num += fa_s * lz["efgp"]
+                        den += fa_s
+                efg = (cats.get("adv") or {}).get("efg_pct")
+                if den >= 100 and isinstance(efg, (int, float)):
+                    cats["shootmk"] = {"xefg": round(num / den, 3),
+                                       "efg": round(float(efg), 3),
+                                       "diff": round(float(efg) - num / den, 3),
+                                       "n_fga": int(den)}
+        else:
+            print(f"seasavgs {site_yr}: §9 geometry gate failed — leagueZones/shootmk withheld")
         # league percentile ranks (0 lowest .. 1 highest) for the chip panel
         RANK_METRICS = ("adv.ts_pct", "adv.usg_pct", "adv.net_rating", "adv.pie",
                         "drives.drive_pts", "drives.drive_fg_pct",
@@ -1137,7 +1192,8 @@ def bake(out_dir: Path | None = None) -> dict:
             for i, (eid, _) in enumerate(vals):
                 players[eid].setdefault("pct_ranks", {})[path] = round(i / (len(vals) - 1), 3)
         jwrite_gz(out / f"seasavgs_{site_yr}.json.gz",
-                  {"season": site_yr, "players": players})
+                  {"season": site_yr, "players": players,
+                   "leagueZones": lgz if gate else None})
         counts[f"seasavgs_{site_yr}"] = len(players)
 
     # balldontlie layers — box merge, v2-advanced roll-ups, career arcs,

@@ -98,3 +98,11 @@ alongside so difficulty and finishing never blur).
 
 Caveat (carried from the KB): location-based, so it rewards tough
 shot-making; a rim-running big's diet does most of his work in xefg itself.
+
+**Amendment (2026-11-05, during implementation, before any read).** The
+category pulls are per-game averages, not season totals — so the league zone
+rates are gp-weighted season rates (general_advanced's gp, processed earlier
+in the same loop) and the floors restated in season attempts: a zone needs
+25 season attempts by the player, a diet 100. The gate condition itself is
+unchanged (geometry ordering). Also observed and kept: backcourt attempts
+are ~0 league-wide, so it carries no gate condition.
