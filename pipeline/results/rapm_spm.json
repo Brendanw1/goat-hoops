@@ -1,0 +1,99 @@
+{
+  "season": 2025,
+  "tau": 250.0,
+  "lambda_cv": 3000,
+  "cv": {
+    "100": 65848.64023076228,
+    "300": 64673.246483474104,
+    "1000": 62818.55728938176,
+    "3000": 61577.15429609639,
+    "10000": 61927.20973499589,
+    "30000": 64369.258412684445,
+    "100000": 67624.48514597956
+  },
+  "sensitivity": [
+    {
+      "lam": 100,
+      "stability": 0.133,
+      "benchmark": 0.513,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 300,
+      "stability": 0.166,
+      "benchmark": 0.531,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 1000,
+      "stability": 0.231,
+      "benchmark": 0.57,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 3000,
+      "stability": 0.341,
+      "benchmark": 0.621,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 10000,
+      "stability": 0.508,
+      "benchmark": 0.663,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 30000,
+      "stability": 0.611,
+      "benchmark": 0.661,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 100000,
+      "stability": 0.654,
+      "benchmark": 0.645,
+      "n_stab": 355,
+      "n_bench": 365
+    }
+  ],
+  "gate_stability": "FAIL",
+  "gate_benchmark": "FAIL",
+  "both_gates_at": [],
+  "n_possessions": 134001,
+  "n_players": 517,
+  "n_prior_rows": 517,
+  "spm": {
+    "n_players": 409,
+    "n_features": 1038,
+    "alpha": 0.0271268793288494,
+    "l1_ratio": 0.9,
+    "n_nonzero": 15,
+    "oof_r": 0.7775,
+    "oof_r_weighted": 0.7775,
+    "top_categories": {
+      "general_advanced": 0.305,
+      "general_base": 0.014,
+      "playtype_transition": 0.012,
+      "hustle": 0.008,
+      "general_misc": 0.007,
+      "playtype_postup": 0.006,
+      "playtype_isolation": 0.005,
+      "general_usage": 0.002,
+      "general_defense": 0.001,
+      "general_scoring": 0.001
+    }
+  },
+  "prior_coverage": {
+    "response_players": 517,
+    "spm_prior": 516,
+    "gamescore_fallback": 1,
+    "no_prior": 0,
+    "spm_vs_gamescore_r": 0.333
+  }
+}

@@ -562,3 +562,26 @@ comparability. (2) The verdict is read at the CV-selected λ (minimum held-out g
 comparison. Also fixed before the read: the feature rule matches its keep-list on the full column
 name (`category.stat`), so every `tracking_speeddistance` column stays per game; `*_rank` columns are
 counting-style under the rule and go per 36 as written; non-numeric columns are dropped.
+
+### §7 read (2026-11-04): tracking SPM prior FAILS both gates; the prior is strong, the ridge does not use it
+
+| λ | split-half r | LUMA benchmark r |
+|---|---|---|
+| 1,000 | 0.231 | 0.570 |
+| 3,000 (CV) | 0.341 | 0.621 |
+| 10,000 | 0.508 | **0.663 (peak)** |
+| 30,000 (§5's slot) | 0.611 ✓ | 0.661 |
+| 100,000 | **0.654 ✓** | 0.645 |
+
+Verdict at the CV λ (3,000): stability FAIL (0.341), benchmark FAIL (0.621 on 365 players); no λ passes both. Against §5
+(the direct predecessor, box prior): benchmark peak 0.663 vs 0.676 (worse); at λ = 30,000 stability 0.611 vs 0.572 (better),
+benchmark 0.661 vs 0.676.
+
+**Diagnosis (pre-registered plan).** (a) data: NOT the cause. The SPM's own out-of-fold r vs its two-season RAPM target is
+0.778 (elastic net, l1 0.9, 409 players), well above the 0.5 line, so the tracking features carry RAPM signal. (b) handling:
+the leading candidate. τ = 250 was fixed for a box prior and kept unchanged by design; one prior row at that weight is
+swamped by the stint rows at the CV λ, so a prior with r 0.78 against its target barely moves the ridge (the SPM correlates
+only 0.333 with the Game Score prior it replaced, so the two priors differ a lot and the ridge result barely changed, which
+is what a down-weighted prior looks like). (c) modeling: possible but untested until τ is; the response season's per-shot
+defender context is still absent. Next read, if the owner wants one: pre-register τ (a grid scored on held-out game margin,
+not the benchmark), before any fit.
