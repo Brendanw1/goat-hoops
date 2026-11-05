@@ -60,3 +60,41 @@ seasons (2023-24 partial, 2025-26 complete) render on the site. Same shape as
   lambda grid, the splits (train ≤2025, test 2026), and the agreement bar.
 - Shot quality / xPTS from the x/y shots vs LUMA's channels.
 - Lineup grades vs LUMA `lineups`/`onoff`.
+
+## §9 — Zone shot-making vs expected (pre-registered 2026-11-05, before any bake or read)
+
+**Why.** The site shows raw zone FG% (Shot zones table) and attempt-density
+heat maps, but never answers the only interesting question: is this player
+finishing better than a league-average shooter would on the same shots? The
+KB carries the methodology (closingfive "shot-making over expected (xeFG)":
+expected efficiency from the player's own shot-zone mix × league zone
+efficiency — arxiv §3.3.2 shot selection is the frame; NBA.com glossary the
+metric definitions). Descriptive benchmark against a defined reference, not a
+forecast, not a possession-level model.
+
+**The definition (fixed now).**
+- League zone FG% = fga-weighted aggregation of the seasavgs
+  `shooting_by_zone` player pool per season, per BDL zone (7 zones:
+  restricted area, paint non-RA, mid-range, L/R corner 3, above break 3,
+  backcourt). Computed at bake into each seasavgs doc as `leagueZones`.
+- Player expected eFG (xefg) = Σ_player(zone fga × league zone FG%) / Σ fga —
+  his real shot diet priced at league rates (2s/3s values differ per zone, so
+  the zone percentages already carry the value dimension).
+- Shot-making = real eFG − xefg (season eFG from the same category pull).
+- Floors: a zone needs 20 league FGA and a player zone needs 10 FGA to enter
+  the per-zone table; the player-level xefg needs 50 total FGA.
+- Shipped fields: `leagueZones` (doc-level) and per-player `shootmk`
+  {xefg, efg, diff, n_fga} in the seasavgs docs; player zones table gains the
+  league column and advantage coloring.
+
+**Gate (checked at bake, recorded here).** League zone FG% ordering must
+respect court geometry: restricted area > non-RA paint, corners > above-break
+3, backcourt lowest. A violation stops the render (fields stay unbaked).
+
+**Reported.** League zone table per season; per-player chips; the zones
+table's advantage coloring. Explicitly NOT claimed: predictive power,
+shot-selection quality (xefg itself is the shot-diet summary — shown
+alongside so difficulty and finishing never blur).
+
+Caveat (carried from the KB): location-based, so it rewards tough
+shot-making; a rim-running big's diet does most of his work in xefg itself.
