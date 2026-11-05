@@ -29,6 +29,28 @@ numbers live there and in the bake's `meta.json`:
   locations and sequencing.**
 - Credit: LUMA Basketball Research (ARC v3.1, LOKI v3.3).
 
+## §0b — Second-source gate: balldontlie vs ESPN (passed 2026-11-05)
+
+Not a model — the bar the balldontlie GOAT-trial box layers clear before their
+seasons (2023-24 partial, 2025-26 complete) render on the site. Same shape as
+§0: an independent source compared on the season both cover (BDL season key
+2024 = the 2024-25 season = ESPN label 2025). Computed at bake time
+(`hoops_export.py bdl_espn_check`) and carried in `meta.json`:
+
+- **Game scores**: 688/688 joined games, home/away scores exactly equal
+  (join key: date + unordered team pair, ESPN abbreviations).
+- **Player boxes**: 11,326 bridged (player, date, team) lines — points,
+  rebounds and assists 100% exact; minutes 99.82% exact (MAD 0.002 — the
+  residual is ESPN rounding minutes to tenths).
+- **Convention note**: balldontlie season keys are the season's STARTING
+  year (2025 = 2025-26); this site labels by ending year. The hop
+  (`site_season = bdl + 1`) is applied at bake — the pre-fix seasavgs docs
+  were mislabeled by one year, corrected in the same change.
+- Coverage shipped: 2025-26 complete (1,230 games), 2023-24 partial (567
+  games — the stats walk did not finish; flagged "partial" on every surface).
+- Credit: balldontlie (owner's GOAT-trial snapshot 2026-11; public surfaces
+  carry these numbers only while a subscription is active).
+
 ## Next pre-registrations (planned, not yet written)
 
 - **§1 RAPM from ESPN PBP stints** — stint-level possessions from the pbp

@@ -121,6 +121,637 @@ def season_label(y: int) -> str:
     return f"{y - 1}-{str(y)[2:]}"
 
 
+# ---------------------------------------------------------------------------
+# balldontlie GOAT-trial layers (2026-11 harvest; data/bdl read-only).
+# Box seasons 2023/2024 merge into the boards and logs (the ESPN mart only
+# carries 2025 + live 2027); v2-advanced per-game rows roll up to season
+# rates; seasavgs history becomes career arcs; standings land as their own
+# doc. All descriptive. The republication note rides in every doc: public
+# surfaces carry balldontlie numbers only while a subscription is active.
+
+def site_season(bdl_year) -> int:
+    """BDL season keys are the season's STARTING year (2025 = 2025-26); the
+    site labels seasons by ENDING year (ESPN convention, 2025 = 2024-25).
+    One hop, applied at bake so the site keeps a single convention."""
+    return int(bdl_year) + 1
+
+BDL_BOX_SOURCES = {2024: "2023", 2026: "2025"}  # site label -> BDL season pull
+BDL_CHECK = ("2024", 2025)  # BDL 2024 (2024-25) vs ESPN season_year 2025
+
+# season-key -> v2-advanced row column. Rates are minutes-weighted means
+# (possessions where no minutes source exists — documented in the doc note).
+ADV_RATE_COLS = {
+    "ts_pct": "true_shooting_percentage", "efg_pct": "effective_field_goal_percentage",
+    "usg_pct": "usage_percentage", "ast_pct": "assist_percentage",
+    "orb_pct": "offensive_rebound_percentage", "drb_pct": "defensive_rebound_percentage",
+    "reb_pct": "rebound_percentage", "ast_to": "assist_to_turnover",
+    "to_ratio": "turnover_ratio", "ortg": "offensive_rating", "drtg": "defensive_rating",
+    "net": "net_rating", "est_ortg": "estimated_offensive_rating",
+    "est_drtg": "estimated_defensive_rating", "est_net": "estimated_net_rating",
+    "est_pace": "estimated_pace", "pace": "pace", "pie": "pie",
+    "ff_efg": "four_factors_efg_pct", "ftr": "free_throw_attempt_rate",
+    "ff_oreb": "four_factors_oreb_pct", "opp_efg": "opp_efg_pct",
+    "opp_ftr": "opp_free_throw_attempt_rate", "opp_oreb": "opp_oreb_pct",
+    "opp_tov": "opp_turnover_pct", "pct_fga_3pt": "pct_fga_3pt",
+    "pct_pts_paint": "pct_pts_paint", "pct_pts_3pt": "pct_pts_3pt",
+    "pct_pts_ft": "pct_pts_free_throw", "pct_pts_fb": "pct_pts_fast_break",
+    "pct_pts_to": "pct_pts_off_turnovers", "pct_ast_fgm": "pct_assisted_fgm",
+    "pct_unast_fgm": "pct_unassisted_fgm", "pct_pts": "pct_points",
+    "pct_fga": "pct_fga", "pct_reb": "pct_rebounds_total", "pct_stl": "pct_steals",
+    "pct_blk": "pct_blocks", "pct_tov": "pct_turnovers",
+    "speed": "speed", "distance": "distance",
+}
+# counting fields -> shipped per-36 (minutes summed from the box join)
+ADV_COUNT_COLS = {
+    "deflections": "deflections", "contested": "contested_shots",
+    "charges": "charges_drawn", "boxouts": "box_outs", "screen_ast": "screen_assists",
+    "screen_ast_pts": "screen_assist_points", "loose": "loose_balls_recovered_total",
+    "passes": "passes", "touches": "touches", "sec_ast": "secondary_assists",
+    "ft_ast": "free_throw_assists", "reb_ch": "rebound_chances_total",
+    "reb_ch_d": "rebound_chances_def", "reb_ch_o": "rebound_chances_off",
+    "matchup_min": "matchup_minutes", "matchup_fga": "matchup_fga",
+    "matchup_fgm": "matchup_fgm", "matchup_3pa": "matchup_3pa",
+    "matchup_3pm": "matchup_3pm", "matchup_pts": "matchup_player_points",
+    "contested_fga": "contested_fga", "contested_fgm": "contested_fgm",
+    "d_rim_fga": "defended_at_rim_fga", "d_rim_fgm": "defended_at_rim_fgm",
+    "blka": "blocks_against", "fouls_drawn": "fouls_drawn",
+    "poss": "possessions", "switches": "switches_on",
+}
+# ratios rebuilt from their sums (a mean of per-game ratios is not the season ratio)
+ADV_DERIVED = {
+    "matchup_fg_pct": ("matchup_fgm", "matchup_fga"),
+    "matchup_3pt_pct": ("matchup_3pm", "matchup_3pa"),
+    "contested_fg_pct": ("contested_fgm", "contested_fga"),
+    "d_rim_fg_pct": ("d_rim_fgm", "d_rim_fga"),
+}
+# fields where LOW is the good end (defense/allowances) — the site's
+# good/bad coloring flips on these
+ADV_LOWER_BETTER = ("drtg", "est_drtg", "opp_efg", "opp_ftr", "opp_oreb", "opp_tov",
+                    "matchup_fg_pct", "matchup_3pt_pct", "contested_fg_pct", "d_rim_fg_pct")
+
+ADV_NOTES = ("season roll-ups of balldontlie v2-advanced game rows (GOAT-trial harvest "
+             "2026-11): rates are minutes-weighted means, possessions-weighted where the box "
+             "join (2023+) gives no minutes; counting fields are per-36; ratio fields are "
+             "rebuilt from sums; 'league' holds mean + p10/p25/p50/p75/p90 of player-season "
+             "values (gp>=5) for the site's good/bad coloring. internal research — public "
+             "surfaces carry these only while a subscription is active")
+
+
+def flatten_bdl_row(r: dict) -> dict:
+    """balldontlie stats rows arrive nested (game/player/team dicts) in the
+    page dumps and flat ('game.id') in the parquets — one shape for both."""
+    out = {}
+    for k, v in r.items():
+        if isinstance(v, dict):
+            for k2, v2 in v.items():
+                out[f"{k}.{k2}"] = v2
+        else:
+            out[k] = v
+    return out
+
+
+def load_bdl_box(season: str) -> pd.DataFrame:
+    """Box rows for one season: the parquet if the pull completed, else its
+    pages.jsonl (2023 finished as pages only)."""
+    f = BDL / f"stats_{season}.parquet"
+    if f.exists():
+        return pd.read_parquet(f)
+    f = BDL / f"stats_{season}.pages.jsonl"
+    if not f.exists():
+        return pd.DataFrame()
+    rows = [flatten_bdl_row(r) for line in f.read_text().splitlines() if line.strip()
+            for r in json.loads(line).get("rows", [])]
+    return pd.DataFrame(rows)
+
+
+BDL_NUM_COLS = ("min", "pts", "reb", "ast", "stl", "blk", "turnover", "pf", "plus_minus",
+                "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb")
+
+
+def bdl_box_ready(df: pd.DataFrame) -> pd.DataFrame:
+    """Numeric coercions + played-minutes filter + ESPN id/abbr attach."""
+    df = df.copy()
+    for c in BDL_NUM_COLS:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df[df["min"].fillna(0) > 0]
+    df["eid"] = df["player.id"].map(
+        lambda p: bdl2espn_of.get(int(p)) if pd.notna(p) else None).astype("object")
+    df = df[df["eid"].notna()]
+    df["abbr"] = df["team.id"].map(
+        lambda t: bdl_team_abbr.get(int(t)) if pd.notna(t) else None)
+    return df
+
+
+def bdl_games_index(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per game (scores/flags repeat on every box row)."""
+    cols = ["game.id", "game.date", "game.home_team_id", "game.home_team_score",
+            "game.visitor_team_id", "game.visitor_team_score", "game.postseason",
+            "game.period", "game.home_ot1", "game.home_ot2", "game.home_ot3"]
+    return df[[c for c in cols if c in df.columns]].drop_duplicates("game.id").set_index("game.id")
+
+
+def bdl_ot(gi_row) -> int | None:
+    n = sum(1 for c in ("game.home_ot1", "game.home_ot2", "game.home_ot3")
+            if c in gi_row.index and pd.notna(gi_row[c]) and gi_row[c] and gi_row[c] > 0)
+    return n or None
+
+
+# espn-id/abbr bridges shared with the box phases (set inside bake(); module
+# globals keep the helpers' signatures small)
+bdl2espn_of: dict[int, int] = {}
+bdl_team_abbr: dict[int, str] = {}
+
+
+def merge_bdl_box(board, pdocs, team_seasons, season_rows, out, counts) -> dict:
+    """Seasons the ESPN mart lacks (2022-23, 2023-24) from balldontlie box rows:
+    games list, board rows, player season lines + game logs, team aggregates.
+    BDL game ids live in their own namespace — log rows carry ext:1 and the
+    site renders them without a game-page link."""
+    added = {}
+    for season, bdl_year in BDL_BOX_SOURCES.items():
+        raw = load_bdl_box(bdl_year)
+        if raw.empty:
+            print(f"bdl box {season}: no rows — skipped")
+            continue
+        gi = bdl_games_index(raw)
+        df = bdl_box_ready(raw)
+        # one name lookup per player (the register names, not the deal feed's)
+        name_by_eid: dict[int, str] = {}
+        fn_col = "player.first_name" if "player.first_name" in df.columns else None
+        ln_col = "player.last_name" if "player.last_name" in df.columns else None
+        if fn_col and ln_col:
+            first = df.groupby("eid")[fn_col].first()
+            last = df.groupby("eid")[ln_col].first()
+            for eid in first.index:
+                nm = f"{first[eid]} {last[eid]}".strip()
+                if nm:
+                    name_by_eid[int(eid)] = nm
+        # games_{season}.json -------------------------------------------------
+        glist = []
+        for gid, gr in gi.iterrows():
+            home = bdl_team_abbr.get(int(gr["game.home_team_id"]))
+            away = bdl_team_abbr.get(int(gr["game.visitor_team_id"]))
+            if home not in NBA_TEAMS or away not in NBA_TEAMS:
+                continue
+            glist.append({"id": str(gid), "date": str(gr["game.date"])[:10], "season": int(season),
+                          "type": "postseason" if gr["game.postseason"] else "regular",
+                          "away": away, "home": home,
+                          "away_score": int(gr["game.visitor_team_score"]),
+                          "home_score": int(gr["game.home_team_score"]),
+                          "ot": bdl_ot(gr)})
+        if not glist:
+            continue
+        glist.sort(key=lambda r: r["date"], reverse=True)
+        jwrite(out / f"games_{season}.json", {"season": int(season),
+                                              "label": season_label(int(season)),
+                                              "games": glist})
+        added[season] = {"games": len(glist), "first": min(r["date"] for r in glist),
+                         "last": max(r["date"] for r in glist), "source": "bdl"}
+        counts[f"bdl_games_{season}"] = len(glist)
+        # board rows ----------------------------------------------------------
+        seas_board = []
+        for eid, rows in df.groupby("eid"):
+            eid = int(eid)
+            mins, gp = float(rows["min"].sum()), len(rows)
+            team = rows["abbr"].dropna().mode()
+            pos_col = "player.position" if "player.position" in rows.columns else None
+            pos = rows[pos_col].dropna().mode() if pos_col else pd.Series(dtype="object")
+            seas_board.append({"id": str(eid), "name": name_by_eid.get(eid) or pdocs_name(pdocs, eid),
+                               "pos": pos.iloc[0] if len(pos) else None,
+                               "team": team.iloc[0] if len(team) else None,
+                               "gp": gp, "gs": None, "src": "bdl",
+                               "min": fv(mins / gp),
+                               "pts": fv(rows["pts"].mean()), "reb": fv(rows["reb"].mean()),
+                               "ast": fv(rows["ast"].mean()), "stl": fv(rows["stl"].mean()),
+                               "blk": fv(rows["blk"].mean()), "tov": fv(rows["turnover"].mean()),
+                               "oreb": fv(rows["oreb"].mean()), "dreb": fv(rows["dreb"].mean()),
+                               "pts36": per36(rows["pts"].sum(), mins),
+                               "reb36": per36(rows["reb"].sum(), mins),
+                               "ast36": per36(rows["ast"].sum(), mins),
+                               "fgp": sv_ratio(rows["fgm"].sum(), rows["fga"].sum()),
+                               "tpp": sv_ratio(rows["fg3m"].sum(), rows["fg3a"].sum()),
+                               "ftp": sv_ratio(rows["ftm"].sum(), rows["fta"].sum())})
+        seas_board.sort(key=lambda r: -(r["pts"] or 0))
+        board[int(season)] = seas_board
+        counts[f"bdl_board_{season}"] = len(seas_board)
+        # team aggregates + team-game lists -----------------------------------
+        num = [c for c in ("pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta",
+                           "reb", "oreb", "dreb", "ast", "stl", "blk", "turnover") if c in df.columns]
+        tg = df.groupby(["game.id", "abbr"])[num].sum()
+        games_by_team: dict[str, list] = {}
+        for r in glist:
+            for side in ("home", "away"):
+                pts, opp_pts = (r["home_score"], r["away_score"]) if side == "home" \
+                    else (r["away_score"], r["home_score"])
+                games_by_team.setdefault(r[side], []).append(
+                    {"id": r["id"], "date": r["date"], "type": r["type"],
+                     "opp": r["away"] if side == "home" else r["home"],
+                     "home": side == "home", "ext": 1,
+                     "pts": pts, "opp_pts": opp_pts,
+                     "res": "W" if pts > opp_pts else ("L" if pts < opp_pts else "T")})
+        for abbr in sorted({a for a in games_by_team if a in NBA_TEAMS}):
+            trows = tg.xs(abbr, level=1) if abbr in tg.index.get_level_values(1) else None
+            if trows is None or trows.empty:
+                continue
+            gl = sorted(games_by_team.get(abbr, []), key=lambda r: r["date"], reverse=True)
+            w = sum(1 for r in gl if r["res"] == "W")
+            l = sum(1 for r in gl if r["res"] == "L")
+            agg = {"abbr": abbr, "name": NBA_TEAMS[abbr], "g": len(gl), "w": w, "l": l,
+                   "pts": fv(trows["pts"].mean()),
+                   "opp_pts": fv(sum(r["opp_pts"] for r in gl) / len(gl)) if gl else None,
+                   "fgm": fv(trows["fgm"].mean()), "fga": fv(trows["fga"].mean()),
+                   "tpm": fv(trows["fg3m"].mean()), "tpa": fv(trows["fg3a"].mean()),
+                   "ftm": fv(trows["ftm"].mean()), "fta": fv(trows["fta"].mean()),
+                   "reb": fv(trows["reb"].mean()), "ast": fv(trows["ast"].mean()),
+                   "tov": fv(trows["turnover"].mean()), "stl": fv(trows["stl"].mean()),
+                   "blk": fv(trows["blk"].mean()), "paint": None, "fastbreak": None,
+                   "src": "bdl"}
+            season_rows.setdefault(int(season), []).append(agg)
+            team_seasons.setdefault(abbr, {})[int(season)] = {**agg, "games": gl}
+        # player docs ----------------------------------------------------------
+        for eid, rows in df.groupby("eid"):
+            doc = pdocs.get(str(int(eid)))
+            if doc is None:
+                continue
+            mins, gp = float(rows["min"].sum()), len(rows)
+            team = rows["abbr"].dropna().mode()
+            games = []
+            for _, r in rows.sort_values("game.date").iterrows():
+                htid = int(r["game.home_team_id"])
+                tid = int(r["team.id"])
+                home = htid == tid
+                hs, as_ = int(r["game.home_team_score"]), int(r["game.visitor_team_score"])
+                pts, ops = (hs, as_) if home else (as_, hs)
+                games.append({"id": str(int(r["game.id"])), "date": str(r["game.date"])[:10],
+                              "opp": bdl_team_abbr.get(int(r["game.visitor_team_id"] if home
+                                                       else r["game.home_team_id"])),
+                              "home": home, "res": "W" if pts > ops else ("L" if pts < ops else "T"),
+                              "ext": 1, "min": iv(r["min"]), "pts": iv(r["pts"]), "reb": iv(r["reb"]),
+                              "ast": iv(r["ast"]), "stl": iv(r["stl"]), "blk": iv(r["blk"]),
+                              "tov": iv(r["turnover"]), "pf": iv(r["pf"]), "pm": iv(r["plus_minus"]),
+                              "fg": fg_str(r["fgm"], r["fga"]), "tp": fg_str(r["fg3m"], r["fg3a"]),
+                              "ft": fg_str(r["ftm"], r["fta"])})
+            doc["seasons"][int(season)] = {
+                "team": team.iloc[0] if len(team) else None, "gp": gp, "gs": None,
+                "totals": {"min": round(mins, 1), "pts": int(rows["pts"].sum()),
+                           "reb": int(rows["reb"].sum()), "ast": int(rows["ast"].sum()),
+                           "stl": int(rows["stl"].sum()), "blk": int(rows["blk"].sum()),
+                           "tov": int(rows["turnover"].sum())},
+                "per_game": {"min": fv(mins / gp), "pts": fv(rows["pts"].mean()),
+                             "reb": fv(rows["reb"].mean()), "ast": fv(rows["ast"].mean()),
+                             "stl": fv(rows["stl"].mean()), "blk": fv(rows["blk"].mean()),
+                             "tov": fv(rows["turnover"].mean())},
+                "per36": {"pts": per36(rows["pts"].sum(), mins), "reb": per36(rows["reb"].sum(), mins),
+                          "ast": per36(rows["ast"].sum(), mins)},
+                "shoot": {"fg": [int(rows["fgm"].sum()), int(rows["fga"].sum())],
+                          "tp": [int(rows["fg3m"].sum()), int(rows["fg3a"].sum())],
+                          "ft": [int(rows["ftm"].sum()), int(rows["fta"].sum())],
+                          "oreb": fv(rows["oreb"].mean()), "dreb": fv(rows["dreb"].mean())},
+                "games": games}
+        counts[f"bdl_players_{season}"] = len(df["eid"].unique())
+    return added
+
+
+def pdocs_name(pdocs, eid: int) -> str | None:
+    d = pdocs.get(str(eid))
+    return d["name"] if d else None
+
+
+def sv_ratio(m, a):
+    try:
+        return round(float(m) / float(a), 3) if a and float(a) > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def fg_str(m, a) -> str | None:
+    m, a = iv(m), iv(a)
+    return None if a is None else f"{m or 0}-{a}"
+
+
+def bdl_espn_check(gg, pgx, id2abbr) -> dict:
+    """Cross-source agreement on the overlapping season (BDL 2024 = the
+    2024-25 season = ESPN season_year 2025): game scores by (date, home, away)
+    and box lines by bridged (player, date, team). This is the bar the new
+    source clears before its seasons render — the ESPN-source analogue of the
+    LUMA gate."""
+    bdl_year, espn_label = BDL_CHECK
+    raw = load_bdl_box(bdl_year)
+    if raw.empty:
+        return {"note": f"no BDL {bdl_year} box rows"}
+    gi = bdl_games_index(raw)
+    b_score = {}
+    for _, gr in gi.iterrows():
+        home, away = (bdl_team_abbr.get(int(gr["game.home_team_id"])),
+                      bdl_team_abbr.get(int(gr["game.visitor_team_id"])))
+        if home in NBA_TEAMS and away in NBA_TEAMS:
+            b_score[(str(gr["game.date"])[:10], home, away)] = (int(gr["game.home_team_score"]),
+                                                                int(gr["game.visitor_team_score"]))
+    matched = exact = 0
+    for gid, gr in gg[gg.season_year == espn_label].iterrows():
+        key = (str(gr.date_et)[:10], gr.home_abbr, gr.away_abbr)
+        if key in b_score:
+            hs, as_ = int(gr.home_score), int(gr.away_score)
+            matched += 1
+            exact += b_score[key] == (hs, as_)
+    # boxes
+    df = bdl_box_ready(raw)
+    df["date"] = df["game.date"].map(lambda d: str(d)[:10])
+    b = df[["eid", "date", "abbr", "pts", "reb", "ast", "min"]].copy()
+    e = pgx[pgx.season_year == espn_label].copy()
+    e = e[e.pts.notna()]
+    e["date"] = e["game_id"].map(lambda gid: str(gg.loc[gid].date_et)[:10] if gid in gg.index else None)
+    e["abbr"] = e["team_id"].map(lambda t: id2abbr.get(str(int(t))))
+    e = e.rename(columns={"athlete_id": "eid", "to": "tov"})[["eid", "date", "abbr", "pts", "reb", "ast", "min"]]
+    e["eid"] = e["eid"].astype("int64")
+    b["eid"] = b["eid"].astype("int64")
+    m = b.merge(e, on=["eid", "date", "abbr"], suffixes=("_b", "_e"))
+    out = {"games": {"matched": matched, "score_exact": exact,
+                     "score_exact_rate": round(exact / matched, 4) if matched else None,
+                     "note": f"BDL {bdl_year} vs ESPN {espn_label} — the same 2024-25 season, two sources"},
+           "boxes": {"matched": int(len(m))}}
+    if len(m):
+        for c in ("pts", "reb", "ast", "min"):
+            diff = (m[f"{c}_b"] - m[f"{c}_e"]).abs()
+            out["boxes"][f"{c}_exact"] = round(float((diff < 1e-9).mean()), 4)
+            out["boxes"][f"{c}_mad"] = round(float(diff.mean()), 3)
+    return out
+
+
+def _num(v):
+    """Numbers arrive as floats, ints, None/NaN — and some fields (matchup
+    minutes) as 'MM:SS' time strings. One coercion for all of them."""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        if ":" in v:
+            try:
+                m, s = v.split(":")
+                return int(m) + int(s) / 60.0
+            except ValueError:
+                return None
+        try:
+            return float(v)
+        except ValueError:
+            return None
+    try:
+        f = float(v)
+        return None if f != f else f
+    except (TypeError, ValueError):
+        return None
+
+
+def _adv_scan_parquet(path: Path, wanted: list[str], seen: set, emit) -> int:
+    df = pd.read_parquet(path)
+    use = [c for c in wanted if c in df.columns]
+    n = 0
+    for r in df[use].itertuples(index=False):
+        d = dict(zip(use, r))
+        gid, pid = d.get("game.id"), d.get("player.id")
+        if pd.isna(gid) or pd.isna(pid):
+            continue
+        key = (int(gid), int(pid))
+        if key in seen:
+            continue
+        seen.add(key)
+        emit(key, d)
+        n += 1
+    return n
+
+
+def _adv_scan_jsonl(path: Path, seen: set, emit) -> int:
+    """Stream the page dumps (several GB, each line one 100-row page); only
+    unseen (game, player) keys are emitted, so overlapping walks dedup."""
+    n = 0
+    with open(path, "r") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                rows = json.loads(line).get("rows", [])
+            except json.JSONDecodeError:
+                continue  # torn tail on a still-appending walk file
+            for r in rows:
+                d = flatten_bdl_row(r)
+                gid, pid = d.get("game.id"), d.get("player.id")
+                if gid is None or pid is None:
+                    continue
+                key = (int(gid), int(pid))
+                if key in seen:
+                    continue
+                seen.add(key)
+                emit(key, d)
+                n += 1
+    return n
+
+
+def advagg_phase(out, counts) -> None:
+    """advagg.json.gz — season roll-ups of the v2-advanced per-game rows across
+    every recovered source (parquet snapshots + the page dumps, which hold the
+    most). League block carries the distribution the site colors against."""
+    rate_l = list(ADV_RATE_COLS.items())
+    cnt_l = list(ADV_COUNT_COLS.items())
+    wanted = ["game.id", "player.id", "game.season", "possessions"] + [c for _, c in rate_l] \
+        + [c for _, c in cnt_l]
+    seasons: dict[int, dict] = {}
+    seen: set = set()
+
+    def bucket(season: int, eid) -> dict:
+        ss = seasons.setdefault(season, {})
+        key = "league" if eid is None else eid
+        return ss.setdefault(key, {"gp": 0, "w": 0.0, "min": 0.0,
+                                   "rate": [0.0] * len(rate_l),
+                                   "cnt": [0.0] * len(cnt_l),
+                                   "der": {k: [0.0, 0.0] for k in ADV_DERIVED}})
+
+    def emit(key, d):
+        try:
+            season = site_season(d.get("game.season"))
+        except (TypeError, ValueError):
+            return
+        rows_n[season] = rows_n.get(season, 0) + 1
+        eid = bdl2espn_of.get(int(d["player.id"]))
+        lg = bucket(season, None)
+        pl = bucket(season, eid) if eid else None
+        poss = _num(d.get("possessions"))
+        w = None
+        for tgt in (lg, pl):
+            if tgt is None:
+                continue
+            tgt["gp"] += 1
+            if w is None:
+                # weight: box minutes when the season has them, else possessions
+                w = box_min.get((key[0], key[1])) or poss or 1.0
+            tgt["w"] += w
+            if w and w > 0 and box_min.get((key[0], key[1])):
+                tgt["min"] += w
+            for i, (_, col) in enumerate(rate_l):
+                v = _num(d.get(col))
+                if v is not None:
+                    tgt["rate"][i] += v * w
+            for i, (_, col) in enumerate(cnt_l):
+                v = _num(d.get(col))
+                if v is not None:
+                    tgt["cnt"][i] += v
+            for k, (nk, dk) in ADV_DERIVED.items():
+                nv, dv = _num(d.get(ADV_COUNT_COLS[nk])), _num(d.get(ADV_COUNT_COLS[dk]))
+                if nv is not None:
+                    tgt["der"][k][0] += nv
+                if dv is not None:
+                    tgt["der"][k][1] += dv
+
+    # minutes from the box seasons (2023+); the 2021/2022 advanced rows have no
+    # minutes source, so their per-36 fields stay null and rates weight by poss
+    box_min: dict[tuple, float] = {}
+    for season in ("2023", "2024", "2025"):
+        b = load_bdl_box(season)
+        if b.empty:
+            continue
+        b = b[["game.id", "player.id", "min"]]
+        b["min"] = pd.to_numeric(b["min"], errors="coerce")
+        for gid, pid, mn in b.itertuples(index=False):
+            if pd.notna(mn) and mn > 0:
+                box_min[(int(gid), int(pid))] = float(mn)
+
+    n_rows = 0
+    rows_n: dict[int, int] = {}
+    # jsonls first: the parquets are snapshots derived from them, so the live
+    # dumps win on duplicate (game, player) keys
+    for name in ("advanced_2024.pages.jsonl", "advanced_2025.pages.jsonl",
+                 "advanced_2026.pages.jsonl"):
+        p = BDL / name
+        if p.exists():
+            n_rows += _adv_scan_jsonl(p, seen, emit)
+    for name in ("advanced_2023.parquet", "advanced_2024_salvaged.parquet",
+                 "advanced_v2_checkpoints_recovered.parquet", "advanced_2026.parquet"):
+        p = BDL / name
+        if p.exists():
+            n_rows += _adv_scan_parquet(p, wanted, seen, emit)
+    counts["advagg_rows"] = n_rows
+    counts["advagg_seen"] = len(seen)
+
+    seasons_out = {}
+    league_out = {}
+    for season in sorted(seasons):
+        ss = seasons[season]
+        lg = ss.pop("league")
+        players_out = {}
+        # collect player values for the league distribution
+        dist: dict[str, list] = {}
+        gp_min = 5
+        for eid, b in ss.items():
+            if b["gp"] < gp_min:
+                continue
+            mins = b["min"] if b["min"] > 0 else None
+            entry = {"gp": b["gp"], "min": round(mins) if mins else None}
+            for i, (short, _) in enumerate(rate_l):
+                v = b["rate"][i] / b["w"] if b["w"] else None
+                entry[short] = round(v, 3) if v is not None and v == v else None
+                if entry[short] is not None:
+                    dist.setdefault(short, []).append(entry[short])
+            for i, (short, _) in enumerate(cnt_l):
+                entry[short] = round(b["cnt"][i] * 36.0 / mins, 2) if mins else None
+                if entry[short] is not None:
+                    dist.setdefault(short, []).append(entry[short])
+            for k in ADV_DERIVED:
+                num, den = b["der"][k]
+                v = num / den if den else None
+                entry[k] = round(v, 3) if v is not None and v == v else None
+                if entry[k] is not None:
+                    dist.setdefault(k, []).append(entry[k])
+            players_out[str(eid)] = entry
+        lg_out = {"n": len(players_out), "rows": rows_n.get(season, 0)}
+        for i, (short, _) in enumerate(rate_l):
+            lg_out[short] = round(lg["rate"][i] / lg["w"], 3) if lg["w"] else None
+        for i, (short, _) in enumerate(cnt_l):
+            lg_out[short] = round(lg["cnt"][i] * 36.0 / lg["min"], 2) if lg["min"] else None
+        for k in ADV_DERIVED:
+            num, den = lg["der"][k]
+            lg_out[k] = round(num / den, 3) if den else None
+        for short, vals in dist.items():
+            vals.sort()
+            n = len(vals)
+            ps = (0.10, 0.25, 0.50, 0.75, 0.90)
+            lg_out[f"{short}|dist"] = {f"p{int(p * 100)}": vals[min(int(p * n), n - 1)] for p in ps}
+        seasons_out[int(season)] = {"players": players_out}
+        league_out[int(season)] = lg_out
+    jwrite_gz(out / "advagg.json.gz", {
+        "seasons": seasons_out, "league": league_out, "lower_better": list(ADV_LOWER_BETTER),
+        "note": ADV_NOTES})
+
+
+def careers_phase(out, counts) -> None:
+    """careers.json.gz — per-season per-game lines 2005-2025 from the seasavgs
+    history pull (general base + advanced categories), keyed by ESPN id. The
+    register bridge is the active-player register, so arcs cover players with
+    an ESPN page; retired stars have no site page to hang one on."""
+    players: dict[str, list] = {}
+    for f in sorted(BDL.glob("seasavgs_*_general_base.parquet")):
+        yr = int(f.stem.split("_")[1])
+        b = pd.read_parquet(f)
+        adv_f = BDL / f"seasavgs_{yr}_general_advanced.parquet"
+        adv_ix = {}
+        if adv_f.exists():
+            a = pd.read_parquet(adv_f)
+            for _, r in a.iterrows():
+                adv_ix[int(r["player.id"])] = (r.get("stats.ts_pct"), r.get("stats.usg_pct"))
+        for _, r in b.iterrows():
+            eid = bdl2espn_of.get(int(r["player.id"]))
+            if not eid:
+                continue
+            ts, usg = adv_ix.get(int(r["player.id"]), (None, None))
+            r3 = lambda v: round(float(v), 3) if pd.notna(v) else None
+            players.setdefault(str(eid), []).append([
+                site_season(yr), iv(r.get("stats.age")), iv(r.get("stats.gp")), fv(r.get("stats.min")),
+                fv(r.get("stats.pts")), fv(r.get("stats.reb")), fv(r.get("stats.ast")),
+                r3(ts), r3(usg)])
+    for rows in players.values():
+        rows.sort(key=lambda r: r[0])
+    counts["careers_players"] = len(players)
+    counts["careers_rows"] = sum(len(v) for v in players.values())
+    jwrite_gz(out / "careers.json.gz", {
+        "players": players,
+        "note": "row = [season, age, gp, mpg, ppg, rpg, apg, ts_pct, usg_pct] from the "
+                "balldontlie season-averages pull (general base + advanced, regular seasons "
+                "2005-06 through 2025-26, keyed by ending year); bridged to ESPN ids via the "
+                "active-player register — internal research, republication needs a subscription"})
+
+
+def standings_phase(out, counts) -> None:
+    seasons = {}
+    for f in sorted(BDL.glob("standings_*.json")):
+        yr = f.stem.split("_")[1]
+        try:
+            data = json.loads(f.read_text()).get("data", [])
+        except json.JSONDecodeError:
+            continue
+        rows = []
+        for r in data:
+            abbr = BDL_ABBR2ESPN.get(r["team"]["abbreviation"], r["team"]["abbreviation"])
+            if abbr not in NBA_TEAMS:
+                continue
+            def rec(s):
+                try:
+                    a, b = str(s).split("-")
+                    return int(a), int(b)
+                except ValueError:
+                    return None, None
+            hw, hl = rec(r.get("home_record"))
+            rw, rl = rec(r.get("road_record"))
+            w, l = int(r.get("wins", 0)), int(r.get("losses", 0))
+            rows.append({"abbr": abbr, "conference": r["team"].get("conference"),
+                         "w": w, "l": l, "pct": round(w / (w + l), 3) if w + l else None,
+                         "conf_rank": r.get("conference_rank"), "home": [hw, hl] if hw is not None else None,
+                         "road": [rw, rl] if rw is not None else None})
+        rows.sort(key=lambda r: -(r["pct"] or 0))
+        seasons[site_season(yr)] = rows
+    counts["standings_seasons"] = len(seasons)
+    jwrite(out / "standings.json", {
+        "seasons": seasons,
+        "note": "balldontlie standings snapshot 2026-11 — internal research"})
+
+
 def per36(total, minutes) -> float | None:
     return round(36.0 * total / minutes, 1) if minutes and minutes > 0 else None
 
@@ -180,13 +811,9 @@ def bake(out_dir: Path | None = None) -> dict:
                 "credit": "LUMA Basketball Research (ARC v3.1, LOKI v3.3)"}
         ast = c.get("ast", {})
         luma["boxes_ast_note"] = f"assists exact_rate {ast.get('exact_rate')} (scorer judgment)"
-    jwrite(out / "meta.json", {
-        "seasons": {int(s): {"games": int(len(ss)), "first": str(ss.date_et.min()),
-                             "last": str(ss.date_et.max())}
-                    for s, ss in g.groupby("season_year")},
-        "validation": luma,
-        "note": "descriptive Phase 1: raw box values, averages and per-36 only",
-    })
+    seasons_meta = {int(s): {"games": int(len(ss)), "first": str(ss.date_et.min()),
+                             "last": str(ss.date_et.max()), "source": "espn"}
+                    for s, ss in g.groupby("season_year")}
 
     # games_{season}.json -------------------------------------------------------
     for season, ss in g.groupby("season_year"):
@@ -240,10 +867,7 @@ def bake(out_dir: Path | None = None) -> dict:
         team_seasons.setdefault(abbr, {})[int(season)] = {**agg, "games": games_list}
     for s in season_rows:
         season_rows[s].sort(key=lambda r: -(r["w"] + r["l"]))
-    jwrite(out / "teams.json", {"seasons": season_rows})
-    for abbr, seasons in team_seasons.items():
-        jwrite_gz(out / "team" / f"{abbr.lower()}.json.gz", {"seasons": seasons})
-    counts["teams"] = len(team_seasons)
+    # teams.json / team files are written at the end, after the BDL seasons merge
 
     # players.json board ----------------------------------------------------------
     board = {}
@@ -259,15 +883,19 @@ def bake(out_dir: Path | None = None) -> dict:
                "team": abbr, "gp": gp, "gs": int(rows.starter.sum()), "min": fv(mins / gp),
                "pts": fv(rows.pts.mean()), "reb": fv(rows.reb.mean()), "ast": fv(rows.ast.mean()),
                "stl": fv(rows.stl.mean()), "blk": fv(rows.blk.mean()), "tov": fv(rows["to"].mean()),
+               "oreb": fv(rows.oreb.mean()), "dreb": fv(rows.dreb.mean()),
                "pts36": per36(rows.pts.sum(), mins), "reb36": per36(rows.reb.sum(), mins),
-               "ast36": per36(rows.ast.sum(), mins)}
+               "ast36": per36(rows.ast.sum(), mins),
+               "fgp": sv_ratio(rows.fgm.sum(), rows.fga.sum()),
+               "tpp": sv_ratio(rows.tpm.sum(), rows.tpa.sum()),
+               "ftp": sv_ratio(rows.ftm.sum(), rows.fta.sum()), "src": "espn"}
         board.setdefault(int(season), []).append(row)
     for s in board:
         board[s].sort(key=lambda r: -r["pts"])
-    jwrite(out / "players.json", {"seasons": board})
-    counts["players"] = sum(len(v) for v in board.values())
+    # players.json is written at the end, after the BDL seasons merge
 
-    # player/{id}.json.gz ------------------------------------------------------------
+    # player/{id}.json.gz — built into pdocs; written at the end after the BDL merge
+    pdocs: dict[str, dict] = {}
     for ath, rows in pgx_played.groupby("athlete_id"):
         seasons = {}
         for season, srows in rows.groupby("season_year"):
@@ -299,11 +927,13 @@ def bake(out_dir: Path | None = None) -> dict:
                              "tov": fv(srows["to"].mean())},
                 "per36": {"pts": per36(srows.pts.sum(), mins), "reb": per36(srows.reb.sum(), mins),
                           "ast": per36(srows.ast.sum(), mins)},
+                "shoot": {"fg": [int(srows.fgm.sum()), int(srows.fga.sum())],
+                          "tp": [int(srows.tpm.sum()), int(srows.tpa.sum())],
+                          "ft": [int(srows.ftm.sum()), int(srows.fta.sum())],
+                          "oreb": fv(srows.oreb.mean()), "dreb": fv(srows.dreb.mean())},
                 "games": games}
         name = rows.name.dropna().iloc[-1]
-        jwrite_gz(out / "player" / f"{ath}.json.gz",
-                  {"id": str(ath), "name": name, "seasons": seasons})
-    counts["player_files"] = pgx_played.athlete_id.nunique()
+        pdocs[str(ath)] = {"id": str(ath), "name": name, "seasons": seasons}
 
     # bridge: norm-name -> ESPN id, and BDL player_id -> ESPN id (shared by
     # the contracts + season-average-category docs below). Ambiguous norms
@@ -315,6 +945,11 @@ def bake(out_dir: Path | None = None) -> dict:
             espn_of.setdefault(n, set()).add(int(ath))
     espn_of = {n: next(iter(ids)) for n, ids in espn_of.items() if len(ids) == 1}
     bdl_team = {}
+    nt_f = BDL / "nba_teams.parquet"
+    if nt_f.exists():
+        ntd = pd.read_parquet(nt_f)
+        for _, r in ntd.iterrows():
+            bdl_team[int(r["id"])] = BDL_ABBR2ESPN.get(r["abbreviation"], r["abbreviation"])
     if (BDL / "contracts_teams_2026.parquet").exists():
         tdf = pd.read_parquet(BDL / "contracts_teams_2026.parquet")
         bdl_team = {int(r["team.id"]): BDL_ABBR2ESPN.get(r["team.abbreviation"], r["team.abbreviation"])
@@ -394,7 +1029,7 @@ def bake(out_dir: Path | None = None) -> dict:
                 cur_team = next((d["team"] for d in cur if d["status"] == "CURRENT"), None)
                 if cur_team and team and cur_team != team:
                     salary_team_mismatch += 1  # feeds disagree — keep the row, count it
-                salaries[str(eid)] = {"season": iv(r["season"]),
+                salaries[str(eid)] = {"season": site_season(iv(r["season"])),
                                       "cap_hit": iv(r["cap_hit"]),
                                       "base_salary": iv(r["base_salary"]),
                                       "team": team}
@@ -434,13 +1069,14 @@ def bake(out_dir: Path | None = None) -> dict:
              "left_corner_3", "right_corner_3", "above_the_break_3", "backcourt")
     BANDS = ("less_than_5_ft", "5-9_ft", "10-14_ft", "15-19_ft", "20-24_ft",
              "25-29_ft", "30-34_ft", "35-39_ft", "40+_ft")
-    for ss_season in ("2025", "2024", "2023"):
-        ss_files = sorted(BDL.glob(f"seasavgs_{ss_season}_*.parquet"))
+    for bdl_yr in ("2025", "2024", "2023"):
+        site_yr = site_season(bdl_yr)
+        ss_files = sorted(BDL.glob(f"seasavgs_{bdl_yr}_*.parquet"))
         if len(ss_files) < 40:
             continue
         players: dict[str, dict] = {}
         for f in ss_files:
-            tag = f.stem.replace(f"seasavgs_{ss_season}_", "")
+            tag = f.stem.replace(f"seasavgs_{bdl_yr}_", "")
             df = pd.read_parquet(f)
             if tag.startswith("playtype_"):
                 for _, r in df.iterrows():
@@ -500,9 +1136,20 @@ def bake(out_dir: Path | None = None) -> dict:
             vals.sort(key=lambda t: t[1])
             for i, (eid, _) in enumerate(vals):
                 players[eid].setdefault("pct_ranks", {})[path] = round(i / (len(vals) - 1), 3)
-        jwrite_gz(out / f"seasavgs_{ss_season}.json.gz",
-                  {"season": int(ss_season), "players": players})
-        counts[f"seasavgs_{ss_season}"] = len(players)
+        jwrite_gz(out / f"seasavgs_{site_yr}.json.gz",
+                  {"season": site_yr, "players": players})
+        counts[f"seasavgs_{site_yr}"] = len(players)
+
+    # balldontlie layers — box merge, v2-advanced roll-ups, career arcs,
+    # standings, and the cross-source agreement check that gates the box merge
+    bdl2espn_of.update(bdl2espn)
+    bdl_team_abbr.update(bdl_team)
+    bdl_check_info = bdl_espn_check(gg, pgx, id2abbr)
+    print("bdl vs espn (2025):", json.dumps(bdl_check_info))
+    seasons_meta.update(merge_bdl_box(board, pdocs, team_seasons, season_rows, out, counts))
+    advagg_phase(out, counts)
+    careers_phase(out, counts)
+    standings_phase(out, counts)
 
     # playershots_{season}.json.gz — half-court heat grids from ESPN x/y ------
     # coordinates are feet on the attacking half (x 0-50, y 0 baseline -> 47);
@@ -573,6 +1220,28 @@ def bake(out_dir: Path | None = None) -> dict:
             "shots": shots, "plays": plays})
         n_games += 1
     counts["game_files"] = n_games
+
+    # deferred writes: teams, players, player docs, meta -----------------------
+    for s in season_rows:
+        season_rows[s].sort(key=lambda r: -(r["w"] + r["l"]))
+    jwrite(out / "teams.json", {"seasons": season_rows})
+    for abbr, seasons in team_seasons.items():
+        jwrite_gz(out / "team" / f"{abbr.lower()}.json.gz", {"seasons": seasons})
+    counts["teams"] = len(team_seasons)
+    jwrite(out / "players.json", {"seasons": board})
+    counts["players"] = sum(len(v) for v in board.values())
+    for ath, doc in pdocs.items():
+        jwrite_gz(out / "player" / f"{ath}.json.gz", doc)
+    counts["player_files"] = len(pdocs)
+    validation = dict(luma)
+    if bdl_check_info:
+        validation["bdl"] = bdl_check_info
+    jwrite(out / "meta.json", {
+        "seasons": seasons_meta, "validation": validation,
+        "note": "descriptive Phase 1: raw box values, averages and per-36 only; "
+                "2022-23/2023-24 seasons and the advanced/tracking roll-ups come from "
+                "balldontlie (GOAT-trial snapshot 2026-11) — internal research, public "
+                "surfaces carry them only while a subscription is active"})
     return counts
 
 

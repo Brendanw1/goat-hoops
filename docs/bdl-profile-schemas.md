@@ -62,3 +62,36 @@ never the ../v2 rewrite).
 
 Republication rule unchanged: internal/research anytime; public surfaces
 carry BDL numbers only while a subscription is active.
+
+## Site-side derivatives (baked 2026-11-05, hoops_export.py)
+
+**Season convention: BDL keys are the season's STARTING year (2025 =
+2025-26); this site labels by ENDING year (2025 = 2024-25). `site_season =
+bdl + 1`, applied at bake. Every doc below carries site labels.**
+
+- **Box merge** (into players.json / player docs / team docs /
+  games_{season}.json): BDL `stats_{2023,2025}` → site seasons **2024**
+  (2023-24, partial 567 games — the walk never finished) and **2026**
+  (2025-26, complete 1,230). Board rows gain `oreb/dreb/fgp/tpp/ftp` +
+  `src: "bdl"`; player-doc seasons gain `shoot: {fg,tp,ft: [m,a],
+  oreb, dreb}` (ESPN seasons too) and game rows carry `ext: 1` (BDL game
+  id — no /games page). Cross-source gate: RESULTS-HOOPS §0b.
+- **advagg.json.gz** — v2-advanced per-game rows (page dumps + snapshot
+  parquets, deduped on (game.id, player.id), jsonl wins) rolled up per
+  player-season, site seasons 2019-2026 (six complete through 2025;
+  2026 ~half, flagged by `league[yr].rows < 20000`). Per player:
+  `gp, min` + rate fields (minutes-weighted means; possessions-weighted
+  where the box join has no minutes — seasons ≤2022) + per-36 counting
+  fields + sum-rebuilt ratios (`matchup_fg_pct`, `contested_fg_pct`,
+  `d_rim_fg_pct`, `matchup_3pt_pct`). `league[yr]` holds league means and
+  `{field}|dist` = p10/p25/p50/p75/p90 of player-season values (gp ≥ 5);
+  `lower_better` lists the allowance fields the site flips. Field maps
+  live in hoops_export.py `ADV_RATE_COLS / ADV_COUNT_COLS / ADV_DERIVED`.
+- **careers.json.gz** — `players[eid]` = rows `[season, age, gp, mpg, ppg,
+  rpg, apg, ts_pct, usg_pct]`, seasons 2006-2026 site labels (seasavgs
+  general base + advanced history pull), active-register bridge only.
+- **standings.json** — `seasons[2024|2025|2026]` rows `{abbr(ESPN),
+  conference, w, l, pct, conf_rank, home, road}`.
+
+Republication rule unchanged: internal/research anytime; public surfaces
+carry BDL numbers only while a subscription is active.
