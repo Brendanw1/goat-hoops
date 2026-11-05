@@ -558,24 +558,53 @@ export default async function HoopsPlayerPage({ params }: {
 
       {ss && ss.zones && (
         <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
-          <h2 className="text-sm font-medium text-text-primary mb-1.5">Shot zones</h2>
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">Shot zones <span className="text-text-dim font-normal text-[10px]">· {ssLabel}</span></h2>
+          {(() => {
+            const mk = ss.shootmk;
+            return mk && typeof mk.diff === "number" ? (
+              <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+                <RateChip label="Shot diet eFG (expected)" value={rate(mk.xefg)} />
+                <RateChip label="Real eFG" value={rate(mk.efg)} />
+                <RateChip label="Shot-making Δ"
+                  value={`${mk.diff >= 0 ? "+" : ""}${(mk.diff * 100).toFixed(1)}`}
+                  cls={mk.diff >= 0.02 ? "text-pos" : mk.diff <= -0.02 ? "text-neg" : undefined} />
+              </div>
+            ) : null;
+          })()}
           <table className="w-full text-[11px] tabular-nums">
             <thead>
               <tr className="text-text-dim text-left">
-                <th className="font-normal pr-2">Zone</th><th className="font-normal">FGA</th><th className="font-normal">FG%</th>
+                <th className="font-normal pr-2">Zone</th>
+                <th className="font-normal">FGA/g</th>
+                <th className="font-normal">FG%</th>
+                <th className="font-normal">Lg FG%</th>
+                <th className="font-normal">Δ</th>
               </tr>
             </thead>
             <tbody>
-              {Object.entries(ss.zones).filter(([, z]) => Number(z.fga) > 0).map(([z, v]) => (
-                <tr key={z} className="border-t border-border-subtle/50">
-                  <td className="pr-2 text-text-secondary">{z.replace(/_/g, " ")}</td>
-                  <td className="text-text-primary">{fnum(v.fga, 0)}</td>
-                  <td>{rate(Number(v.fg_pct))}</td>
-                </tr>
-              ))}
+              {Object.entries(ss.zones).filter(([, z]) => Number(z.fga) >= 0.3).map(([z, v]) => {
+                const lgz = ssDoc?.leagueZones?.[z];
+                const p = Number(v.fg_pct);
+                const d = lgz ? p - lgz.fgp : null;
+                return (
+                  <tr key={z} className="border-t border-border-subtle/50">
+                    <td className="pr-2 text-text-secondary">{z.replace(/_/g, " ")}</td>
+                    <td className="text-text-primary">{fnum(v.fga, 0)}</td>
+                    <td>{rate(p)}</td>
+                    <td className="text-text-dim">{lgz ? rate(lgz.fgp) : "—"}</td>
+                    <td className={d == null ? "" : d >= 0.10 ? "text-pos font-medium" : d >= 0.03 ? "text-pos" : d <= -0.10 ? "text-neg font-medium" : d <= -0.03 ? "text-neg" : ""}>
+                      {d != null ? `${d >= 0 ? "+" : ""}${(d * 100).toFixed(1)}` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          <PanelNote>balldontlie snapshot — internal research</PanelNote>
+          <PanelNote>
+            zones vs the same-season league pool (10+ FGA rows; colored at ±3 / ±10 pts) ·
+            shot-making = real eFG minus the player&apos;s shot diet priced at league rates
+            (RESULTS-HOOPS §9) — descriptive benchmark, internal research
+          </PanelNote>
         </div>
       )}
       {ps && (

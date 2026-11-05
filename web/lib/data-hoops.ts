@@ -182,8 +182,15 @@ export type HoopsSSPlayer = {
   speed?: HoopsSSCat; drives?: HoopsSSCat; passing?: HoopsSSCat; paint?: HoopsSSCat;
   catch_shoot?: HoopsSSCat; pullup?: HoopsSSCat; post?: HoopsSSCat; elbow?: HoopsSSCat;
   eff?: HoopsSSCat; poss_t?: HoopsSSCat; def_t?: HoopsSSCat;
+  /** §9 zone shot-making benchmark (bake-time, gate-gated) */
+  shootmk?: { xefg: number; efg: number; diff: number; n_fga: number };
 } & { [k: string]: HoopsSSCat | HoopsSSCat[] | Record<string, number> | undefined };
-export type HoopsSeasAvgsDoc = { season: number; players: Record<string, HoopsSSPlayer> };
+export type HoopsSeasAvgsDoc = {
+  season: number;
+  players: Record<string, HoopsSSPlayer>;
+  /** §9: league zone FG% (fga-weighted, same-season pool; efgp values 3s ×1.5) */
+  leagueZones?: Record<string, { fga: number; fgp: number; efgp: number }> | null;
+};
 export type HoopsShotGrid = { n: number; fgm: number; cells: [number, number, number, number][] };
 export type HoopsPlayerShotsDoc = { season: number; binsize: number; players: Record<string, HoopsShotGrid> };
 
