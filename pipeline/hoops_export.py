@@ -263,6 +263,58 @@ bdl2espn_of: dict[int, int] = {}
 bdl_team_abbr: dict[int, str] = {}
 
 
+def day_diff(a: str, b: str) -> int:
+    """Calendar days between two YYYY-MM-DD strings (rest-day grain)."""
+    from datetime import date
+    ya, ma, da = map(int, a.split("-"))
+    yb, mb, db = map(int, b.split("-"))
+    return (date(ya, ma, da) - date(yb, mb, db)).days
+
+
+def schedule_splits(doc: dict, opp_records: dict) -> None:
+    """Cut each season's game log into the METRICS.md splits — rest (B2B/1/2+),
+    venue, opponent tier (final-season record) — from the game-log grain.
+    Neutral rendering: these are context cuts, not grades; buckets under 10
+    games are flagged by the site. MUTATES doc in place."""
+    num = ("min", "pts", "reb", "ast", "stl", "blk", "tov")
+    for season, sdoc in doc["seasons"].items():
+        games = sdoc.get("games") or []
+        if len(games) < 5:
+            continue
+        buckets: dict[str, dict] = {}
+
+        def add(key: str, g: dict):
+            b = buckets.setdefault(key, {"g": 0, **{k: 0.0 for k in num}})
+            b["g"] += 1
+            for k in num:
+                v = g.get(k)
+                if isinstance(v, (int, float)):
+                    b[k] += v
+
+        rec = opp_records.get(int(season), {})
+        prev_date = None
+        for g in sorted(games, key=lambda x: x["date"]):
+            opp = g.get("opp")
+            ow, ol = rec.get(opp, (None, None))
+            tier = None
+            if ow is not None and (ow + ol) > 0:
+                tier = "vs_top" if ow / (ow + ol) >= 0.5 else "vs_bottom"
+            add("venue_" + ("home" if g.get("home") else "away"), g)
+            if tier:
+                add(tier, g)
+            if prev_date is not None:
+                d = day_diff(g["date"], prev_date)
+                add("rest_" + ("b2b" if d <= 0 else "one" if d == 1 else "two_plus"), g)
+            prev_date = g["date"]
+        out = {}
+        for key, b in buckets.items():
+            dim, _, val = key.partition("_")
+            out.setdefault(dim, {})[val] = {
+                "g": b["g"],
+                **{k: round(b[k] / b["g"], 1) for k in num}}
+        sdoc["splits"] = out
+
+
 def merge_bdl_box(board, pdocs, team_seasons, season_rows, out, counts) -> dict:
     """Seasons the ESPN mart lacks (2022-23, 2023-24) from balldontlie box rows:
     games list, board rows, player season lines + game logs, team aggregates.
@@ -1172,6 +1224,9 @@ def bake(out_dir: Path | None = None) -> dict:
                         continue
                     players.setdefault(str(eid), {})[key] = ss_pick(r, tuple(
                         c.replace("stats.", "") for c in df.columns if c.startswith("stats.")))
+                    pp = r.get("player.position")
+                    if pd.notna(pp):
+                        players[str(eid)]["pos"] = str(pp)[:1]
             elif tag == "shooting_by_zone":
                 for _, r in df.iterrows():
                     eid = bdl2espn.get(int(r["player.id"]))
@@ -1261,6 +1316,28 @@ def bake(out_dir: Path | None = None) -> dict:
             vals.sort(key=lambda t: t[1])
             for i, (eid, _) in enumerate(vals):
                 players[eid].setdefault("pct_ranks", {})[path] = round(i / (len(vals) - 1), 3)
+        # position-pool ranks (METRICS.md advantage framework): G/F/C pools, floor 40
+        pools: dict[str, list] = {}
+        for eid, cats in players.items():
+            p = cats.get("pos")
+            if isinstance(p, str):
+                pools.setdefault(p, []).append(eid)
+        for p, eids in pools.items():
+            if len(eids) < 40:
+                continue
+            for path in RANK_METRICS:
+                sec, k = path.split(".")
+                vals = []
+                for eid in eids:
+                    v = (players[eid].get(sec) or {}).get(k)
+                    if isinstance(v, (int, float)):
+                        vals.append((eid, v))
+                if len(vals) < 30:
+                    continue
+                vals.sort(key=lambda t: t[1])
+                for i, (eid, _) in enumerate(vals):
+                    players[eid].setdefault("pct_ranks_pos", {})[path] = round(i / (len(vals) - 1), 3)
+        counts[f"seasavgs_{site_yr}_pospools"] = {p: len(e) for p, e in pools.items()}
         jwrite_gz(out / f"seasavgs_{site_yr}.json.gz",
                   {"season": site_yr, "players": players,
                    "leagueZones": lgz if gate else None})
@@ -1357,6 +1434,10 @@ def bake(out_dir: Path | None = None) -> dict:
     counts["teams"] = len(team_seasons)
     jwrite(out / "players.json", {"seasons": board})
     counts["players"] = sum(len(v) for v in board.values())
+    opp_records = {s: {t["abbr"]: (t["w"], t["l"]) for t in rows}
+                   for s, rows in season_rows.items()}
+    for doc in pdocs.values():
+        schedule_splits(doc, opp_records)
     for ath, doc in pdocs.items():
         jwrite_gz(out / "player" / f"{ath}.json.gz", doc)
     counts["player_files"] = len(pdocs)
