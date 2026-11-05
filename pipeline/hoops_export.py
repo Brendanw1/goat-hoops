@@ -418,6 +418,76 @@ def pdocs_name(pdocs, eid: int) -> str | None:
     return d["name"] if d else None
 
 
+# site label -> the BDL starters pull (parquets carry per-game starting fives,
+# NOT unit minutes/ratings — so this builds team continuity, honestly; BDL
+# season keys are starting years, hence lineups_2025 -> site 2026)
+BDL_STARTERS = {2026: "lineups_2025.parquet", 2027: "lineups_2026.parquet"}
+STARTERS_FULL_SEASON_GAME_TEAMS = 1000  # below this, GS must not merge (partial pull)
+
+
+def merge_bdl_starters(board, pdocs, team_seasons, counts) -> dict:
+    """Team starting-five continuity from the BDL starters pulls, plus GS —
+    but GS merges only from a near-complete pull (internal-consistency gate
+    §0c: a (game, team) group rarely holds exactly 5 rows (~10% injury/
+    re-registration noise); continuity units count ONLY exact-5 groups, and
+    GS counts from a partial pull would silently undercount starts, so they
+    wait for coverage)."""
+    added = {}
+    for site_season, fname in BDL_STARTERS.items():
+        f = BDL / fname
+        if not f.exists():
+            continue
+        df = pd.read_parquet(f)
+        df = df[df["starter"] == True]  # noqa: E712 — flag column
+        groups = df.groupby(["game_id", "team.id"]).size()
+        exact5 = groups[groups == 5]
+        coverage = len(exact5) / len(groups) if len(groups) else 0
+        added[site_season] = {"coverage": round(coverage, 4),
+                              "game_teams": int(len(groups)),
+                              "exact5": int(len(exact5)),
+                              "gs_merged": False}
+        counts[f"starters_{site_season}_coverage"] = round(coverage, 4)
+        # GS only from a near-complete pull — a partial pull undercounts starts
+        if len(groups) >= STARTERS_FULL_SEASON_GAME_TEAMS and coverage >= 0.95:
+            gs = {}
+            for pid, rows in df.groupby("player.id"):
+                eid = bdl2espn_of.get(int(pid))
+                if eid:
+                    gs[str(eid)] = int(len(rows))
+            for r in board.get(site_season, []):
+                if r["gs"] is None and r["id"] in gs:
+                    r["gs"] = gs[r["id"]]
+            for eid, g in gs.items():
+                doc = pdocs.get(eid)
+                if doc and site_season in doc["seasons"]:
+                    doc["seasons"][site_season]["gs"] = g
+            added[site_season]["gs_merged"] = True
+            counts[f"starters_{site_season}_gs"] = len(gs)
+        # team continuity: most-used starting fives, exact-5 groups only
+        for (gid, tid), rows in df.groupby(["game_id", "team.id"]):
+            if len(rows) != 5:
+                continue
+            abbr = bdl_team_abbr.get(int(tid))
+            if abbr not in NBA_TEAMS:
+                continue
+            ids = sorted(str(int(p)) for p in rows["player.id"])
+            key = "|".join(ids)
+            names = [f"{fn} {ln}".strip() for fn, ln in
+                     zip(rows["player.first_name"], rows["player.last_name"])]
+            entry = team_seasons.setdefault(abbr, {}).setdefault(
+                site_season, {}).setdefault("starters5", {})
+            e = entry.setdefault(key, {"names": sorted(names), "g": 0})
+            e["g"] += 1
+        # keep only the top 3 units per team-season, as a list
+        for abbr, seasons in team_seasons.items():
+            doc5 = seasons.get(site_season, {}).get("starters5")
+            if doc5:
+                top = sorted(doc5.items(), key=lambda kv: -kv[1]["g"])[:3]
+                seasons[site_season]["starters5"] = [
+                    {"names": v["names"], "g": v["g"]} for _, v in top]
+    return added
+
+
 def sv_ratio(m, a):
     try:
         return round(float(m) / float(a), 3) if a and float(a) > 0 else None
@@ -1203,6 +1273,7 @@ def bake(out_dir: Path | None = None) -> dict:
     bdl_check_info = bdl_espn_check(gg, pgx, id2abbr)
     print("bdl vs espn (2025):", json.dumps(bdl_check_info))
     seasons_meta.update(merge_bdl_box(board, pdocs, team_seasons, season_rows, out, counts))
+    starters_info = merge_bdl_starters(board, pdocs, team_seasons, counts)
     advagg_phase(out, counts)
     careers_phase(out, counts)
     standings_phase(out, counts)
@@ -1293,7 +1364,7 @@ def bake(out_dir: Path | None = None) -> dict:
     if bdl_check_info:
         validation["bdl"] = bdl_check_info
     jwrite(out / "meta.json", {
-        "seasons": seasons_meta, "validation": validation,
+        "seasons": seasons_meta, "validation": validation, "starters": starters_info,
         "note": "descriptive Phase 1: raw box values, averages and per-36 only; "
                 "2022-23/2023-24 seasons and the advanced/tracking roll-ups come from "
                 "balldontlie (GOAT-trial snapshot 2026-11) — internal research, public "
