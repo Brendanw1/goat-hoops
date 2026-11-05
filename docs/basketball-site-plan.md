@@ -65,6 +65,44 @@ most of the spec builds on them; projections stay last.
    Ship step when the owner wants it live: `r2_sync.py --path hoops` (data
    files stay local until then, per the local-first call).
 
+## Phase 1b — the BDL statistics foundation (DONE locally 2026-11-05)
+
+The GOAT-trial harvest (2026-11) landed, and spec item 1 — "all regular
+player statistics, per game and per season, basic + advanced, per player AND
+per team" — is on the site:
+
+1. **Second-source gate PASSED** (RESULTS-HOOPS §0b): BDL vs ESPN on the
+   shared 2024-25 season — 688/688 game scores exact, 11,326 boxes with
+   pts/reb/ast 100% exact. Season-convention hop (BDL starting-year → site
+   ending-year label) applied at bake; the pre-fix seasavgs docs were
+   mislabeled by one year and are corrected.
+2. **Seasons on the site**: 2023-24 (BDL, partial 567 games — walk unfinished,
+   flagged), 2024-25 (ESPN + the BDL cross-check), **2025-26 complete
+   (BDL, 1,230 games — new)**, 2026-27 live (ESPN). Players board, player
+   docs (season lines + game logs), team docs, game finders all gained the
+   BDL seasons; balldontlie game ids carry `ext` and render without links.
+3. **Advanced roll-ups** (`advagg.json.gz`): balldontlie v2-advanced per-game
+   rows deduped and rolled up per player-season, 2018-19 → 2025-26 (six
+   complete seasons through 2024-25; 2025-26 ~half covered, flagged). Rates
+   are minutes-weighted, ratios rebuilt from sums, counting stats per-36;
+   league mean + p10/25/50/75/90 bands per field power the good/bad coloring.
+   Carries the tracking tier the spec thought tracking-gated: defensive
+   matchups, contested shots, box outs, charges, deflections, screen assists,
+   loose balls, passes/touches, rebound chances.
+4. **Career arcs** (`careers.json.gz`): per-season lines 2005-06 → 2025-26
+   from the seasavgs history pull (active-register bridge; retired stars have
+   no ESPN page to hang an arc on).
+5. **Standings** (`standings.json`): 2023-24 → 2025-26 from the BDL snapshot.
+6. **Surfaces**: player page rebuilt (season statistics table, career arc,
+   advanced rates by season vs league bands, defense & activity panel, BDL
+   game logs); new `/stats` sortable leaderboard (basic + advanced merged,
+   judged columns colored against the season's own bands); teams board got
+   win% bars + point-differential colors. Semantic tokens (`pos`/`neg`/`flag`)
+   replace ad-hoc judgment hexes app-wide.
+7. Bake `--check` no-op verified (advagg intentionally drifts while the
+   advanced walk still appends — re-synced per bake), `r2_sync` mirrored
+   (1,651 keys; stale `seasavgs_2023.json.gz` pruned).
+
 ## Phase 2 — derived models (each pre-registered before the first fit)
 
 - **RAPM** from ESPN PBP stints (+ pbpstats possessions as the segmentation
