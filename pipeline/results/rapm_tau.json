@@ -1,0 +1,352 @@
+{
+  "season": 2025,
+  "grid": [
+    {
+      "tau": 250,
+      "lam": 100,
+      "cv_sse": 65849,
+      "stability": 0.167,
+      "benchmark": 0.513,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 250,
+      "lam": 300,
+      "cv_sse": 64673,
+      "stability": 0.189,
+      "benchmark": 0.531,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 250,
+      "lam": 1000,
+      "cv_sse": 62819,
+      "stability": 0.245,
+      "benchmark": 0.57,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 250,
+      "lam": 3000,
+      "cv_sse": 61577,
+      "stability": 0.35,
+      "benchmark": 0.621,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 250,
+      "lam": 10000,
+      "cv_sse": 61927,
+      "stability": 0.513,
+      "benchmark": 0.663,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 250,
+      "lam": 30000,
+      "cv_sse": 64369,
+      "stability": 0.615,
+      "benchmark": 0.661,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 250,
+      "lam": 100000,
+      "cv_sse": 67624,
+      "stability": 0.657,
+      "benchmark": 0.645,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 500,
+      "lam": 100,
+      "cv_sse": 64514,
+      "stability": 0.206,
+      "benchmark": 0.538,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 500,
+      "lam": 300,
+      "cv_sse": 63803,
+      "stability": 0.223,
+      "benchmark": 0.551,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 500,
+      "lam": 1000,
+      "cv_sse": 62503,
+      "stability": 0.273,
+      "benchmark": 0.583,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 500,
+      "lam": 3000,
+      "cv_sse": 61515,
+      "stability": 0.371,
+      "benchmark": 0.628,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 500,
+      "lam": 10000,
+      "cv_sse": 61918,
+      "stability": 0.525,
+      "benchmark": 0.666,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 500,
+      "lam": 30000,
+      "cv_sse": 64351,
+      "stability": 0.623,
+      "benchmark": 0.663,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 500,
+      "lam": 100000,
+      "cv_sse": 67607,
+      "stability": 0.664,
+      "benchmark": 0.647,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 1000,
+      "lam": 100,
+      "cv_sse": 63186,
+      "stability": 0.274,
+      "benchmark": 0.572,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 1000,
+      "lam": 300,
+      "cv_sse": 62833,
+      "stability": 0.287,
+      "benchmark": 0.581,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 1000,
+      "lam": 1000,
+      "cv_sse": 62084,
+      "stability": 0.328,
+      "benchmark": 0.604,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 1000,
+      "lam": 3000,
+      "cv_sse": 61422,
+      "stability": 0.413,
+      "benchmark": 0.64,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 1000,
+      "lam": 10000,
+      "cv_sse": 61906,
+      "stability": 0.55,
+      "benchmark": 0.672,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 1000,
+      "lam": 30000,
+      "cv_sse": 64318,
+      "stability": 0.64,
+      "benchmark": 0.668,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 1000,
+      "lam": 100000,
+      "cv_sse": 67573,
+      "stability": 0.678,
+      "benchmark": 0.651,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 2000,
+      "lam": 100,
+      "cv_sse": 62154,
+      "stability": 0.394,
+      "benchmark": 0.613,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 2000,
+      "lam": 300,
+      "cv_sse": 62010,
+      "stability": 0.403,
+      "benchmark": 0.618,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 2000,
+      "lam": 1000,
+      "cv_sse": 61664,
+      "stability": 0.431,
+      "benchmark": 0.633,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 2000,
+      "lam": 3000,
+      "cv_sse": 61328,
+      "stability": 0.494,
+      "benchmark": 0.658,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 2000,
+      "lam": 10000,
+      "cv_sse": 61899,
+      "stability": 0.599,
+      "benchmark": 0.681,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 2000,
+      "lam": 30000,
+      "cv_sse": 64257,
+      "stability": 0.673,
+      "benchmark": 0.675,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 2000,
+      "lam": 100000,
+      "cv_sse": 67507,
+      "stability": 0.707,
+      "benchmark": 0.658,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 4000,
+      "lam": 100,
+      "cv_sse": 61619,
+      "stability": 0.576,
+      "benchmark": 0.651,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 4000,
+      "lam": 300,
+      "cv_sse": 61568,
+      "stability": 0.581,
+      "benchmark": 0.654,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 4000,
+      "lam": 1000,
+      "cv_sse": 61439,
+      "stability": 0.595,
+      "benchmark": 0.661,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 4000,
+      "lam": 3000,
+      "cv_sse": 61329,
+      "stability": 0.628,
+      "benchmark": 0.675,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 4000,
+      "lam": 10000,
+      "cv_sse": 61934,
+      "stability": 0.688,
+      "benchmark": 0.689,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 4000,
+      "lam": 30000,
+      "cv_sse": 64157,
+      "stability": 0.736,
+      "benchmark": 0.683,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "tau": 4000,
+      "lam": 100000,
+      "cv_sse": 67381,
+      "stability": 0.761,
+      "benchmark": 0.667,
+      "n_stab": 355,
+      "n_bench": 365
+    }
+  ],
+  "selected": {
+    "tau": 2000,
+    "lam": 3000,
+    "cv_sse": 61328,
+    "stability": 0.494,
+    "benchmark": 0.658,
+    "n_stab": 355,
+    "n_bench": 365
+  },
+  "gate_stability": "FAIL",
+  "gate_benchmark": "FAIL",
+  "tau_grid": [
+    250,
+    500,
+    1000,
+    2000,
+    4000
+  ],
+  "lambda_grid": [
+    100,
+    300,
+    1000,
+    3000,
+    10000,
+    30000,
+    100000
+  ],
+  "spm": {
+    "cached": true
+  },
+  "n_possessions": 134001,
+  "n_players": 517
+}

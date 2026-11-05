@@ -151,11 +151,157 @@ def gamescore_prior(season):
 
 
 
+def tau_grid(a):
+    """§8 — the pre-registered τ sweep (RESULTS-HOOPS §8): §7's prior verbatim,
+    weight τ ∈ TAU_GRID, ONE cell (τ*, λ*) chosen by held-out game-margin SSE,
+    gates read only there. Gram split (X'X = Xr'Xr + τ·Xp'Xp) makes the joint
+    grid cheap; algebraically identical to the dense form."""
+    TAU_GRID = [250, 500, 1000, 2000, 4000]
+    pr = pd.read_parquet(DERIVED / f"rapm_xrows_{a.season}.parquet").reset_index(drop=True)
+    pr = pr[pr.on10.map(len) == 10].reset_index(drop=True)
+    print(f"possession rows: {len(pr):,}")
+    players = sorted({p for row in pr.on10 for p in row})
+    pidx = {p: i for i, p in enumerate(players)}
+    nP = len(players)
+    cache = RESULTS / "rapm_tau_prior_cache.parquet"
+    if cache.exists():
+        cdf = pd.read_parquet(cache)
+        cdf["aid"] = cdf["aid"].astype(str)
+        spm_c = pd.Series(cdf.spm_c.values, index=cdf.aid)
+        spm_rep = {"cached": True}
+        print("prior cache hit")
+    else:
+        pred, spm_rep = spm()
+        spm_resp = pred[pred.index.isin(players)]
+        spm_resp = spm_resp[~spm_resp.index.duplicated()]
+        spm_c = spm_resp - spm_resp.mean()
+        pd.DataFrame({"aid": spm_c.index, "spm_c": spm_c.values}).to_parquet(cache)
+    gsp = gamescore_prior(a.season)
+    prior_of = {p: (float(v), np.nan) for p, v in spm_c.items()}
+    for p in [p for p in players if p not in prior_of and p in gsp]:
+        prior_of[p] = gsp[p]
+
+    # design matrix (once)
+    n_real = len(pr)
+    X = np.zeros((n_real + len(players), nP + 1), dtype=np.float64)
+    y = np.zeros(n_real + len(players), dtype=np.float64)
+    gids = np.array([None] * (n_real + len(players)), dtype=object)
+    for rix, row in enumerate(pr.itertuples()):
+        on = list(row.on10)
+        homes_set = set(on[:5])
+        home_flag = bool(row.home)
+        for aid in on:
+            is_off = (aid in homes_set) == home_flag
+            X[rix, pidx[aid]] = 1.0 if is_off else -1.0
+        X[rix, nP] = 1.0 if home_flag else -1.0
+        y[rix] = float(row.pts)
+        gids[rix] = row.gid
+    y[:n_real] -= y[:n_real].mean()
+    prior_rows = [(i, p) for i, p in enumerate(players) if p in prior_of]
+    Xp = np.zeros((len(prior_rows), nP + 1), dtype=np.float64)
+    yp = np.zeros(len(prior_rows), dtype=np.float64)
+    for j, (i, p) in enumerate(prior_rows):
+        Xp[j, pidx[p]] = 1.0
+        yp[j] = prior_of[p][0] / 100.0
+    print(f"design: {n_real:,} rows + {len(prior_rows)} prior rows | τ grid {TAU_GRID}")
+    Xr, yr = X[:n_real], y[:n_real]
+
+    def gram(mask):
+        M = Xr[mask]
+        return M.T @ M, M.T @ yr[mask]
+
+    uniq = pd.unique(gids[:n_real])
+    folds = {g: i % 5 for i, g in enumerate(sorted(uniq))}
+    f_real = np.array([folds.get(g, 0) for g in gids[:n_real]])
+    half = np.array([int(g) % 2 if g is not None else 0 for g in gids[:n_real]])
+    masks = {("full", None): np.ones(n_real, dtype=bool)}
+    masks.update({(f"fold{k}", None): f_real != k for k in range(5)})
+    masks.update({("half", h): half == h for h in (0, 1)})
+    Gs = {k: gram(m) for k, m in masks.items()}
+    Pp = Xp.T @ Xp
+    bp = Xp.T @ yp
+    reg_base = np.eye(nP + 1)
+    reg_base[-1, -1] = 0.0
+
+    def solve(key, tau, lam):
+        G, b = Gs[key]
+        return np.linalg.solve(G + tau * Pp + lam * reg_base, b + tau * bp)
+
+    # LUMA merge frame (β-independent)
+    luma_f = Path.home() / "Projects/vt_baseball/hoops_mart/data/luma/xpts_rapm_2025.parquet"
+    lg = pd.read_parquet(luma_f)
+    pcnt = pr.explode("on10").groupby("on10").size().rename("poss")
+    luma_by_aid = lg.assign(pid_str=lg.pid.astype(str)).set_index("pid_str").xpts_net
+
+    # stability player set
+    ex = pd.DataFrame({"gid": gids[:n_real], "aid": pr.on10.tolist(), "half": half})
+    ex = ex.explode("aid")
+    ph = ex.groupby(["aid", "half"]).size().unstack(fill_value=0)
+    sel_pids = [p for p in players
+                if ph.loc[p, 0] >= 500 and ph.loc[p, 1] >= 500]
+    sel_rows = [pidx[p] for p in sel_pids]
+    bench_sel_idx = [i for i, p in enumerate(players)
+                     if pcnt.get(p, 0) >= 250 and p in luma_by_aid.index]
+    print(f"stability players {len(sel_pids)} | benchmark players {len(bench_sel_idx)}")
+
+    cells = []
+    for tau in TAU_GRID:
+        row = {"tau": tau}
+        for lam in LAMBDA_GRID:
+            sse = 0.0
+            beta_full = None
+            for k in range(5):
+                beta = solve((f"fold{k}", None), tau, lam)
+                te = np.where(f_real == k)[0]
+                p_pred = X[te] @ beta
+                gg = pr.iloc[te].copy()
+                gg["pred"] = p_pred
+                agg2 = gg.groupby(["gid", "team"]).agg(pred=("pred", "sum"), actual=("pts", "sum"),
+                                                       home=("home", "first")).reset_index()
+                piv_p = agg2.pivot(index="gid", columns="home", values="pred")
+                piv_a = agg2.pivot(index="gid", columns="home", values="actual")
+                if True in piv_p.columns and False in piv_p.columns:
+                    sse += float(((piv_p[True] - piv_p[False]) - (piv_a[True] - piv_a[False])).pow(2).sum())
+            be = solve(("half", 0), tau, lam)
+            bo = solve(("half", 1), tau, lam)
+            a_e = be[[pidx[p] for p in sel_pids]]
+            a_o = bo[[pidx[p] for p in sel_pids]]
+            stab = float(np.corrcoef(a_e, a_o)[0, 1]) if len(sel_pids) > 2 else float("nan")
+            bf = solve(("full", None), tau, lam)
+            vals = bf[bench_sel_idx]
+            lum = np.array([luma_by_aid[players[i]] for i in bench_sel_idx])
+            bench = float(np.corrcoef(vals, lum)[0, 1]) if len(vals) > 2 else float("nan")
+            cells.append({"tau": tau, "lam": lam, "cv_sse": round(sse), "stability": round(stab, 3),
+                          "benchmark": round(bench, 3), "n_stab": len(sel_pids), "n_bench": len(bench_sel_idx)})
+            row[lam] = round(sse)
+            print(f"  τ={tau} λ={lam}: SSE {sse:.3e} stab {stab:.3f} bench {bench:.3f}")
+            if lam == 30000:
+                row["ratings_30k"] = {p: round(float(bf[pidx[p]] * 100.0), 2) for p in players}
+    best = min(cells, key=lambda c: c["cv_sse"])
+    gate_stab = "PASS" if best["stability"] >= 0.60 else "FAIL"
+    gate_b = "PASS" if best["benchmark"] >= 0.70 else "FAIL"
+    print(f"§8 VERDICT at (τ*={best['tau']}, λ*={best['lam']}): stability {gate_stab} "
+          f"({best['stability']}) | benchmark {gate_b} ({best['benchmark']} on {best['n_bench']})")
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    (RESULTS / "rapm_tau.json").write_text(json.dumps(
+        {"season": a.season, "grid": cells, "selected": best, "gate_stability": gate_stab,
+         "gate_benchmark": gate_b, "tau_grid": TAU_GRID, "lambda_grid": LAMBDA_GRID,
+         "spm": spm_rep, "n_possessions": int(n_real), "n_players": nP}, indent=2, default=str))
+    beta_best = solve(("full", None), best["tau"], best["lam"])
+    pd.DataFrame({"aid": players, "rapm": beta_best[:nP] * 100.0}).to_csv(
+        RESULTS / "rapm_tau_players.csv", index=False)
+    print(f"wrote results/rapm_tau.json + rapm_tau_players.csv (τ={best['tau']}, λ={best['lam']})")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2025)
     ap.add_argument("--dry", action="store_true", help="everything before the read; no ridge fit")
+    ap.add_argument("--tau-grid", action="store_true", help="§8: sweep the prior weight, CV selects (τ*, λ*)")
     a = ap.parse_args()
+    if a.tau_grid:
+        tau_grid(a)
+        return
 
     pr = pd.read_parquet(DERIVED / f"rapm_xrows_{a.season}.parquet").reset_index(drop=True)
     pr = pr[pr.on10.map(len) == 10].reset_index(drop=True)
