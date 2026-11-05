@@ -66,10 +66,10 @@ export type HoopsPlayerDoc = {
   }>;
 };
 /** season roll-ups of balldontlie's v2-advanced game rows (advagg.json.gz) */
-export type HoopsAdvAggPlayer = { gp: number; min: number | null } & Record<string, number | null>;
+export type HoopsAdvAggPlayer = { gp: number } & Record<string, number | null>;
 export type HoopsAdvAggLeague = Record<string, number | Record<string, number> | null>;
 export type HoopsAdvAggDoc = {
-  seasons: Record<string, Record<string, HoopsAdvAggPlayer>>;
+  seasons: Record<string, { players: Record<string, HoopsAdvAggPlayer> }>;
   league: Record<string, HoopsAdvAggLeague>;
   lower_better: string[];
   note: string;
@@ -81,6 +81,36 @@ export type HoopsStandRow = {
   conf_rank: number | null; home: [number, number] | null; road: [number, number] | null;
 };
 export type HoopsStandingsDoc = { seasons: Record<string, HoopsStandRow[]>; note: string };
+
+/** exploration-layer docs (pipeline/explore.py) — descriptive, not forecasts */
+export type HoopsSimilarDoc = {
+  season: number; k: number; fields: string[];
+  archetypes: Record<string, { label: string; size: number; centroid: [string, number][] }>;
+  players: Record<string, { a: number; n: [string, number][] }>;
+  note: string;
+};
+export type HoopsSurplusPlayer = {
+  prod_z: number; prod_pct: number;
+  sal: number | null; sal_pct: number | null; surplus: number | null;
+};
+export type HoopsSurplusDoc = {
+  season_prod: number; season_salary: number; fields: string[];
+  players: Record<string, HoopsSurplusPlayer>; note: string;
+};
+export type HoopsClutchDoc = {
+  seasons: Record<string, Record<string, {
+    gp: number | null; ts_d: number | null; usg_d: number | null;
+    net_d: number | null; pie_d: number | null;
+  }>>;
+  note: string;
+};
+export type HoopsReboundDoc = {
+  seasons: Record<string, {
+    players: Record<string, { reb36: number; reb_ch: number; conv: number }>;
+    dist: Record<string, number>;
+  }>;
+  note: string;
+};
 export type HoopsContractDeal = {
   type: string | null; status: string | null;
   start: number | null; end: number | null; years: number | null;
@@ -147,6 +177,11 @@ export type HoopsSSPlayer = {
   zones?: Record<string, HoopsSSCat>;
   bands?: Record<string, HoopsSSCat>;
   pct_ranks?: Record<string, number>;
+  // the flat category blocks the bake writes (hoops_export.py category map)
+  adv?: HoopsSSCat; clutch?: HoopsSSCat; defense?: HoopsSSCat; hustle?: HoopsSSCat;
+  speed?: HoopsSSCat; drives?: HoopsSSCat; passing?: HoopsSSCat; paint?: HoopsSSCat;
+  catch_shoot?: HoopsSSCat; pullup?: HoopsSSCat; post?: HoopsSSCat; elbow?: HoopsSSCat;
+  eff?: HoopsSSCat; poss_t?: HoopsSSCat; def_t?: HoopsSSCat;
 } & { [k: string]: HoopsSSCat | HoopsSSCat[] | Record<string, number> | undefined };
 export type HoopsSeasAvgsDoc = { season: number; players: Record<string, HoopsSSPlayer> };
 export type HoopsShotGrid = { n: number; fgm: number; cells: [number, number, number, number][] };
@@ -169,6 +204,18 @@ export const getHoopsCareers = cache(async (): Promise<HoopsCareersDoc | null> =
 
 export const getHoopsStandings = cache(async (): Promise<HoopsStandingsDoc | null> =>
   (await fetchFromR2<HoopsStandingsDoc>("standings.json").catch(() => null)) ?? null);
+
+export const getHoopsSimilar = cache(async (): Promise<HoopsSimilarDoc | null> =>
+  (await fetchGzippedJson<HoopsSimilarDoc>("similar.json.gz").catch(() => null)) ?? null);
+
+export const getHoopsSurplus = cache(async (): Promise<HoopsSurplusDoc | null> =>
+  (await fetchGzippedJson<HoopsSurplusDoc>("surplus.json.gz").catch(() => null)) ?? null);
+
+export const getHoopsClutch = cache(async (): Promise<HoopsClutchDoc | null> =>
+  (await fetchGzippedJson<HoopsClutchDoc>("clutch.json.gz").catch(() => null)) ?? null);
+
+export const getHoopsRebound = cache(async (): Promise<HoopsReboundDoc | null> =>
+  (await fetchGzippedJson<HoopsReboundDoc>("rebound.json.gz").catch(() => null)) ?? null);
 
 /** Seasons the bake covers, newest first (falls back to nothing before the first bake). */
 export async function hoopsSeasons(): Promise<number[]> {

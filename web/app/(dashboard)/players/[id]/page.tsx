@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { ShotHeatMap } from "@/components/ui/shot-heatmap";
 import {
-  getHoopsAdvAgg, getHoopsCareers, getHoopsContracts, getHoopsMeta, getHoopsPlayer,
-  getHoopsPlayerShots, getHoopsSeasAvgs,
+  getHoopsAdvAgg, getHoopsCareers, getHoopsClutch, getHoopsContracts, getHoopsMeta, getHoopsPlayer,
+  getHoopsPlayerShots, getHoopsPlayers, getHoopsRebound, getHoopsSeasAvgs, getHoopsSimilar,
+  getHoopsSurplus,
 } from "@/lib/data-hoops";
 import type { HoopsContractDeal, HoopsSSCat } from "@/lib/data-hoops";
 
@@ -134,10 +135,13 @@ export default async function HoopsPlayerPage({ params }: {
   const doc = await getHoopsPlayer(id);
   if (!doc || !Object.keys(doc.seasons).length) notFound();
   const seasons = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
-  const [cdoc, advDoc, careers, meta, ss26, ss25, ps27, ps25] = [
+  const [cdoc, advDoc, careers, meta, ss26, ss25, ps27, ps25,
+         similarDoc, surplusDoc, clutchDoc, reboundDoc, board] = [
     await getHoopsContracts(), await getHoopsAdvAgg(), await getHoopsCareers(), await getHoopsMeta(),
     await getHoopsSeasAvgs(2026), await getHoopsSeasAvgs(2025),
-    await getHoopsPlayerShots(2027), await getHoopsPlayerShots(2025)];
+    await getHoopsPlayerShots(2027), await getHoopsPlayerShots(2025),
+    await getHoopsSimilar(), await getHoopsSurplus(), await getHoopsClutch(),
+    await getHoopsRebound(), await getHoopsPlayers()];
   const ssDoc = ss26 ?? ss25;
   const ss = ssDoc?.players[id];
   const pt = ss?.playtype ?? [];
@@ -151,18 +155,36 @@ export default async function HoopsPlayerPage({ params }: {
   const prior = current ? deals.filter((d) => d !== current) : deals;
   const ssLabel = ssDoc ? seasonLabel(ssDoc.season) : "";
   const arc = careers?.players[id];
-  const advSeasons = advDoc
-    ? Object.keys(advDoc.seasons).sort((a, b) => Number(b) - Number(a))
-        .filter((s) => advDoc.seasons[s]?.players?.[id])
-    : [];
-  const defSeason = advSeasons.find((s) => (advDoc.seasons[s].players[id].min ?? 0) > 0);
-  const defP = defSeason ? advDoc.seasons[defSeason].players[id] : null;
-  const defLg = defSeason ? advDoc.league[defSeason] : undefined;
+  const advPool = advDoc?.seasons ?? {};
+  const advSeasons = Object.keys(advPool).sort((a, b) => Number(b) - Number(a))
+    .filter((s) => advPool[s]?.players?.[id]);
+  const defSeason = advSeasons.find((s) => (advPool[s]?.players?.[id]?.min ?? 0) > 0);
+  const defP = defSeason ? advPool[defSeason]?.players?.[id] ?? null : null;
+  const defLg = defSeason ? advDoc?.league[defSeason] : undefined;
   const lower = new Set(advDoc?.lower_better ?? []);
   const partial = (s: string) => {
     const m = meta?.seasons[s];
     return m && m.games < 800 ? { games: m.games, src: (m as { source?: string }).source } : null;
   };
+  // exploration layer (descriptive): archetype + neighbors, surplus, clutch, rebounds
+  const names = new Map<string, string>();
+  for (const rows of Object.values(board?.seasons ?? {})) {
+    for (const r of rows) names.set(r.id, r.name);
+  }
+  const simP = similarDoc?.players[id];
+  const arch = simP ? similarDoc?.archetypes[String(simP.a)] : null;
+  const surplusP = surplusDoc?.players[id] ?? null;
+  const surplusNote = surplusDoc
+    ? `${seasonLabel(surplusDoc.season_prod)} production vs ${seasonLabel(surplusDoc.season_salary)} cap hit · descriptive`
+    : "";
+  const clutchYears = clutchDoc?.seasons ?? {};
+  const clutchSeason = ["2026", "2025", "2024"].find((s) => clutchYears[s]?.[id]) ?? null;
+  const clutchP = clutchSeason ? clutchYears[clutchSeason]?.[id] ?? null : null;
+  const rebBooks = reboundDoc?.seasons ?? {};
+  const rebSeasons = [defSeason, "2026", "2025"].find(
+    (s) => s && rebBooks[s]?.players?.[id]);
+  const rebRow = rebSeasons ? rebBooks[rebSeasons]?.players?.[id] ?? null : null;
+  const rebDist = rebSeasons ? rebBooks[rebSeasons]?.dist : undefined;
 
   return (
     <div className="space-y-5">
@@ -171,6 +193,7 @@ export default async function HoopsPlayerPage({ params }: {
         <h1 className="text-lg font-semibold text-text-primary">{doc.name}</h1>
         <p className="text-xs text-text-dim">
           {[...new Set(seasons.map((s) => doc.seasons[s].team).filter(Boolean))].join(" · ")}
+          {arch && <span className="text-text-secondary"> · {arch.label}</span>}
         </p>
       </div>
 
@@ -205,6 +228,17 @@ export default async function HoopsPlayerPage({ params }: {
               </div>
               {current.notes && <div className="text-text-dim">{current.notes}</div>}
             </>
+          )}
+          {surplusP?.surplus != null && (
+            <div className="text-text-secondary tabular-nums pt-0.5">
+              production percentile {(surplusP.prod_pct * 100).toFixed(0)} vs cap-hit
+              percentile {(surplusP.sal_pct ?? 0) * 100 >= 0 ? (surplusP.sal_pct! * 100).toFixed(0) : "—"} →{" "}
+              <span className={surplusP.surplus >= 0.15 ? "text-pos font-medium"
+                : surplusP.surplus <= -0.15 ? "text-neg font-medium" : "text-text-primary"}>
+                {surplusP.surplus >= 0 ? "+" : ""}{(surplusP.surplus * 100).toFixed(0)} pct pts
+              </span>
+              <span className="text-text-dim"> · {surplusNote}</span>
+            </div>
           )}
           {prior.length > 0 && (
             <div className="text-text-dim tabular-nums pt-0.5 border-t border-border-subtle/50">
@@ -299,8 +333,9 @@ export default async function HoopsPlayerPage({ params }: {
             </thead>
             <tbody>
               {advSeasons.map((s) => {
-                const p = advDoc.seasons[s].players[id];
-                const lg = advDoc.league[s];
+                const p = advPool[s]?.players?.[id];
+                if (!p) return null;
+                const lg = advDoc?.league[s];
                 const flagCovered = (Number(lg?.rows ?? 0) || 0) < 20000;
                 const v = (k: string) => (typeof p[k] === "number" ? (p[k] as number) : null);
                 return (
@@ -328,6 +363,32 @@ export default async function HoopsPlayerPage({ params }: {
           <PanelNote>
             balldontlie v2-advanced game rows rolled up per season (minutes-weighted rates) — internal research
           </PanelNote>
+        </div>
+      )}
+
+      {/* Similar players — descriptive exploration, not a forecast ------------ */}
+      {simP && arch && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">
+            Similar players <span className="text-text-dim font-normal text-[10px]">
+              · {seasonLabel(similarDoc.season)} · {arch.label} · cosine on {similarDoc.fields.length} advanced fields
+            </span>
+          </h2>
+          <div className="space-y-1">
+            {simP.n.map(([eid, s]) => (
+              <div key={eid} className="flex items-center gap-2">
+                <Link href={`/players/${eid}`} className="w-44 truncate text-text-primary hover:underline shrink-0">
+                  {names.get(eid) ?? eid}
+                </Link>
+                <div className="flex-1 h-2 bg-white/[0.04] rounded-sm overflow-hidden">
+                  <div className="h-full bg-white/25"
+                    style={{ width: `${Math.round(Math.min(Math.max((s - 0.55) / 0.45, 0), 1) * 100)}%` }} />
+                </div>
+                <span className="w-12 text-right text-text-dim tabular-nums">{s.toFixed(3)}</span>
+              </div>
+            ))}
+          </div>
+          <PanelNote>explore.py z-vectors over the season pool (gp ≥ 15, 250+ min) — descriptive exploration</PanelNote>
         </div>
       )}
 
@@ -454,15 +515,44 @@ export default async function HoopsPlayerPage({ params }: {
               ["Touches", fnum(defP.touches as number | null, 1), false, "touches"],
               ["2nd ast", fnum(defP.sec_ast as number | null, 1), false, "sec_ast"],
               ["Blocks against", fnum(defP.blka as number | null, 1), true, "blka"],
+              ...(rebRow ? [["Reb conversion", rate(rebRow.conv, 0), false, "reb_conv"] as [string, string, boolean, string]] : []),
             ] as [string, string, boolean, string][]).map(([label, value, isLower, key]) => (
               <RateChip key={label} label={label} value={value}
-                cls={typeof defP[key] === "number" ? tier(defP[key] as number, distOf(defLg, key), isLower) : undefined} />
+                cls={key === "reb_conv" ? tier(rebRow?.conv, rebDist)
+                  : typeof defP[key] === "number" ? tier(defP[key] as number, distOf(defLg, key), isLower)
+                  : undefined} />
             ))}
           </div>
           <PanelNote>
             matchup minutes, contested shots, box outs and rebound chances from balldontlie&apos;s
             v2-advanced feed — internal research
           </PanelNote>
+        </div>
+      )}
+
+      {/* Clutch vs overall — descriptive deltas, small samples flagged -------- */}
+      {clutchP && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">
+            Clutch vs overall <span className="text-text-dim font-normal text-[10px]">
+              · {seasonLabel(Number(clutchSeason))} · {clutchP.gp != null ? `${clutchP.gp} clutch games` : "clutch games n/a"}
+              {clutchP.gp != null && clutchP.gp < 25 && <span className="text-flag"> · small sample</span>}
+            </span>
+          </h2>
+          <div className="grid grid-cols-4 gap-1.5">
+            {([["TS% Δ", clutchP.ts_d, 0.015, true], ["USG% Δ", clutchP.usg_d, null, false],
+               ["Net Δ", clutchP.net_d, 1.5, false], ["PIE Δ", clutchP.pie_d, 0.01, true]] as const)
+              .filter(([, v]) => typeof v === "number")
+              .map(([label, v, t, pctish]) => {
+                const n = v as number;
+                const shown = pctish ? `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}` : `${n >= 0 ? "+" : ""}${n.toFixed(1)}`;
+                return (
+                  <RateChip key={label} label={label} value={shown}
+                    cls={t != null && Math.abs(n) >= t ? (n > 0 ? "text-pos" : "text-neg") : undefined} />
+                );
+              })}
+          </div>
+          <PanelNote>clutch-category minus overall season rates (balldontlie season averages) — descriptive deltas, not a clutch gene</PanelNote>
         </div>
       )}
 
