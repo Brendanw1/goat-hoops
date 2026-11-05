@@ -617,3 +617,29 @@ before any failure becomes a modeling verdict.
 pre-assigned: with the prior now free to speak, a remaining gap is the
 RESPONSE (per-shot defender context), not the prior — and the prior campaign
 closes at its measured ceiling with that statement recorded.
+
+### §8 read (2026-11-05): the τ sweep FAILS — the prior had its chance, and the ceiling is the response
+
+Selected cell (CV only): **τ\* = 2000, λ\* = 3000** — stability 0.494 (FAIL),
+benchmark 0.658 on 365 players (FAIL). No cell in the joint grid passes both gates.
+
+| τ | best λ (by CV) | CV SSE | stability | benchmark |
+|---|---|---|---|---|
+| 250 | 3,000 | 61,577 | 0.350 | 0.621 |
+| 500 | 3,000 | 61,515 | 0.371 | 0.628 |
+| 1000 | 3,000 | 61,422 | 0.413 | 0.640 |
+| 2000 | 3,000 | 61,328 | 0.494 | 0.658 |
+| 4000 | 3,000 | 61,329 | 0.628 | 0.675 |
+
+Benchmark peak anywhere in the grid: 0.689 (τ=4000, λ=10000) — still below §5's 0.676.
+The full 35-cell table is in `results/rapm_tau.json`; ratings at (τ*, λ*) in `rapm_tau_players.csv`.
+
+**Diagnosis (pre-assigned in the prereg).** The prior was freed (τ to 4,000) and the ridge used it —
+and the gates still failed. The information gap is not WHO the players are (the SPM carries it,
+oof r 0.778) but WHAT HAPPENS per possession: per-shot defender context is absent from every public
+feed we hold. **The prior campaign closes at its measured ceiling (~0.66-0.68 vs the 0.70 bar).**
+Standing value: §2/§4 ratings stay usable internally as descriptive impact ratings; the gate re-opens
+only if a per-possession defender-context surface ever lands.
+
+Campaign table: §1 0.464 → §2 0.618 → §3 0.621 → §4 0.658 → §5 0.676 → §6 tie → §7 prior FAIL
+(τ suspect) → **§8 τ freed, still FAIL → response-side ceiling confirmed.**
