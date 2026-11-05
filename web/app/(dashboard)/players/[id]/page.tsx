@@ -303,6 +303,56 @@ export default async function HoopsPlayerPage({ params }: {
         </PanelNote>
       </div>
 
+      {/* Schedule splits — context cuts, neutral by rule (METRICS.md §4) ----- */}
+      {(() => {
+        const latest = seasons[0];
+        const sp = doc.seasons[latest]?.splits;
+        if (!sp) return null;
+        const rows: [string, string, { g: number } & Record<string, number>][] = [];
+        for (const [dim, buckets] of Object.entries(sp)) {
+          const labels: Record<string, string> = dim === "rest"
+            ? { b2b: "B2B", one: "1 day rest", two_plus: "2+ days rest" }
+            : dim === "venue" ? { home: "Home", away: "Away" }
+            : { top: "vs winning teams", bottom: "vs losing teams" };
+          for (const [k, b] of Object.entries(buckets)) {
+            rows.push([dim === "vs" ? "Opponent" : dim === "rest" ? "Rest" : "Venue",
+                       labels[k] ?? k, b]);
+          }
+        }
+        return (
+          <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs overflow-x-auto">
+            <h2 className="text-sm font-medium text-text-primary mb-1.5">
+              Schedule splits <span className="text-text-dim font-normal text-[10px]">
+                · {seasonLabel(latest)} · context cuts from the game log — neutral by rule
+              </span>
+            </h2>
+            <table className="w-full text-[11px] tabular-nums min-w-[420px]">
+              <thead>
+                <tr className="text-text-dim text-left">
+                  <th className="font-normal pr-2">Split</th><th className="font-normal">G</th>
+                  <th className="font-normal">MPG</th><th className="font-normal">PTS</th>
+                  <th className="font-normal">REB</th><th className="font-normal">AST</th>
+                  <th className="font-normal">TOV</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(([dim, label, b]) => (
+                  <tr key={dim + label} className="border-t border-border-subtle/50">
+                    <td className="pr-2 text-text-dim">{dim === label ? label : `${dim} · ${label}`}</td>
+                    <td className={b.g < 10 ? "text-flag" : "text-text-primary"}>{b.g}</td>
+                    <td className="text-text-primary font-medium">{b.min ?? "—"}</td>
+                    <td>{b.pts ?? "—"}</td><td>{b.reb ?? "—"}</td>
+                    <td>{b.ast ?? "—"}</td><td>{b.tov ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <PanelNote>violet G = under 10 games — small sample; no grade coloring until a
+              persistence test passes (docs/explorations-2026-11.md)</PanelNote>
+          </div>
+        );
+      })()}
+
       {/* Career arc ----------------------------------------------------------- */}
       {arc && arc.length > 1 && (
         <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
@@ -432,6 +482,27 @@ export default async function HoopsPlayerPage({ params }: {
                     </div>
                   ))}
               </div>
+              {ss.pos && ss.pct_ranks_pos && Object.keys(ss.pct_ranks_pos).length > 0 && (
+                <>
+                  <div className="text-text-dim text-[10px] mt-1.5">vs {ss.pos} pool (40+ players)</div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {([["TS%", "adv.ts_pct"], ["Net rtg", "adv.net_rating"], ["PIE", "adv.pie"],
+                       ["Deflections", "hustle.deflections"]] as const)
+                      .filter(([, k]) => typeof ss.pct_ranks_pos?.[k] === "number")
+                      .map(([label, k]) => {
+                        const v = ss.pct_ranks_pos![k];
+                        return (
+                          <div key={label} className="bg-white/[0.03] rounded px-2 py-1">
+                            <div className="text-text-dim text-[10px]">{label}</div>
+                            <div className={`font-medium tabular-nums ${v >= 0.85 ? "text-pos" : v <= 0.15 ? "text-neg" : "text-text-primary"}`}>
+                              {ord(v)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </>
+              )}
               <PanelNote>computed at bake time from the balldontlie category rows — internal research</PanelNote>
             </div>
           )}

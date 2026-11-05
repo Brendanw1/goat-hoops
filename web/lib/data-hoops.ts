@@ -72,6 +72,8 @@ export type HoopsPlayerDoc = {
     per36: { pts: number | null; reb: number | null; ast: number | null };
     shoot?: { fg: [number, number]; tp: [number, number]; ft: [number, number];
              oreb: number | null; dreb: number | null };
+    /** METRICS.md splits from the game-log grain (context cuts, neutral) */
+    splits?: Record<string, Record<string, { g: number } & Record<string, number>>>;
     games: HoopsPlayerGame[];
   }>;
 };
@@ -194,6 +196,9 @@ export type HoopsSSPlayer = {
   eff?: HoopsSSCat; poss_t?: HoopsSSCat; def_t?: HoopsSSCat;
   /** §9 zone shot-making benchmark (bake-time, gate-gated) */
   shootmk?: { xefg: number; efg: number; diff: number; n_fga: number };
+  /** position letter (G/F/C, first of the feed's value) + its pool's ranks */
+  pos?: string;
+  pct_ranks_pos?: Record<string, number>;
 } & { [k: string]: HoopsSSCat | HoopsSSCat[] | Record<string, number> | undefined };
 export type HoopsSeasAvgsDoc = {
   season: number;
