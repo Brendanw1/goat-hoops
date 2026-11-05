@@ -87,7 +87,7 @@ export default async function HoopsGamePage({ params }: {
                     <td>{r.stl ?? "—"}</td><td>{r.blk ?? "—"}</td>
                     <td>{r.tov ?? "—"}</td><td>{r.pf ?? "—"}</td>
                     <td>{r.fg ?? "—"}</td><td>{r.tp ?? "—"}</td><td>{r.ft ?? "—"}</td>
-                    <td className={r.pm != null && r.pm > 0 ? "text-usf-green" : r.pm != null && r.pm < 0 ? "text-[#e0654f]" : ""}>
+                    <td className={r.pm != null && r.pm > 0 ? "text-pos" : r.pm != null && r.pm < 0 ? "text-neg" : ""}>
                       {r.pm ?? "—"}</td>
                   </tr>
                 ))}
