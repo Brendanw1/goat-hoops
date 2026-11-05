@@ -42,6 +42,18 @@ export default async function HoopsTeamPage({ params }: {
               {Number(s) - 1}-{String(s).slice(2)} · {agg.w}-{agg.l} · {agg.pts} pts/g ·{" "}
               opp {agg.opp_pts} · REB {agg.reb} · AST {agg.ast} · TOV {agg.tov}
             </h2>
+            {agg.starters5?.length ? (
+              <p className="text-[11px] text-text-dim max-w-3xl">
+                Most-used starting fives:{" "}
+                {agg.starters5.map((u) => (
+                  <span key={u.names.join()} className="text-text-secondary">
+                    {u.names.join(" / ")}{" "}
+                    <span className="tabular-nums">({u.g}g)</span>{" · "}
+                  </span>
+                ))}
+                <span className="text-text-dim/70"> balldontlie starters pull — partial season</span>
+              </p>
+            ) : null}
             <div className="grid gap-1.5 sm:grid-cols-2">
               {agg.games.map((g) =>
                 g.ext ? (

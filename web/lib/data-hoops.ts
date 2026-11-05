@@ -21,7 +21,11 @@ export type HoopsValidation = {
 };
 export type HoopsMeta = {
   seasons: Record<string, { games: number; first: string; last: string; source?: "espn" | "bdl" }>;
-  validation: HoopsValidation; note: string;
+  validation: HoopsValidation;
+  starters?: Record<string, {
+    coverage: number; game_teams: number; exact5: number; gs_merged: boolean;
+  }>;
+  note: string;
 };
 export type HoopsTeamAgg = {
   abbr: string; name: string; g: number; w: number; l: number;
@@ -36,7 +40,13 @@ export type HoopsTeamGame = {
   /** balldontlie game id — no /games/{id} page exists for it */
   ext?: number;
 };
-export type HoopsTeamDoc = { seasons: Record<string, HoopsTeamAgg & { games: HoopsTeamGame[] }> };
+export type HoopsTeamDoc = {
+  seasons: Record<string, HoopsTeamAgg & {
+    games: HoopsTeamGame[];
+    /** most-used starting fives (exact-5 groups only; pulls are partial — coverage in meta) */
+    starters5?: { names: string[]; g: number }[];
+  }>;
+};
 export type HoopsPlayerRow = {
   id: string; name: string; pos: string | null; team: string | null;
   gp: number; gs: number | null; min: number; pts: number; reb: number; ast: number;
