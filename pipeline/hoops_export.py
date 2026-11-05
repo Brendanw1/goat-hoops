@@ -1245,18 +1245,25 @@ def bake(out_dir: Path | None = None) -> dict:
     return counts
 
 
+# exploration-lane outputs (pipeline/explore.py) live beside the bake but are
+# not rebuilt by it — excluded from the no-op drift gate
+EXPLORE_KEYS = {"similar.json.gz", "surplus.json.gz", "clutch.json.gz",
+                "rebound.json.gz", "aging.json.gz"}
+
+
 def check() -> int:
     """Rebuild every payload in a temp dir; report keys whose bytes would change."""
     before = {}
     if OUT.exists():
         for p in OUT.rglob("*"):
-            if p.is_file():
+            if p.is_file() and str(p.relative_to(OUT)) not in EXPLORE_KEYS:
                 before[str(p.relative_to(OUT))] = p.read_bytes()
     with tempfile.TemporaryDirectory() as td:
         bake(Path(td))
         after = {str(p.relative_to(Path(td))): p.read_bytes()
                  for p in Path(td).rglob("*") if p.is_file()}
-    drift = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    drift = sorted(k for k in set(before) | set(after)
+                   if k not in EXPLORE_KEYS and before.get(k) != after.get(k))
     print(f"hoops bake check: {len(after)} files, {len(drift)} would change")
     for k in drift[:20]:
         print("  ", k)
