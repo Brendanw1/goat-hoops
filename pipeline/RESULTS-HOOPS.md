@@ -106,3 +106,15 @@ in the same loop) and the floors restated in season attempts: a zone needs
 25 season attempts by the player, a diet 100. The gate condition itself is
 unchanged (geometry ordering). Also observed and kept: backcourt attempts
 are ~0 league-wide, so it carries no gate condition.
+
+**Read (2026-11-05, once).** Gate PASSED on all three seasons. League zones
+2025-26: RA .673 > paint .448 > mid .418; corners .386/.393 > above-break
+.351 (eFG-valued .579/.590/.527); volumes sane (61k above-break 3s, 58k RA).
+361 players carry shootmk (100+ season FGA diets). The player-level read:
+top = Luke Kennard +13.4 (444 FGA), rim finishers above rim rate (Hayes,
+Kalkbrenner, Sims, Ayton, Poeltl), and Kevin Durant +10.2 on 1,365 FGA —
+the volume+efficiency anchor that makes the benchmark credible. Bottom =
+low-minute wings on bad finishes (AJ Johnson −22.4 on 172). Luka: +5.7
+(.563 real on a .506 diet, 1,440 FGA — a tough-diet maker). Standing limits:
+location-based (KB caveat), tiny zones stay noisy (the table shows FGA/g so
+a 1-attempt corner reads honestly). Verdict: descriptive benchmark ships.
