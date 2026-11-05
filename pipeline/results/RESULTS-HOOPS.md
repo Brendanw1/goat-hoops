@@ -585,3 +585,35 @@ only 0.333 with the Game Score prior it replaced, so the two priors differ a lot
 is what a down-weighted prior looks like). (c) modeling: possible but untested until τ is; the response season's per-shot
 defender context is still absent. Next read, if the owner wants one: pre-register τ (a grid scored on held-out game margin,
 not the benchmark), before any fit.
+
+## §8 — the τ-swept tracking-SPM prior (pre-registered 2026-11-05, owner-directed, before any fit)
+
+**Why.** §7's own diagnosis: the SPM prior is strong (oof r 0.778 vs its
+target) but τ = 250 — fixed for a box prior — swamps it at the CV λ; §7
+named the next read: pre-register τ, scored on held-out game margin, not on
+the benchmark. This is that read, and the last prior-campaign experiment
+before any failure becomes a modeling verdict.
+
+**Fixed now.**
+- Prior: §7's construction VERBATIM (same SPM fit on the two-season target,
+  same feature rule, same 2024-25 application, same Game Score fallback).
+  Only the prior-row weight changes.
+- τ grid: {250, 500, 1000, 2000, 4000} (250 = §5/§7's rung; the grid is
+  pre-registered, not tuned after the read).
+- λ grid: unchanged (100 … 100,000).
+- Selection: ONE cell (τ\*, λ\*) = argmin held-out game-margin SSE over the
+  joint grid. The benchmark plays no part in selection.
+- Gates: unchanged (LUMA 2025 r ≥ 0.70 on ≥ 250-poss players; split-half
+  r ≥ 0.60), read at (τ\*, λ\*) only. Verdict = both gates at that cell.
+- Reported: the full τ×λ table (game-margin SSE, stability, benchmark),
+  the τ = 250 column beside §7, and §5's λ = 30,000 slot.
+- Implementation note (algebraic identity, not a handling change): the Gram
+  matrix splits as X'X = Xr'Xr + τ·Xp'Xp because the prior rows differ only
+  in weight — the refactor exists so 100+ ridge solves finish in minutes;
+  the solutions are identical to the dense form.
+- Judged against: §5 (0.676 benchmark peak) and §7 (0.663 peak at CV).
+
+**Read once, then verdict.** If no cell passes both gates, the diagnosis is
+pre-assigned: with the prior now free to speak, a remaining gap is the
+RESPONSE (per-shot defender context), not the prior — and the prior campaign
+closes at its measured ceiling with that statement recorded.
