@@ -84,6 +84,8 @@ export type HoopsAdvAggDoc = {
   seasons: Record<string, { players: Record<string, HoopsAdvAggPlayer> }>;
   league: Record<string, HoopsAdvAggLeague>;
   lower_better: string[];
+  /** per site season: distinct games with advanced rows vs the games spine */
+  coverage?: Record<string, { games: number; spine?: number; full?: boolean }>;
   note: string;
 };
 /** row = [season, age, gp, mpg, ppg, rpg, apg, ts_pct, usg_pct], seasons ascending */

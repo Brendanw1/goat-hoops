@@ -73,7 +73,14 @@ export default async function HoopsStatsPage({ searchParams }: {
         Shooting % bands come from the season&apos;s own player pool; TS%/USG%/ratings from the
         balldontlie v2-advanced roll-ups.
         {season === 2024 && <> <span className="text-flag">The 2023-24 season is partial (567 of 1230 games covered).</span></>}
-        {season === 2026 && <> <span className="text-flag">The advanced feed covers about half of 2025-26 — advanced columns are partial.</span></>}
+        {(() => {
+          const cov = advDoc?.coverage?.[String(season)];
+          return cov && cov.full === false ? (
+            <span className="text-flag">
+              {` The advanced feed covers ${cov.games.toLocaleString()}${cov.spine ? ` of ~${cov.spine.toLocaleString()}` : ""} games of ${season - 1}-${String(season).slice(2)} — advanced columns are partial-season.`}
+            </span>
+          ) : null;
+        })()}
       </p>
 
       <StatsTable rows={rows} league={lg} lower={advDoc?.lower_better ?? []} />

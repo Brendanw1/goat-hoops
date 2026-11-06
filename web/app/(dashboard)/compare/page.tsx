@@ -223,7 +223,15 @@ export default async function HoopsComparePage({ searchParams }: {
             <table className="w-full text-[11px] tabular-nums">
               <thead>
                 <tr className="text-text-dim text-left">
-                  <th className="font-normal pr-2">Advanced <span className="text-text-dim/60 font-normal">· vs league bands</span></th>
+                  <th className="font-normal pr-2">
+                    Advanced <span className="text-text-dim/60 font-normal">· vs league bands</span>
+                    {(() => {
+                      const cov = advDoc?.coverage?.[String(season)];
+                      return cov && cov.full === false ? (
+                        <span className="text-flag font-normal text-[9px] ml-1" title={`the advanced feed covered ${cov.games.toLocaleString()}${cov.spine ? ` of ~${cov.spine.toLocaleString()}` : ""} games this season`}>partial season</span>
+                      ) : null;
+                    })()}
+                  </th>
                   <th className="font-normal">{aRow.team ?? "—"}</th>
                   <th className="font-normal">{bRow.team ?? "—"}</th>
                 </tr>

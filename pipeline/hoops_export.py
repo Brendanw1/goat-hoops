@@ -678,6 +678,7 @@ def advagg_phase(out, counts) -> None:
         + [c for _, c in cnt_l]
     seasons: dict[int, dict] = {}
     seen: set = set()
+    games_seen: dict[int, set] = {}  # per site season: distinct games with advanced rows
 
     def bucket(season: int, eid) -> dict:
         ss = seasons.setdefault(season, {})
@@ -693,6 +694,7 @@ def advagg_phase(out, counts) -> None:
         except (TypeError, ValueError):
             return
         rows_n[season] = rows_n.get(season, 0) + 1
+        games_seen.setdefault(season, set()).add(int(d["game.id"]))
         eid = bdl2espn_of.get(int(d["player.id"]))
         lg = bucket(season, None)
         pl = bucket(season, eid) if eid else None
@@ -753,6 +755,25 @@ def advagg_phase(out, counts) -> None:
     counts["advagg_rows"] = n_rows
     counts["advagg_seen"] = len(seen)
 
+    # coverage: distinct advanced games per site season vs the games spine —
+    # a partial harvest must say so wherever its rates render
+    spine: dict[int, int] = {}
+    for season in seasons:
+        gp_f = BDL / f"games_{season - 1}.parquet"  # site s = BDL starting-year s-1
+        if gp_f.exists():
+            try:
+                spine[season] = int(pd.read_parquet(gp_f, columns=["id"])["id"].nunique())
+            except Exception:
+                pass
+    coverage = {}
+    for season in sorted(seasons):
+        g = len(games_seen.get(season, ()))
+        cov = {"games": g}
+        if season in spine:
+            cov["spine"] = spine[season]
+            cov["full"] = g >= 0.95 * spine[season]
+        coverage[int(season)] = cov
+
     seasons_out = {}
     league_out = {}
     for season in sorted(seasons):
@@ -800,7 +821,7 @@ def advagg_phase(out, counts) -> None:
         league_out[int(season)] = lg_out
     jwrite_gz(out / "advagg.json.gz", {
         "seasons": seasons_out, "league": league_out, "lower_better": list(ADV_LOWER_BETTER),
-        "note": ADV_NOTES})
+        "coverage": coverage, "note": ADV_NOTES})
 
 
 def careers_phase(out, counts) -> None:

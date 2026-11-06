@@ -386,13 +386,14 @@ export default async function HoopsPlayerPage({ params }: {
                 const p = advPool[s]?.players?.[id];
                 if (!p) return null;
                 const lg = advDoc?.league[s];
-                const flagCovered = (Number(lg?.rows ?? 0) || 0) < 20000;
+                const cov = advDoc?.coverage?.[s];
+                const flagCovered = cov ? cov.full === false : (Number(lg?.rows ?? 0) || 0) < 20000;
                 const v = (k: string) => (typeof p[k] === "number" ? (p[k] as number) : null);
                 return (
                   <tr key={s} className="border-t border-border-subtle/50">
                     <td className="pr-2 text-text-secondary whitespace-nowrap">
                       {seasonLabel(s)}
-                      {flagCovered && <span className="text-flag text-[9px] ml-1" title="the advanced feed covered only part of this season">partial</span>}
+                      {flagCovered && <span className="text-flag text-[9px] ml-1" title={cov ? `the advanced feed covered ${cov.games.toLocaleString()}${cov.spine ? ` of ~${cov.spine.toLocaleString()}` : ""} games this season` : "the advanced feed covered only part of this season"}>partial</span>}
                     </td>
                     <td>{p.gp}</td>
                     <td className={tier(v("ts_pct"), distOf(lg, "ts_pct"))}>{rate(v("ts_pct"))}</td>
