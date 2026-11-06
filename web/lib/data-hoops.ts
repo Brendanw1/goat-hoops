@@ -164,6 +164,21 @@ export type HoopsGameDoc = {
   plays: HoopsPlay[];
 };
 
+export type HoopsRead = {
+  n: string; title: string; date: string;
+  verdict: "PASS" | "FAIL" | "TIE" | null; line: string | null;
+  benchmark: number | null; why: string | null;
+};
+export type HoopsReadsDoc = {
+  sections: HoopsRead[];
+  gates: { n: string; title: string; verdict: string; line: string; why: string }[];
+  ladder: [string, number][];
+  note: string;
+};
+export type HoopsMethodsDoc = {
+  intro: string; sections: { title: string; body: string }[]; note: string;
+};
+
 export const getHoopsMeta = cache(async (): Promise<HoopsMeta | null> =>
   (await fetchFromR2<HoopsMeta>("meta.json").catch(() => null)) ?? null);
 
@@ -238,6 +253,10 @@ export const getHoopsSurplus = cache(async (): Promise<HoopsSurplusDoc | null> =
 export const getHoopsClutch = cache(async (): Promise<HoopsClutchDoc | null> =>
   (await fetchGzippedJson<HoopsClutchDoc>("clutch.json.gz").catch(() => null)) ?? null);
 
+export const getHoopsReads = cache(async (): Promise<HoopsReadsDoc | null> =>
+  (await fetchGzippedJson<HoopsReadsDoc>("reads.json.gz").catch(() => null)) ?? null);
+export const getHoopsMethods = cache(async (): Promise<HoopsMethodsDoc | null> =>
+  (await fetchGzippedJson<HoopsMethodsDoc>("methods.json.gz").catch(() => null)) ?? null);
 export const getHoopsRebound = cache(async (): Promise<HoopsReboundDoc | null> =>
   (await fetchGzippedJson<HoopsReboundDoc>("rebound.json.gz").catch(() => null)) ?? null);
 

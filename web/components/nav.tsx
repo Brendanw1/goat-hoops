@@ -4,13 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Games" },
+  { href: "/games", label: "Games" },
   { href: "/teams", label: "Teams" },
   { href: "/players", label: "Players" },
   { href: "/stats", label: "Stats" },
   { href: "/compare", label: "Compare" },
   { href: "/comps", label: "Comps" },
   { href: "/surplus", label: "Value" },
+  { href: "/research", label: "Research" },
+  { href: "/about", label: "About" },
 ] as const;
 
 /**
@@ -42,9 +44,7 @@ export function Nav() {
 
         <div className="nav-strip flex w-full min-w-0 items-center gap-0.5 overflow-x-auto pr-2 sm:flex-1 lg:ml-2 xl:ml-4 xl:gap-1">
           {NAV_ITEMS.map((item) => {
-            const isActive = item.href === "/"
-              ? pathname === "/"
-              : pathname === item.href || pathname.startsWith(item.href + "/");
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link key={item.href} href={item.href}
                 aria-current={isActive ? "page" : undefined}

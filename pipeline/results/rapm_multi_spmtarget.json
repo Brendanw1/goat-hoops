@@ -1,0 +1,71 @@
+{
+  "seasons": [
+    2024,
+    2023
+  ],
+  "lambda_selected": 10000,
+  "cv": {
+    "100": 336864.28124808706,
+    "300": 328576.97114267084,
+    "1000": 317214.8436359121,
+    "3000": 308805.0678685367,
+    "10000": 307767.1567891288,
+    "30000": 314612.1238062824,
+    "100000": 324958.3575175853
+  },
+  "sensitivity": [
+    {
+      "lam": 100,
+      "stability": 0.169,
+      "benchmark": 0.405,
+      "n_stab": 448,
+      "n_bench": 374
+    },
+    {
+      "lam": 300,
+      "stability": 0.188,
+      "benchmark": 0.416,
+      "n_stab": 448,
+      "n_bench": 374
+    },
+    {
+      "lam": 1000,
+      "stability": 0.231,
+      "benchmark": 0.436,
+      "n_stab": 448,
+      "n_bench": 374
+    },
+    {
+      "lam": 3000,
+      "stability": 0.299,
+      "benchmark": 0.461,
+      "n_stab": 448,
+      "n_bench": 374
+    },
+    {
+      "lam": 10000,
+      "stability": 0.4,
+      "benchmark": 0.481,
+      "n_stab": 448,
+      "n_bench": 374
+    },
+    {
+      "lam": 30000,
+      "stability": 0.486,
+      "benchmark": 0.476,
+      "n_stab": 448,
+      "n_bench": 374
+    },
+    {
+      "lam": 100000,
+      "stability": 0.537,
+      "benchmark": 0.455,
+      "n_stab": 448,
+      "n_bench": 374
+    }
+  ],
+  "gate_stability": "FAIL",
+  "gate_benchmark": "FAIL",
+  "n_possessions": 293328,
+  "n_players": 655
+}

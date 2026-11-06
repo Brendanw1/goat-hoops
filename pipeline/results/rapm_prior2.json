@@ -1,0 +1,69 @@
+{
+  "season": 2025,
+  "tau": 250.0,
+  "cv": {
+    "100": 65764.75867075278,
+    "300": 64605.00352041256,
+    "1000": 62772.29241823753,
+    "3000": 61551.10950174014,
+    "10000": 61919.38749464643,
+    "30000": 64370.20356706258,
+    "100000": 67626.64784917455
+  },
+  "sensitivity": [
+    {
+      "lam": 100,
+      "stability": 0.134,
+      "benchmark": 0.509,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 300,
+      "stability": 0.167,
+      "benchmark": 0.527,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 1000,
+      "stability": 0.231,
+      "benchmark": 0.566,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 3000,
+      "stability": 0.341,
+      "benchmark": 0.617,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 10000,
+      "stability": 0.508,
+      "benchmark": 0.66,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 30000,
+      "stability": 0.611,
+      "benchmark": 0.658,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 100000,
+      "stability": 0.653,
+      "benchmark": 0.643,
+      "n_stab": 355,
+      "n_bench": 365
+    }
+  ],
+  "gate_stability": "PASS",
+  "gate_benchmark": "FAIL",
+  "n_possessions": 134001,
+  "n_players": 517,
+  "n_prior_rows": 517
+}

@@ -1,0 +1,61 @@
+{
+  "season": 2025,
+  "tau": 250.0,
+  "lambda_selected": 3000,
+  "sensitivity": [
+    {
+      "lam": 100,
+      "stability": 0.114,
+      "benchmark": 0.473,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 300,
+      "stability": 0.15,
+      "benchmark": 0.504,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 1000,
+      "stability": 0.216,
+      "benchmark": 0.555,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 3000,
+      "stability": 0.33,
+      "benchmark": 0.613,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 10000,
+      "stability": 0.501,
+      "benchmark": 0.659,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 30000,
+      "stability": 0.607,
+      "benchmark": 0.658,
+      "n_stab": 355,
+      "n_bench": 365
+    },
+    {
+      "lam": 100000,
+      "stability": 0.65,
+      "benchmark": 0.643,
+      "n_stab": 355,
+      "n_bench": 365
+    }
+  ],
+  "gate_stability": "PASS",
+  "gate_benchmark": "FAIL",
+  "n_possessions": 134001,
+  "n_players": 517,
+  "n_prior_rows": 0
+}

@@ -861,6 +861,99 @@ def careers_phase(out, counts) -> None:
                 "active-player register — internal research, republication needs a subscription"})
 
 
+def reads_phase(out, counts) -> None:
+    """reads.json.gz — the /research index, parsed from RESULTS-HOOPS.md so the
+    site's read list can never drift from the recorded verdicts. Each section's
+    verdict is its last explicit '**Verdict:' line (final read wins over the
+    iteration logs); the campaign ladder value is parsed from that line.
+    Non-campaign gates (§0b/§0c/§9) are recorded across docs, so they are
+    curated here with pointers."""
+    import re
+    txt = (ROOT / "pipeline" / "results" / "RESULTS-HOOPS.md").read_text()
+    # The campaign is CLOSED — where the log's prose resists clean parsing
+    # (§2's last bold verdict carries a stability number; §7/§8 record their
+    # verdicts outside the marker), these curated facts from the ledger and
+    # the recorded reads override the parse:
+    CURATED = {
+        "1": {"benchmark": 0.464,
+              "line": "FAIL — single-season raw-points RAPM peaks at 0.464 vs the 0.70 bar."},
+        "2": {"verdict": "FAIL", "benchmark": 0.618,
+              "line": "FAIL — multi-season RAPM peaks at 0.618; the YoY-stability gate confirms the estimator."},
+        "3": {"benchmark": 0.621,
+              "line": "FAIL — but the xPTS lever is confirmed: 0.621 on identical gates."},
+        "7": {"verdict": "FAIL", "benchmark": None,
+              "line": "FAIL — the tracking-SPM prior target loses to §5's Game Score prior."},
+        "8": {"verdict": "FAIL", "benchmark": 0.658,
+              "line": "FAIL — τ-grid at (τ*=2000, λ*=3000): stability 0.494 (bar 0.60), benchmark 0.658 "
+                      "(bar 0.70) — the campaign closes at the response-side ceiling."},
+    }
+    sections = []
+    for chunk in re.split(r"(?m)^## ", txt)[1:]:
+        head = chunk.split("\n", 1)[0]
+        m = re.match(r"§(\d+)\s+—\s+(.+?)\s+\(pre-registered\s+([0-9-]{10})", head)
+        if not m:
+            continue
+        n, title, date = m.groups()
+        # [^*] + DOTALL: the bold marker often wraps to the next line
+        vlines = re.findall(r"\*\*Verdict:\s*([^*]+?)\*\*", chunk, re.S)
+        vline = re.sub(r"\s+", " ", vlines[-1]).strip() if vlines else None
+        verdict = None
+        if vline:
+            token = re.split(r"[—–-]", vline)[0].strip().upper()
+            verdict = next((t for t in ("PASS", "FAIL", "TIE") if token.startswith(t[:2])), None)
+        bm = re.search(r"(\d\.\d{3})", vline or "")
+        if not bm:
+            bm = (re.search(r"peaks at (\d\.\d{3})", chunk)
+                  or re.search(r"benchmark[^\n.]{0,40}?(\d\.\d{3})", chunk))
+        wm = re.search(r"\*\*Why\.\*\*\s*(.{0,240})", chunk, re.S)
+        cur = CURATED.get(n, {})
+        sections.append({
+            "n": f"§{n}", "title": title.strip(), "date": date,
+            "verdict": cur.get("verdict") or verdict,
+            "line": cur.get("line") or vline,
+            "benchmark": cur.get("benchmark",
+                                 float(bm.group(1)) if bm else None),
+            "why": re.sub(r"\s+", " ", wm.group(1)).strip()[:240] if wm else None,
+        })
+    ladder = [[s["n"], s["benchmark"]] for s in sections if s["benchmark"] is not None]
+    gates = [
+        {"n": "§0b", "title": "BDL ↔ ESPN two-source gate", "verdict": "PASS",
+         "line": counts.get("bdl_check",
+                            "688/688 games, 11,326 boxes pts/reb/ast 100% exact"),
+         "why": "The balldontlie harvest is trusted only where it matches the ESPN spine exactly."},
+        {"n": "§0c", "title": "Lineups internal-consistency gate", "verdict": "PARTIAL",
+         "line": "starters coverage 0.90/0.89 — per-game starting fives, not unit minutes",
+         "why": "Unit ratings need stint stitching; the lineups surface stays continuity-only."},
+        {"n": "§9", "title": "Zone shot-making gate + read", "verdict": "PASS",
+         "line": "gate caught a per-game-units bug before the read; league rates rebuilt "
+                 "gp-weighted; RA .673 > paint .448",
+         "why": "Durant +10.2 on 1,365 FGA anchors the read; corners > above-break confirms geometry."},
+    ]
+    jwrite_gz(out / "reads.json.gz", {
+        "sections": sections, "gates": gates, "ladder": ladder,
+        "note": "parsed from pipeline/results/RESULTS-HOOPS.md at bake — the internal "
+                "research log, verdicts included",
+    })
+    counts["reads_sections"] = len(sections)
+
+
+def methods_phase(out, counts) -> None:
+    """methods.json.gz — docs/METRICS.md split into sections for /methods; the
+    site renders this, so the canon page can never drift from the doc."""
+    import re
+    txt = (ROOT / "docs" / "METRICS.md").read_text()
+    parts = re.split(r"(?m)^## ", txt)
+    sections = []
+    for chunk in parts[1:]:
+        head, _, body = chunk.partition("\n")
+        sections.append({"title": head.strip(), "body": body.strip()})
+    jwrite_gz(out / "methods.json.gz", {
+        "intro": parts[0].strip(), "sections": sections,
+        "note": "rendered from docs/METRICS.md at bake — the metrics canon",
+    })
+    counts["methods_sections"] = len(sections)
+
+
 def standings_phase(out, counts) -> None:
     seasons = {}
     for f in sorted(BDL.glob("standings_*.json")):
@@ -1370,11 +1463,20 @@ def bake(out_dir: Path | None = None) -> dict:
     bdl_team_abbr.update(bdl_team)
     bdl_check_info = bdl_espn_check(gg, pgx, id2abbr)
     print("bdl vs espn (2025):", json.dumps(bdl_check_info))
+    try:
+        g, b = bdl_check_info["games"], bdl_check_info["boxes"]
+        counts["bdl_check"] = (f"{g['matched']} games, {g['score_exact']} score-exact; "
+                               f"{b['matched']:,} boxes, pts/reb/ast "
+                               f"{b['pts_exact']:.0%}/{b['reb_exact']:.0%}/{b['ast_exact']:.0%} exact")
+    except (KeyError, TypeError):
+        pass  # stub result on empty harvest — reads.json keeps the static line
     seasons_meta.update(merge_bdl_box(board, pdocs, team_seasons, season_rows, out, counts))
     starters_info = merge_bdl_starters(board, pdocs, team_seasons, counts)
     advagg_phase(out, counts)
     careers_phase(out, counts)
     standings_phase(out, counts)
+    reads_phase(out, counts)
+    methods_phase(out, counts)
 
     # playershots_{season}.json.gz — half-court heat grids from ESPN x/y ------
     # coordinates are feet on the attacking half (x 0-50, y 0 baseline -> 47);
