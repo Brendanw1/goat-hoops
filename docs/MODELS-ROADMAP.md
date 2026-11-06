@@ -87,6 +87,9 @@ LUMA xpts_rapm r ≥ 0.70, LUMA credited.
 
 ## Track E — Projections (spec §6, last)
 
+**Scope + implementation plan: `docs/PROJECTIONS-SCOPE.md` (2026-11-05) —
+E1/E2 fold into it as the §10 baseline/aging reads; read there first.**
+
 - **E1. Marcel-style per-36 baselines** — recent-season weighted averages,
   regression to league mean by minutes class.
 - **E2. Aging done honestly** — within-player (fixed-effects) age curves from
