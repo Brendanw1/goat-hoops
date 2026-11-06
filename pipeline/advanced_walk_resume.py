@@ -83,7 +83,8 @@ def main() -> None:
             d = get(f"{API_ROOT}/nba/v2/stats/advanced?season={a.label}"
                     f"&per_page={PER_PAGE}&cursor={cursor}")
             page = d.get("data", [])
-            nxt = (d.get("meta") or {}).get("next_cursor") or ""
+            raw = (d.get("meta") or {}).get("next_cursor")
+            nxt = "" if raw is None else str(raw)  # BDL sends ints; str keeps slicing honest
             f.write(json.dumps({"cursor": nxt, "rows": page}) + "\n")
             f.flush()
             fetched += 1
