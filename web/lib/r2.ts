@@ -399,10 +399,27 @@ export async function streamFromR2(path: string): Promise<R2Stream | null> {
  * A gzipped-or-plain JSON object, parsed. For server-side consumers that need
  * the object rather than the bytes.
  *
+ * One retry on a thrown error (never on a 404 null): a transient R2/fetch
+ * blip must not silently blank a whole panel for a render — observed live
+ * 2026-11-05, when a swallowed error nulled similar.json.gz and /compare's
+ * neighbor note for a page load. The callers' catch-to-null stays the last
+ * resort for genuinely missing keys.
+ *
  * `DecompressionStream` is web-standard and present in both the Node and Edge
  * runtimes, so the same call works wherever the route runs.
  */
 export async function fetchGzippedJson<T>(path: string): Promise<T | null> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await gzJsonOnce<T>(path);
+    } catch (e) {
+      if (attempt >= 2) throw e;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+}
+
+async function gzJsonOnce<T>(path: string): Promise<T | null> {
   const upstream = await streamFromR2(path);
   if (upstream === null) return null;
   // The cast is the DOM lib's: DecompressionStream declares

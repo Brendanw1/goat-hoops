@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BackLink } from "@/components/ui/back-link";
+import { MultiCareerArc } from "@/components/ui/career-arcs-multi";
 import {
   getHoopsAdvAgg, getHoopsCareers, getHoopsMeta, getHoopsPlayers,
   getHoopsSeasAvgs, getHoopsSimilar, hoopsSeasons,
@@ -115,6 +116,8 @@ export default async function HoopsComparePage({ searchParams }: {
     return i >= 0 ? { rank: i + 1, cos: na.n[i][1] } : null;
   };
   const sim = neighborRank(aId, bId) ?? neighborRank(bId, aId);
+  const arcA = aId ? careers?.players[aId] : undefined;
+  const arcB = bId ? careers?.players[bId] : undefined;
 
   const cell = (v: number | null, def: Disp) =>
     def.pct ? rate(v) : fnum(v, def.dp ?? 0);
@@ -293,6 +296,22 @@ export default async function HoopsComparePage({ searchParams }: {
               </tbody>
             </table>
           )}
+
+          {/* career arcs, aligned by career year */}
+          {(arcA?.length || arcB?.length) ? (
+            <div className="pt-2 border-t border-border-subtle/50">
+              <h2 className="text-sm font-medium text-text-primary mb-1.5">
+                Career arcs <span className="text-text-dim font-normal text-[10px]">· aligned by career year · hover a point for season, age, line</span>
+              </h2>
+              <MultiCareerArc a={arcA} b={arcB}
+                aName={aRow?.name ?? "A"} bName={bRow?.name ?? "B"} />
+              <p className="text-[10px] text-text-dim/70 mt-1">
+                Each player's first baked season sits at year 1, so eras share an axis; balldontlie
+                season averages, regular seasons, active players only (retired stars have no site
+                page to hang an arc on).
+              </p>
+            </div>
+          ) : null}
           <p className="text-[10px] text-text-dim/70 max-w-3xl">
             green = the season leader on that row (advanced rows also carry their league-band
             tier); zones colored at ±3 / ±10 pts vs the same-season pool. Descriptive — internal
