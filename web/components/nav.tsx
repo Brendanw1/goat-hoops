@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/eras", label: "Eras" },
   { href: "/lineups", label: "Lineups" },
   { href: "/market", label: "Market" },
+  { href: "/rookies", label: "Rookies" },
   { href: "/compare", label: "Compare" },
   { href: "/comps", label: "Comps" },
   { href: "/surplus", label: "Value" },

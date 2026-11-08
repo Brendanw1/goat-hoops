@@ -295,6 +295,13 @@ export type HoopsTickerDoc = {
 export const getHoopsTicker = cache(async (): Promise<HoopsTickerDoc | null> =>
   (await fetchFromR2<HoopsTickerDoc>("ticker.json").catch(() => null)) ?? null);
 
+export type HoopsDraftDoc = {
+  players: Record<string, { dy?: number; dr?: number; dn?: number }>;
+  note: string;
+};
+export const getHoopsDraft = cache(async (): Promise<HoopsDraftDoc | null> =>
+  (await fetchFromR2<HoopsDraftDoc>("draft.json").catch(() => null)) ?? null);
+
 export const getHoopsProjections = cache(async (): Promise<HoopsProjectionsDoc | null> =>
   (await fetchFromR2<HoopsProjectionsDoc>("projections.json").catch(() => null)) ?? null);
 

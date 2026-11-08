@@ -1522,6 +1522,46 @@ def market_phase(out, counts) -> dict:
     return {"gate": gates}
 
 
+
+
+def draft_phase(out, counts) -> None:
+    """Draft slots per ESPN id, from the contracts bio (509 contracted
+    players — includes the current draftees) unioned with the box parquets'
+    player.draft_* fields (bridged). /rookies reads this."""
+    dy: dict[str, dict] = {}
+
+    def put(eid, y, r, n):
+        if eid is None:
+            return
+        cur = dy.setdefault(str(int(eid)), {})
+        for k, v in (("dy", y), ("dr", r), ("dn", n)):
+            if v is not None and not pd.isna(v) and k not in cur:
+                cur[k] = int(v)
+
+    cf = BDL / "contracts_teams_2026.parquet"
+    if cf.exists():
+        c = pd.read_parquet(cf)
+        for _, r in c.iterrows():
+            put(bdl2espn_of.get(int(r["player.id"])),
+                r.get("player.draft_year"), r.get("player.draft_round"),
+                r.get("player.draft_number"))
+    for label in ("2023", "2024", "2025"):
+        f = BDL / f"stats_{label}.parquet"
+        if not f.exists():
+            continue
+        b = pd.read_parquet(f, columns=["player.id", "player.draft_year",
+                                        "player.draft_round", "player.draft_number"])
+        for _, r in b.drop_duplicates("player.id").iterrows():
+            put(bdl2espn_of.get(int(r["player.id"])),
+                r.get("player.draft_year"), r.get("player.draft_round"),
+                r.get("player.draft_number"))
+    jwrite(out / "draft.json", {"players": dy,
+                                "note": "draft slots from the BDL contracts bio + box "
+                                        "pulls, bridged to ESPN ids — undrafted players absent"})
+    counts["draft_players"] = len(dy)
+
+
+
 def reads_phase(out, counts) -> None:
     """reads.json.gz — the /research index, parsed from RESULTS-HOOPS.md so the
     site's read list can never drift from the recorded verdicts. Each section's
@@ -2142,6 +2182,7 @@ def bake(out_dir: Path | None = None) -> dict:
     pt_league = team_playtype_mix(team_seasons, season_rows, counts)
     history_phase(out, counts, team_pkg)
     market_phase(out, counts)
+    draft_phase(out, counts)
     advagg_phase(out, counts)
     careers_phase(out, counts)
     standings_phase(out, counts)

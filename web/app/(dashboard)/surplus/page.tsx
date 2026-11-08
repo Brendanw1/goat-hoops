@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { BackLink } from "@/components/ui/back-link";
-import { getHoopsPlayers, getHoopsSurplus } from "@/lib/data-hoops";
+import { getHoopsContracts, getHoopsPlayers, getHoopsProjections, getHoopsSeasAvgs, getHoopsSimilar, getHoopsSurplus } from "@/lib/data-hoops";
+import { TeamDot } from "@/lib/team-dot";
+import { pctTone } from "@/lib/tone";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -30,7 +32,31 @@ export default async function Page({ searchParams }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const sp = await searchParams;
-  const [surDoc, board] = await Promise.all([getHoopsSurplus(), getHoopsPlayers()]);
+  const [surDoc, board, ss26, contracts, projDoc, similar] = await Promise.all([
+    getHoopsSurplus(), getHoopsPlayers(), getHoopsSeasAvgs(2026), getHoopsContracts(),
+    getHoopsProjections(), getHoopsSimilar()]);
+  const ageOf = new Map<string, number>();
+  for (const [eid, p] of Object.entries(ss26?.players ?? {})) {
+    const a = (p.adv as unknown as { age?: number } | undefined)?.age;
+    if (typeof a === "number") ageOf.set(eid, a);
+  }
+  const proj = projDoc?.players ?? {};
+  const dealOf = new Map(Object.entries(contracts?.deals ?? {}).map(([eid, d]) => [eid, d]));
+  const salOf = new Map(Object.entries(contracts?.salaries ?? {}).map(([eid, s]) => [eid, s]));
+  const compOf = new Map<string, string>();
+  for (const [eid, p] of Object.entries(similar?.players ?? {})) {
+    const t = p.n?.[0];
+    if (t?.[2]) compOf.set(eid, t[2]);
+  }
+  // the trade-value composite — weights printed with the table (transparent,
+  // debatable, no black box): production percentile, aged toward the 26 peak
+  const AGE_PEAK = 26;
+  const tvOf = (eid: string) => {
+    const prod = sur[eid]?.prod_pct;
+    const age = ageOf.get(eid);
+    if (prod == null || age == null) return null;
+    return Math.round(prod * 100 - 2 * Math.max(0, age - AGE_PEAK) - 1 * Math.max(0, 24 - age));
+  };
   const prodSeason = surDoc?.season_prod ?? 2026;
   const rows0 = (board?.seasons[String(prodSeason)] ?? []) as {
     id: string; name: string; team: string | null; pos: string | null; gp: number;
@@ -66,6 +92,52 @@ export default async function Page({ searchParams }: {
     return `/surplus?${p}`;
   };
 
+  const byName = (n: string) => rows.find((r) => r.name === n)?.id;
+  const defPicks = [byName("Shai Gilgeous-Alexander"), byName("Victor Wembanyama"),
+                    byName("Cooper Flagg")].filter((x): x is string => !!x);
+  const picks = [sp.a ?? defPicks[0], sp.b ?? defPicks[1], sp.c ?? defPicks[2]]
+    .filter((x): x is string => !!x && x in sur);
+  const pickCard = (eid: string) => {
+    const row = rows.find((r) => r.id === eid);
+    const p = board?.seasons[String(prodSeason)]?.find((r) => r.id === eid);
+    const deal = (dealOf.get(eid) ?? []).find((d) => d.status === "CURRENT") ?? (dealOf.get(eid) ?? [])[0];
+    const pr = proj[eid];
+    const age = ageOf.get(eid);
+    const tv = tvOf(eid);
+    return (
+      <div key={eid} className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs min-w-0">
+        <div className="flex items-center gap-1.5 mb-1">
+          {p?.team && <TeamDot abbr={p.team} size={18} />}
+          <Link href={`/players/${eid}`} className="text-sm font-medium text-text-primary hover:underline truncate">
+            {row?.name ?? eid}
+          </Link>
+        </div>
+        <div className="space-y-0.5 tabular-nums text-text-secondary">
+          <p>age <span className="text-text-primary font-medium">{age ?? "—"}</span>
+            {age != null && <span className="text-text-dim"> (peak 24-27)</span>}</p>
+          <p>prod pctile <span className={`font-medium ${pctTone((sur[eid]?.prod_pct ?? 0) / 100)}`}>
+            {pct(sur[eid]?.prod_pct)}</span> · cap pctile {pct(sur[eid]?.sal_pct)}</p>
+          <p>surplus <span className={surClass(sur[eid]?.surplus)}>{surFmt(sur[eid]?.surplus)}</span> {SUR_HDR}</p>
+          <p>per-game <span className="text-text-primary font-medium">
+            {p ? `${(p.pts ?? 0).toFixed(1)}/${(p.reb ?? 0).toFixed(1)}/${(p.ast ?? 0).toFixed(1)}` : "—"}</span></p>
+          <p>2027 proj <span className="text-text-primary font-medium">
+            {pr ? `${pr.pts36} pts36 · ${pr.mpg} mpg` : "at the modeling floor"}</span>
+            {pr?.lo && pr.pts36 != null && pr.lo.pts36 != null && (
+              <span className="text-text-dim"> (90% {pr.lo.pts36}–{pr.hi?.pts36})</span>)}</p>
+          <p>contract <span className="text-text-primary font-medium">
+            {salOf.get(eid)?.cap_hit ? money(salOf.get(eid)?.cap_hit) : "—"}</span>
+            {deal?.years ? ` · ${deal.years}y` : ""}
+            {deal?.fa_year ? ` · FA ${deal.fa_year}` : ""}</p>
+          <p>top comp <span className="text-text-secondary">{compOf.get(eid) ?? "—"}</span></p>
+          <p className="pt-0.5 border-t border-border-subtle/40">trade value
+            <span className={`ml-1.5 text-base font-semibold ${tv != null && tv >= 60 ? "text-elite" : tv != null && tv <= 20 ? "text-neg" : "text-text-primary"}`}>
+              {tv ?? "—"}</span>
+            <span className="text-text-dim text-[10px]"> / 100</span></p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <BackLink fallback="/" className="text-[11px] text-text-dim hover:text-text-secondary" />
@@ -75,6 +147,34 @@ export default async function Page({ searchParams }: {
           · {seasonLabel(prodSeason)} production vs {seasonLabel(surDoc?.season_salary ?? prodSeason + 1)} cap hit
         </span>
       </h1>
+
+      {/* trade analysis */}
+      <div className="rounded-lg border border-border-subtle px-3 py-2.5">
+        <h2 className="text-sm font-medium text-text-primary mb-1.5">Trade analysis</h2>
+        <form method="get" className="flex flex-wrap items-center gap-2 mb-2.5">
+          {[["a", picks[0] ?? ""], ["b", picks[1] ?? ""], ["c", picks[2] ?? ""]].map(([nm, def]) => (
+            <select key={nm} name={nm} defaultValue={def}
+              className="rounded-md border border-border-subtle bg-surface-1 px-2 py-1.5 text-xs text-text-primary max-w-[220px]">
+              {[...filtered].sort((x, y) => x.name.localeCompare(y.name)).map((r) => (
+                <option key={r.id} value={r.id}>{r.name} ({r.team ?? "?"})</option>
+              ))}
+            </select>
+          ))}
+          <button type="submit"
+            className="rounded-md border border-border-subtle px-2.5 py-1.5 text-xs text-text-secondary hover:text-text-primary">
+            Compare
+          </button>
+        </form>
+        {picks.length > 0 && (
+          <div className="grid gap-2.5 md:grid-cols-3">{picks.map(pickCard)}</div>
+        )}
+        <p className="text-[10px] text-text-dim/70 mt-2">
+          trade value = production percentile − 2·max(0, age−26) − 1·max(0, 24−age),
+          printed so the weights are debatable — a ranking lens, not a market price.
+          Contract burden is the surplus line (production percentile vs cap-hit
+          percentile); the projection row is the §14 model.
+        </p>
+      </div>
 
       {/* extremes strip */}
       <div className="grid sm:grid-cols-2 gap-3">
