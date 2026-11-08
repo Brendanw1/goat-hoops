@@ -65,6 +65,15 @@ def main() -> int:
         if col in wide.columns:
             base[c] = pd.to_numeric(wide[col], errors="coerce")
 
+    # raw tracking sources (§12b per-36 lags; v2 of the seal) ------------------
+    for c in ("tracking_drives.drives", "tracking_possessions.touches",
+              "tracking_possessions.paint_touches",
+              "tracking_possessions.front_ct_touches",
+              "tracking_defense.def_rim_fga",
+              "tracking_speeddistance.dist_miles"):
+        if c in wide.columns:
+            base[c] = pd.to_numeric(wide[c], errors="coerce")
+
     # season z-scores for the core rates --------------------------------------
     zsrc = ["pts36", "reb36", "ast36", "ts_pct", "usg_pct", "ast_pct",
             "oreb_pct", "dreb_pct"]
@@ -125,6 +134,9 @@ def main() -> int:
                              "age/era/role", "lags 1/2", "rm2"],
         "notes": "rate space per-36; targets consecutive-season only; retired "
                  "players first-class; nba_pid = rendering bridge (not training)",
+        "v2_note": "2026-11-08: raw tracking source columns added for §12b "
+                   "(drives/touches/paint/front-ct/def_rim_fga/dist_miles); "
+                   "§10/§11 feature sets unchanged and their reads remain valid",
         "sealed": "2026-11-08",
     }
     (DERIVED / "modeling_table_SEALED.json").write_text(json.dumps(seal, indent=1))

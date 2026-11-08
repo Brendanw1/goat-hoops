@@ -276,6 +276,125 @@ increments (LightGBM, tracking features, availability model, intervals)
 are the next levers, each preregistered.
 
 
+## §12a — gradient boosting on the §11 feature matrix (pre-registered 2026-11-08, before any fit)
+
+**Model.** LightGBM 4.7 regressor, one per target, on the IDENTICAL folds,
+targets, and feature matrix as §11 (the model class is the lever — this
+read tests §104's "model class was not the bottleneck" lesson on the
+projection table). Missing features stay NaN (LightGBM handles them
+natively — no imputation, a real class advantage over the ridge).
+**Fixed configuration, no tuning sweep** (small-train discipline; a sweep
+is a later increment): n_estimators 400, learning_rate 0.05, num_leaves 31,
+min_child_samples 20, subsample 0.9, colsample_bytree 0.9, 3 threads.
+
+**Gate (the ladder).** Composite MAE ratio vs the §11 ridge ≤ 0.98 on
+≥ 4 of 5 folds. PASS → the shipped forecasts and panel label re-bake to
+the GBM. FAIL → the ridge stands, recorded, and §12b is the lever.
+Folds/targets/metrics identical to §10/§11.
+
+**Machine protocol.** 3 threads, nice 10, one job; ~7k training rows —
+minutes.
+
+### §12a read (2026-11-08): FAIL — the ridge stands; the class is not the lever
+
+Composite MAE ratios vs the §11 ridge: 2021 1.013, 2022 0.984, 2023 1.025,
+2024 1.032, 2025 1.017 — the GBM ties the ridge (one fold marginally under
+1.0) and never clears the 0.98 bar on any fold. **Verdict: FAIL, 0/5.**
+§104's lesson reproduces on the projection table: with ~7k rows of lag
+features, a centered ridge already extracts what the class can express;
+boosting adds variance without new signal. The ridge remains the shipped
+model. §12b is the information lever, not the class lever.
+
+## §12b — tracking-feature lags (pre-registered 2026-11-08, before any fit)
+
+**Model.** LightGBM, same fixed config as §12a, on the §11 feature matrix
+PLUS tracking lags: per-36 versions of drives, touches, passes,
+deflections, contested shots, and speed/distance (from the wide table's
+tracking_* families, site 2016+ coverage verified pre-registration), each
+as raw per-36 lag1, its season z-score, and the z's lag1. NaN stays native
+(pre-2016 rows have no tracking — LightGBM splits around them).
+
+**Gate (the ladder).** Composite MAE ratio vs the standing best (the §11
+ridge, per §12a's FAIL) ≤ 0.98 on ≥ 4/5 folds. PASS → re-bake the shipped
+forecasts with the tracking model. FAIL → the ridge stands and §12c
+(availability) is next.
+
+**Rationale.** The RAPM campaign's closure said the gap to the bar was
+INFORMATION (defender context), not estimation; §12a just confirmed the
+class lever is empty here too. Tracking usage/style features are the
+richest information the public tier carries for *rate* forecasting.
+
+**Amendment (2026-11-08, during implementation, before any read with the
+new features — the first §12b run silently matched zero tracking columns
+and reproduced §12a exactly, composites identical to 4 decimals).** The
+wide table's tracking families carry different leaves than the
+preregistration assumed: `passes` and `deflections` do not exist in this
+lineage, and avg_speed is already a rate. The tracking set becomes:
+drives, touches, paint_touches, front_ct_touches (tracking_possessions),
+def_rim_fga (tracking_defense — the rim-contestation proxy this tier
+carries), dist_miles (tracking_speeddistance), each as per-36 lag1 +
+season z-score + z lag1. Everything else unchanged.
+
+### §12b read (2026-11-08): FAIL — the information lever is empty at this tier too
+
+With the tracking features genuinely in (the table re-sealed v2 to carry
+them — the first run silently matched zero columns and reproduced §12a,
+composites identical to 4 decimals, which is how the bug was caught):
+composite MAE ratios vs the §11 ridge 1.022 / 0.990 / 1.014 / 1.022 /
+1.012 — no fold under the bar. **Verdict: FAIL, 0/5.** Two increments,
+two FAILs, one consistent diagnosis: on per-36 rate targets built from
+season-average history, the centered ridge over lags + age + z-scores is
+the ceiling of this data tier; neither the model class (§12a) nor
+usage/style tracking information (§12b) moves it. What would move it —
+per-game context (role changes, teammates, coach), injury-history detail
+beyond gp lags, possession-level features — is the §12d+ question, and
+each such lever is a new data tier, not a new model.
+
+The table's seal now carries the v2 note (tracking sources added; §10/§11
+features unchanged, reads remain valid).
+
+## §12c — the availability model (pre-registered 2026-11-08, before any fit)
+
+**Target.** Played ≥ 60 games next season (binary; ~73% base rate in the
+span — the threshold is fixed here, not tuned). §10 showed gp's r ≈ .2 as
+a regression target; as classification the question becomes "is history
+informative at all about availability," answered with proper scoring
+rules per the KB's §104 discipline.
+
+**Model.** LightGBM classifier, the §11 feature matrix (gp lags are the
+injury-history proxies), same fixed config with objective binary.
+Probability outputs, no thresholding for the gate.
+
+**Baselines (proper scoring).**
+1. *base rate* — predict the training fold's P(≥60) for everyone;
+2. *repeat rule* — P(≥60) = 1 if lag1_gp ≥ 60 else 0 (the naive rule,
+   scored as probabilities).
+
+**Gate.** Brier score below BOTH baselines on ≥ 4/5 folds; log loss and a
+reliability table reported alongside. PASS → an availability chip joins
+the projection panel (as a probability, clearly labeled). FAIL → §12c
+closes with the finding that public history doesn't forecast availability
+at this tier, and the panel stays stats-only.
+
+### §12c read (2026-11-08): FAIL — availability is not forecastable from public history
+
+Brier scores per fold (model / base-rate / repeat-rule): 2021
+.2815/.2562/.4031, 2022 .2557/.2501/.4644, 2023 .2436/.2504/.4415, 2024
+.2182/.2562/.4218, 2025 .2720/.2556/.4646. Beats the repeat rule 5/5 (trivially
+— the naive rule is terrible), beats the base rate only 2/5; the gate
+needed 4/5 against both. **Verdict: FAIL — availability is not forecastable
+from public history at this tier.** The finding, now in
+proper-scoring form to match §10's r ≈ .2: next-season availability is
+close to irreducible from public history at this tier — the base rate
+("everyone plays ~73%") is nearly the best calibrated forecast available.
+The projection panel stays stats-only; if a richer injury-history tier
+ever lands (per-player injury detail, load data), §12c re-opens.
+
+**§12 summary: three increments, three FAILs, one shipped model.** §11's
+ridge — the day's only PASS — stands as the projection tier's model.
+Every read's artifact is sealed under `data/projections/`.
+
+
 ## §1 — RAPM from ESPN PBP stints (pre-registered 2026-10-30, before any derivation or fit)
 
 **Why.** The spec's on/off, lineup and team-impact surfaces all need a

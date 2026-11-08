@@ -40,5 +40,6 @@
   "rm2"
  ],
  "notes": "rate space per-36; targets consecutive-season only; retired players first-class; nba_pid = rendering bridge (not training)",
+ "v2_note": "2026-11-08: raw tracking source columns added for \u00a712b (drives/touches/paint/front-ct/def_rim_fga/dist_miles); \u00a710/\u00a711 feature sets unchanged and their reads remain valid",
  "sealed": "2026-11-08"
 }

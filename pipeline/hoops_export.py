@@ -1361,7 +1361,7 @@ def reads_phase(out, counts) -> None:
     sections = []
     for chunk in re.split(r"(?m)^## ", txt)[1:]:
         head = chunk.split("\n", 1)[0]
-        m = re.match(r"§(\d+)\s+—\s+(.+?)\s+\(pre-registered\s+([0-9-]{10})", head)
+        m = re.match(r"§(\d+[a-z]?)\s+—\s+(.+?)\s+\(pre-registered\s+([0-9-]{10})", head)
         if not m:
             continue
         n, title, date = m.groups()
