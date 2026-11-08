@@ -1,0 +1,131 @@
+{
+ "mode": "12a",
+ "prior_best": "ridge \u00a711",
+ "features": 42,
+ "folds": {
+  "2021": {
+   "next_pts36": {
+    "mae": 2.253,
+    "r": 0.812,
+    "ratio_vs_prior": 1.0279
+   },
+   "next_reb36": {
+    "mae": 0.847,
+    "r": 0.919,
+    "ratio_vs_prior": 1.0293
+   },
+   "next_ast36": {
+    "mae": 0.721,
+    "r": 0.874,
+    "ratio_vs_prior": 1.0007
+   },
+   "next_min_pg": {
+    "mae": 4.078,
+    "r": 0.78,
+    "ratio_vs_prior": 0.9939
+   }
+  },
+  "2022": {
+   "next_pts36": {
+    "mae": 2.143,
+    "r": 0.849,
+    "ratio_vs_prior": 0.9416
+   },
+   "next_reb36": {
+    "mae": 0.995,
+    "r": 0.887,
+    "ratio_vs_prior": 0.9883
+   },
+   "next_ast36": {
+    "mae": 0.703,
+    "r": 0.881,
+    "ratio_vs_prior": 1.0331
+   },
+   "next_min_pg": {
+    "mae": 4.242,
+    "r": 0.785,
+    "ratio_vs_prior": 0.972
+   }
+  },
+  "2023": {
+   "next_pts36": {
+    "mae": 2.207,
+    "r": 0.845,
+    "ratio_vs_prior": 1.0441
+   },
+   "next_reb36": {
+    "mae": 0.895,
+    "r": 0.915,
+    "ratio_vs_prior": 1.0339
+   },
+   "next_ast36": {
+    "mae": 0.713,
+    "r": 0.889,
+    "ratio_vs_prior": 1.0207
+   },
+   "next_min_pg": {
+    "mae": 4.106,
+    "r": 0.799,
+    "ratio_vs_prior": 1.0026
+   }
+  },
+  "2024": {
+   "next_pts36": {
+    "mae": 2.217,
+    "r": 0.826,
+    "ratio_vs_prior": 1.0399
+   },
+   "next_reb36": {
+    "mae": 0.89,
+    "r": 0.913,
+    "ratio_vs_prior": 1.0139
+   },
+   "next_ast36": {
+    "mae": 0.694,
+    "r": 0.888,
+    "ratio_vs_prior": 1.0846
+   },
+   "next_min_pg": {
+    "mae": 3.87,
+    "r": 0.811,
+    "ratio_vs_prior": 0.9896
+   }
+  },
+  "2025": {
+   "next_pts36": {
+    "mae": 2.428,
+    "r": 0.821,
+    "ratio_vs_prior": 1.03
+   },
+   "next_reb36": {
+    "mae": 0.906,
+    "r": 0.887,
+    "ratio_vs_prior": 0.9926
+   },
+   "next_ast36": {
+    "mae": 0.795,
+    "r": 0.85,
+    "ratio_vs_prior": 1.0534
+   },
+   "next_min_pg": {
+    "mae": 4.354,
+    "r": 0.735,
+    "ratio_vs_prior": 0.9922
+   }
+  }
+ },
+ "composite": {
+  "2021": 1.013,
+  "2022": 0.9838,
+  "2023": 1.0253,
+  "2024": 1.032,
+  "2025": 1.0171
+ },
+ "ship": {
+  "prior_best": "ridge \u00a711",
+  "folds_beaten": 0,
+  "needed": 4,
+  "pass": false,
+  "verdict": "FAIL"
+ }
+}

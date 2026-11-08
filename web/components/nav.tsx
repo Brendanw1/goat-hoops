@@ -51,6 +51,7 @@ export function Nav() {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link key={item.href} href={item.href}
+                suppressHydrationWarning
                 aria-current={isActive ? "page" : undefined}
                 className={`
                   relative z-10 shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-full text-[13px] font-semibold press-scale nav-glow lg:px-3 xl:text-sm 2xl:px-4

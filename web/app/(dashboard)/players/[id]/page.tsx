@@ -264,17 +264,26 @@ export default async function HoopsPlayerPage({ params }: {
                 {" "}· ridge §11 · as of {projDoc.as_of}
               </span>
             </h2>
-            <span className="text-[10px] text-text-dim">gate PASS 5/5 folds</span>
+            <span className="text-[10px] text-text-dim">gate PASS 5/5 folds · intervals §14</span>
           </div>
           <div className="grid grid-cols-4 gap-2 mt-1.5 tabular-nums">
-            {([["PTS/36", projDoc.players[id].pts36], ["REB/36", projDoc.players[id].reb36],
-               ["AST/36", projDoc.players[id].ast36], ["MPG", projDoc.players[id].mpg]] as const).map(
-              ([k, v]) => (
-                <div key={k}>
-                  <p className="text-lg font-medium text-text-primary">{v}</p>
-                  <p className="text-[10px] text-text-dim">{k}</p>
-                </div>
-              ))}
+            {([["PTS/36", "pts36"], ["REB/36", "reb36"], ["AST/36", "ast36"], ["MPG", "mpg"]] as const).map(
+              ([k, key]) => {
+                const v = projDoc.players[id][key];
+                const lo = projDoc.players[id].lo?.[key];
+                const hi = projDoc.players[id].hi?.[key];
+                return (
+                  <div key={k}>
+                    <p className="text-lg font-medium text-text-primary">{v}</p>
+                    <p className="text-[10px] text-text-dim">{k}</p>
+                    {lo != null && hi != null && (
+                      <p className="text-[10px] text-text-dim/70 tabular-nums">
+                        90% {lo}–{hi}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
           </div>
           <div className="text-[10px] text-text-dim/70 mt-1.5">
             Forecast of stats, not value · beat all §10 baselines on 5/5 rolling-origin

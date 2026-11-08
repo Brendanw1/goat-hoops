@@ -263,6 +263,9 @@ export type HoopsProjectionsDoc = {
   players: Record<string, {
     name: string; nba_pid: string | null; bdl_pid: number; age: number; site: number;
     pts36: number; reb36: number; ast36: number; mpg: number;
+    /** §14 one-fold-back conformal 90% interval (present when the gate passed) */
+    lo?: Partial<Record<"pts36" | "reb36" | "ast36" | "mpg", number>>;
+    hi?: Partial<Record<"pts36" | "reb36" | "ast36" | "mpg", number>>;
   }>;
 };
 export type HoopsMarketDoc = {

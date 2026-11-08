@@ -512,6 +512,89 @@ outcomes before it claims market-beating status — that's a §15+ question,
 not today's).
 
 
+## §14 — env-normalized targets + drift-aware conformal (pre-registered 2026-11-08, before any fit)
+
+**Why.** §13's two FAILs named exactly this read: per-36 targets carry era
+drift the linear `era` term only partially absorbs (H3), and pooled
+cross-era residuals under-cover when scaled to a later era (M4's naive
+conformal .72-.84 at nominal .90).
+
+**Model.** The §13 ridge (v3 feature matrix, same folds, same λ grid and
+nested selection) trained on **env-normalized targets**: for target t,
+`ẑ = (next_t − μ̂_{S}) / σ̂_{S}` where `μ̂_S, σ̂_S` are the mean/sd of the
+target's league distribution **forecast by the preregistered rule
+μ̂_S = mean(μ_{S-1}, μ_{S-2}, μ_{S-3})** (σ̂ likewise) — the env of season
+S is NOT known at forecast time, and the backtest must pay that same
+uncertainty. min_pg stays raw (role distribution is era-stable). Predictions
+back-transform to raw per-36 and are scored in RAW space on the identical
+§10 ladder — the comparison to the §11 ridge stays apples-to-apples.
+
+**Model gate.** Composite MAE ratio ≤ 0.98 vs the §11 ridge on ≥ 4/5
+folds (the standard ladder). FAIL → the §11 ridge remains the shipped
+point model; the interval work below then attaches to §11's residuals.
+
+**Interval gate (drift-aware conformal, two preregistered variants).**
+(a) *one-fold-back*: fold S calibrates the 90% residual quantile on fold
+S−1's residuals only; (b) *rolling-2*: on the pooled residuals of folds
+S−1 and S−2. Per target, the FIRST variant whose mean empirical coverage
+lands in [0.85, 0.95] wins (a: coverage then width; b as fallback); if
+neither passes, intervals do not render and the finding is recorded.
+Intervals attach to the best composite model on record.
+
+**Ship rule.** Model PASS → re-bake forecasts from the §14 model;
+coverage PASS → the panel renders the 90% interval. Each gate recorded
+separately; a model FAIL never blocks an interval PASS from shipping on
+the standing model.
+
+### §14 read (2026-11-08): intervals PASS on the drift-aware variant; the model test as designed was inert — amended to per-row normalization (§14b)
+
+**Intervals: PASS, all four targets.** One-fold-back conformal (calibrate
+on fold S−1's residuals only) achieves mean coverage .889 (pts36) / .904
+(reb36) / .887 (ast36) / .898 (min_pg) — every one inside [0.85, 0.95],
+vs §13's pooled-era .72-.84. The drift diagnosis was right: era-adjacent
+residuals are exchangeable enough; cross-era ones are not. Widths: pts36
+±4.4, reb36 ±1.94, ast36 ±1.44, mpg ±8.52.
+
+**Model: FAIL — and the failure is the finding.** Composites came back
+IDENTICAL to §13's to four decimals: normalizing the target by one scalar
+per fold is an affine transform, and a centered ridge is exactly invariant
+to affine target transforms — the preregistered test as written could not
+have moved the needle. **Amendment (preregistered before the §14b run):
+per-row env normalization** — each TRAINING row's target is divided by its
+OWN next season's realized env (removing era from the training relation),
+the prediction row back-transforms through the env-forecast rule (mean of
+the prior three seasons), and the backtest pays env-forecast error exactly
+as a real 2027 forecast would. min_pg stays raw. The gate is unchanged:
+composite ≤ 0.98 vs the §11 ridge on ≥ 4/5 folds.
+
+**Intervals attach to the standing model.** Per the ship rule, the
+shipped intervals are recomputed as one-fold-back conformal on the §11
+ridge's own residuals (the standing point model), not the §14 model's.
+
+### §14b read (2026-11-08): the env lever FAILs too — but the intervals SHIP on the standing model
+
+Per-row env normalization (the amended, mathematically meaningful version):
+composite ratios 1.0001 / **0.9808** / 1.0006 / 1.0084 / 0.9947 — one fold
+touches the bar, none clears it. **Verdict: FAIL, 1/5.** Three §14 attempts
+agree: the §11 ridge in raw target space is at this data tier's ceiling,
+and env information is already priced in by the z-score features.
+
+**The intervals ship.** One-fold-back conformal on the §11 ridge's own
+residuals: coverage **.887 / .902 / .891 / .893** (pts36/reb36/ast36/mpg)
+— all inside [0.85, 0.95]; widths ±4.43 / ±1.93 / ±1.46 / ±8.63. The
+player-page panel now renders 31.91 [27.48–36.34] PTS/36 etc., labeled
+"intervals §14". Two implementation bugs caught en route (the final-block
+back-transform was missing — SGA printed his z-score, 2.91, as pts36 — and
+env_forecast propagated the not-yet-realizable 2026 env as NaN; both fixed
+before any site render).
+
+**Where this leaves the projection tier:** the shipped artifact is the §11
+ridge with §14-calibrated 90% intervals. §15+ levers are all data-tier
+moves (per-game role/teammate context, injury detail); the model-class and
+target-space levers are exhausted at this tier by twelve preregistered
+reads.
+
+
 ## §1 — RAPM from ESPN PBP stints (pre-registered 2026-10-30, before any derivation or fit)
 
 **Why.** The spec's on/off, lineup and team-impact surfaces all need a

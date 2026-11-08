@@ -1,0 +1,178 @@
+{
+ "folds": {
+  "2021": {
+   "next_pts36": {
+    "mae": 2.2,
+    "r": 0.83,
+    "lambda": 3,
+    "ratio_vs_ridge11": 1.0038
+   },
+   "next_reb36": {
+    "mae": 0.826,
+    "r": 0.92,
+    "lambda": 10,
+    "ratio_vs_ridge11": 1.0038
+   },
+   "next_ast36": {
+    "mae": 0.719,
+    "r": 0.872,
+    "lambda": 300,
+    "ratio_vs_ridge11": 0.9986
+   },
+   "next_min_pg": {
+    "mae": 4.054,
+    "r": 0.796,
+    "lambda": 300,
+    "ratio_vs_ridge11": 0.988
+   }
+  },
+  "2022": {
+   "next_pts36": {
+    "mae": 2.271,
+    "r": 0.85,
+    "lambda": 300,
+    "ratio_vs_ridge11": 0.9976
+   },
+   "next_reb36": {
+    "mae": 1.006,
+    "r": 0.894,
+    "lambda": 100,
+    "ratio_vs_ridge11": 0.9993
+   },
+   "next_ast36": {
+    "mae": 0.679,
+    "r": 0.896,
+    "lambda": 300,
+    "ratio_vs_ridge11": 0.9985
+   },
+   "next_min_pg": {
+    "mae": 4.303,
+    "r": 0.792,
+    "lambda": 10,
+    "ratio_vs_ridge11": 0.9861
+   }
+  },
+  "2023": {
+   "next_pts36": {
+    "mae": 2.133,
+    "r": 0.862,
+    "lambda": 1,
+    "ratio_vs_ridge11": 1.0089
+   },
+   "next_reb36": {
+    "mae": 0.869,
+    "r": 0.92,
+    "lambda": 300,
+    "ratio_vs_ridge11": 1.0036
+   },
+   "next_ast36": {
+    "mae": 0.698,
+    "r": 0.892,
+    "lambda": 1,
+    "ratio_vs_ridge11": 0.9982
+   },
+   "next_min_pg": {
+    "mae": 3.988,
+    "r": 0.818,
+    "lambda": 1,
+    "ratio_vs_ridge11": 0.9739
+   }
+  },
+  "2024": {
+   "next_pts36": {
+    "mae": 2.132,
+    "r": 0.836,
+    "lambda": 30,
+    "ratio_vs_ridge11": 1.0
+   },
+   "next_reb36": {
+    "mae": 0.875,
+    "r": 0.917,
+    "lambda": 100,
+    "ratio_vs_ridge11": 0.9969
+   },
+   "next_ast36": {
+    "mae": 0.643,
+    "r": 0.905,
+    "lambda": 30,
+    "ratio_vs_ridge11": 1.005
+   },
+   "next_min_pg": {
+    "mae": 3.851,
+    "r": 0.821,
+    "lambda": 30,
+    "ratio_vs_ridge11": 0.9847
+   }
+  },
+  "2025": {
+   "next_pts36": {
+    "mae": 2.329,
+    "r": 0.829,
+    "lambda": 10,
+    "ratio_vs_ridge11": 0.9883
+   },
+   "next_reb36": {
+    "mae": 0.914,
+    "r": 0.897,
+    "lambda": 300,
+    "ratio_vs_ridge11": 1.0014
+   },
+   "next_ast36": {
+    "mae": 0.754,
+    "r": 0.866,
+    "lambda": 1,
+    "ratio_vs_ridge11": 0.9982
+   },
+   "next_min_pg": {
+    "mae": 4.276,
+    "r": 0.743,
+    "lambda": 1,
+    "ratio_vs_ridge11": 0.9744
+   }
+  }
+ },
+ "composite": {
+  "2021": 0.9986,
+  "2022": 0.9954,
+  "2023": 0.9961,
+  "2024": 0.9967,
+  "2025": 0.9906
+ },
+ "ship": {
+  "folds_beaten": 0,
+  "needed": 4,
+  "verdict": "FAIL",
+  "note": "composite vs the \u00a711 ridge; FAIL leaves \u00a711 as the shipped point model"
+ },
+ "intervals": {
+  "next_pts36": {
+   "variant": "one_back",
+   "coverage": 0.8889,
+   "q90": 4.4,
+   "folds_evaluated": 4,
+   "pass": true
+  },
+  "next_reb36": {
+   "variant": "one_back",
+   "coverage": 0.9037,
+   "q90": 1.94,
+   "folds_evaluated": 4,
+   "pass": true
+  },
+  "next_ast36": {
+   "variant": "one_back",
+   "coverage": 0.8866,
+   "q90": 1.44,
+   "folds_evaluated": 4,
+   "pass": true
+  },
+  "next_min_pg": {
+   "variant": "one_back",
+   "coverage": 0.8976,
+   "q90": 8.52,
+   "folds_evaluated": 4,
+   "pass": true
+  }
+ },
+ "intervals_pass": true
+}
