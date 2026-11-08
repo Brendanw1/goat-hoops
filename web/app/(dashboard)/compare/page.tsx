@@ -8,7 +8,7 @@ import {
 import type { HoopsPlayerRow } from "@/lib/data-hoops";
 
 export const metadata = { title: "Hoops compare" };
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const seasonLabel = (s: number | string) => `${Number(s) - 1}-${String(s).slice(2)}`;
 const rate = (v: number | null | undefined, dp = 1) =>

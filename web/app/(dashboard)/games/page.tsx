@@ -3,7 +3,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { getHoopsMeta, getHoopsGames, hoopsSeasons } from "@/lib/data-hoops";
 
 export const metadata = { title: "Hoops games" };
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 /**
  * Basketball landing (Phase 1, descriptive): the newest season's recent games

@@ -3,7 +3,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { getHoopsMeta } from "@/lib/data-hoops";
 
 export const metadata = { title: "About" };
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 export default async function AboutPage() {
   const meta = await getHoopsMeta();

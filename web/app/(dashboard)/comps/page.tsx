@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BackLink } from "@/components/ui/back-link";
 import { getHoopsAdvAgg, getHoopsPlayers, getHoopsSimilar } from "@/lib/data-hoops";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const seasonLabel = (s: string | number) => `${Number(s) - 1}-${String(s).slice(2)}`;
 const rate = (v: number | string | null | undefined, dp = 1) =>

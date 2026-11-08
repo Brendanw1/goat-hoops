@@ -121,7 +121,7 @@ export type HoopsStandingsDoc = { seasons: Record<string, HoopsStandRow[]>; note
 export type HoopsSimilarDoc = {
   season: number; k: number; fields: string[];
   archetypes: Record<string, { label: string; size: number; centroid: [string, number][] }>;
-  players: Record<string, { a: number; n: [string, number][] }>;
+  players: Record<string, { a: number; n: [string, number, string | null][] }>;
   note: string;
 };
 export type HoopsSurplusPlayer = {

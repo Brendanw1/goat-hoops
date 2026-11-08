@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { BackLink } from "@/components/ui/back-link";
 import { getHoopsStandings, getHoopsTeams, hoopsSeasons } from "@/lib/data-hoops";
+import { teamColor } from "@/lib/team-colors";
 
 export const metadata = { title: "Hoops teams" };
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 /** Team-season standings (descriptive: raw box averages per game). */
 export default async function HoopsTeamsPage({ searchParams }: {
@@ -83,7 +84,9 @@ export default async function HoopsTeamsPage({ searchParams }: {
                         </td>
                       )}
                       <td className="pr-3">
-                        <Link href={`/teams/${t.abbr.toLowerCase()}`} className="text-text-primary hover:underline">
+                        <Link href={`/teams/${t.abbr.toLowerCase()}`} className="text-text-primary hover:underline inline-flex items-center gap-1.5">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ background: teamColor(t.abbr) }} />
                           {t.abbr} <span className="text-text-dim">{t.name}</span>
                         </Link>
                       </td>

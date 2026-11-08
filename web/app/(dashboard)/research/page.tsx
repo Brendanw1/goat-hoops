@@ -4,7 +4,7 @@ import { getHoopsReads } from "@/lib/data-hoops";
 import type { HoopsRead } from "@/lib/data-hoops";
 
 export const metadata = { title: "Hoops research" };
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const seasonDate = (d: string) => d;
 

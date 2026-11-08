@@ -3,7 +3,7 @@ import { getHoopsGames, getHoopsMeta, getHoopsPlayers, getHoopsReads, getHoopsSt
 import { PlayerFinder } from "@/components/ui/player-finder";
 
 export const metadata = { title: "GOAT Hoops — a basketball analytics research log" };
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const seasonLabel = (s: number | string) => `${Number(s) - 1}-${String(s).slice(2)}`;
 

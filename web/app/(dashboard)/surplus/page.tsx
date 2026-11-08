@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BackLink } from "@/components/ui/back-link";
 import { getHoopsPlayers, getHoopsSurplus } from "@/lib/data-hoops";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const money = (v: number | null | undefined) => {
   if (v == null) return "—";

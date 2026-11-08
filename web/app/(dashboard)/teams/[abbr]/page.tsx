@@ -5,8 +5,9 @@ import {
   getHoopsContracts, getHoopsPlayers, getHoopsSurplus, getHoopsTeam, getHoopsTeams,
   type HoopsTeamAnalytics,
 } from "@/lib/data-hoops";
+import { teamColor } from "@/lib/team-colors";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const money = (v: number | null | undefined) => {
   if (v == null) return "—";
@@ -92,12 +93,13 @@ export default async function HoopsTeamPage({ params }: {
     <div className="space-y-5">
       <BackLink fallback="/teams" className="text-[11px] text-text-dim hover:text-text-secondary" />
       <div>
+        <span className="block h-1 w-20 rounded-full mb-2"
+          style={{ background: teamColor(key) ?? "var(--color-border-subtle)" }} />
         <h1 className="text-lg font-semibold text-text-primary">
           {key} <span className="text-text-dim font-normal">{name}</span>
         </h1>
         <p className="text-xs text-text-dim">
-          {seasons.map((s) => doc.seasons[s]).map((s) => `${s.w}-${s.l}`).join(" · ")} across{" "}
-          {seasons.length} baked season{seasons.length > 1 ? "s" : ""} (latest: {latest.w}-{latest.l})
+          {seasons.slice().reverse().map((s) => `${Number(s) - 1}-${String(s).slice(2)}: ${doc.seasons[s].w}-${doc.seasons[s].l}`).join(" · ")}
         </p>
       </div>
 

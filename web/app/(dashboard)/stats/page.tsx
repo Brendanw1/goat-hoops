@@ -4,7 +4,7 @@ import { StatsTable, type StatsRow } from "@/components/ui/stats-table";
 import { getHoopsAdvAgg, getHoopsMeta, getHoopsPlayers, hoopsSeasons } from "@/lib/data-hoops";
 
 export const metadata = { title: "Hoops stats" };
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const MIN_GP = 15;
 

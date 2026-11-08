@@ -3,7 +3,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { getHoopsPlayers, hoopsSeasons } from "@/lib/data-hoops";
 
 export const metadata = { title: "Hoops players" };
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 /** Player-season leaderboard (descriptive: per-game and per-36 averages). */
 export default async function HoopsPlayersPage({ searchParams }: {

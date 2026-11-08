@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getHoopsHistory, type HoopsHistoryLeaderRow } from "@/lib/data-hoops";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const seasonLabelOf = (s: number) => `${s - 1}-${String(s).slice(2)}`;
 

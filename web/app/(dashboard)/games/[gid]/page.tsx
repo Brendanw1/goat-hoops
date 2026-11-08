@@ -4,7 +4,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { getHoopsGame } from "@/lib/data-hoops";
 import { ShotChart } from "@/components/ui/shot-chart";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 /**
  * The basketball game report (Phase 1, descriptive): final score, team stat

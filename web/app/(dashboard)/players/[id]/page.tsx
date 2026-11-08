@@ -4,12 +4,14 @@ import { BackLink } from "@/components/ui/back-link";
 import { ShotHeatMap } from "@/components/ui/shot-heatmap";
 import {
   getHoopsAdvAgg, getHoopsCareers, getHoopsClutch, getHoopsContracts, getHoopsMeta, getHoopsPlayer,
-  getHoopsPlayerShots, getHoopsPlayers, getHoopsProjections, getHoopsRebound, getHoopsSeasAvgs,
+  getHoopsPlayerShots, getHoopsProjections, getHoopsRebound, getHoopsSeasAvgs,
   getHoopsSimilar, getHoopsSurplus,
 } from "@/lib/data-hoops";
 import type { HoopsContractDeal, HoopsSSCat } from "@/lib/data-hoops";
+import { teamColor } from "@/lib/team-colors";
+import { pctTone, pctBarTone } from "@/lib/tone";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const money = (v: number | null | undefined) => {
   if (v == null) return "—";
@@ -136,12 +138,12 @@ export default async function HoopsPlayerPage({ params }: {
   if (!doc || !Object.keys(doc.seasons).length) notFound();
   const seasons = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
   const [cdoc, advDoc, careers, meta, ss26, ss25, ps27, ps25,
-         similarDoc, surplusDoc, clutchDoc, reboundDoc, board, projDoc] = [
+         similarDoc, surplusDoc, clutchDoc, reboundDoc, projDoc] = [
     await getHoopsContracts(), await getHoopsAdvAgg(), await getHoopsCareers(), await getHoopsMeta(),
     await getHoopsSeasAvgs(2026), await getHoopsSeasAvgs(2025),
     await getHoopsPlayerShots(2027), await getHoopsPlayerShots(2025),
     await getHoopsSimilar(), await getHoopsSurplus(), await getHoopsClutch(),
-    await getHoopsRebound(), await getHoopsPlayers(), await getHoopsProjections()];
+    await getHoopsRebound(), await getHoopsProjections()];
   const ssDoc = ss26 ?? ss25;
   const ss = ssDoc?.players[id];
   const pt = ss?.playtype ?? [];
@@ -167,10 +169,6 @@ export default async function HoopsPlayerPage({ params }: {
     return m && m.games < 800 ? { games: m.games, src: (m as { source?: string }).source } : null;
   };
   // exploration layer (descriptive): archetype + neighbors, surplus, clutch, rebounds
-  const names = new Map<string, string>();
-  for (const rows of Object.values(board?.seasons ?? {})) {
-    for (const r of rows) names.set(r.id, r.name);
-  }
   const simP = similarDoc?.players[id];
   const arch = simP ? similarDoc?.archetypes[String(simP.a)] : null;
   const surplusP = surplusDoc?.players[id] ?? null;
@@ -191,10 +189,29 @@ export default async function HoopsPlayerPage({ params }: {
       <BackLink fallback="/players" className="text-[11px] text-text-dim hover:text-text-secondary" />
       <div>
         <h1 className="text-lg font-semibold text-text-primary">{doc.name}</h1>
-        <p className="text-xs text-text-dim">
-          {[...new Set(seasons.map((s) => doc.seasons[s].team).filter(Boolean))].join(" · ")}
-          {arch && <span className="text-text-secondary"> · {arch.label}</span>}
-        </p>
+        {(() => {
+          const teams = [...new Set(seasons.map((s) => doc.seasons[s].team).filter(Boolean))];
+          const cur = teams[0];
+          return (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-block h-1 w-14 rounded-full align-middle"
+                style={{ background: teamColor(cur) ?? "var(--color-border-subtle)" }} />
+              <p className="text-xs text-text-dim">
+                {teams.map((t, i) => (
+                  <span key={t}>
+                    {i > 0 && " · "}
+                    <Link href={`/teams/${t}`} className="hover:underline inline-flex items-center gap-1">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full"
+                        style={{ background: teamColor(t) }} />
+                      <span className="text-text-secondary hover:text-text-primary">{t}</span>
+                    </Link>
+                  </span>
+                ))}
+                {arch && <span className="text-text-secondary"> · {arch.label}</span>}
+              </p>
+            </div>
+          );
+        })()}
       </div>
 
       {(current || salary) && (
@@ -463,10 +480,10 @@ export default async function HoopsPlayerPage({ params }: {
             </span>
           </h2>
           <div className="space-y-1">
-            {simP.n.map(([eid, s]) => (
+            {simP.n.map(([eid, s, nm]) => (
               <div key={eid} className="flex items-center gap-2">
                 <Link href={`/players/${eid}`} className="w-44 truncate text-text-primary hover:underline shrink-0">
-                  {names.get(eid) ?? eid}
+                  {nm ?? eid}
                 </Link>
                 <div className="flex-1 h-2 bg-white/[0.04] rounded-sm overflow-hidden">
                   <div className="h-full bg-white/25"
@@ -503,7 +520,7 @@ export default async function HoopsPlayerPage({ params }: {
           {ss && (
             <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs">
               <h2 className="text-sm font-medium text-text-primary mb-1.5">
-                League percentile <span className="text-text-dim font-normal text-[10px]">· {ssLabel} · among bridged tracked players</span>
+                League percentile <span className="text-text-dim font-normal text-[10px]">· {ssLabel} · blue top-decile, green top-quartile, red bottom-quartile</span>
               </h2>
               <div className="grid grid-cols-4 gap-1.5">
                 {([["TS%", ranks?.["adv.ts_pct"]], ["USG%", ranks?.["adv.usg_pct"]],
@@ -514,7 +531,7 @@ export default async function HoopsPlayerPage({ params }: {
                   .map(([label, v]) => (
                     <div key={label} className="bg-white/[0.03] rounded px-2 py-1">
                       <div className="text-text-dim text-[10px]">{label}</div>
-                      <div className={`font-medium tabular-nums ${Number(v) >= 0.85 ? "text-pos" : Number(v) <= 0.15 ? "text-neg" : "text-text-primary"}`}>
+                      <div className={`font-medium tabular-nums ${pctTone(typeof v === "number" ? v : null)}`}>
                         {typeof v === "number" ? ord(v) : "—"}
                       </div>
                     </div>
@@ -532,7 +549,7 @@ export default async function HoopsPlayerPage({ params }: {
                         return (
                           <div key={label} className="bg-white/[0.03] rounded px-2 py-1">
                             <div className="text-text-dim text-[10px]">{label}</div>
-                            <div className={`font-medium tabular-nums ${v >= 0.85 ? "text-pos" : v <= 0.15 ? "text-neg" : "text-text-primary"}`}>
+                            <div className={`font-medium tabular-nums ${pctTone(v)}`}>
                               {ord(v)}
                             </div>
                           </div>
@@ -547,7 +564,7 @@ export default async function HoopsPlayerPage({ params }: {
           {pt.length > 0 && (
             <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs">
               <h2 className="text-sm font-medium text-text-primary mb-1.5">
-                Play type <span className="text-text-dim font-normal text-[10px]">· {ssLabel} · poss per game · bar = league percentile</span>
+                Play types <span className="text-text-dim font-normal text-[10px]">· {ssLabel} · poss per game · bar = league percentile</span>
               </h2>
               <div className="space-y-1">
                 {pt.filter((d) => Number(d.poss) > 0).map((d) => {
@@ -556,7 +573,7 @@ export default async function HoopsPlayerPage({ params }: {
                     <div key={String(d.play_type)} className="flex items-center gap-2">
                       <span className="w-20 text-text-secondary shrink-0">{String(d.play_type).replace("nba_", "")}</span>
                       <div className="flex-1 h-2.5 bg-white/[0.04] rounded-sm overflow-hidden">
-                        <div className={`h-full ${pc >= 0.85 ? "bg-pos/70" : pc <= 0.15 ? "bg-neg/70" : "bg-white/30"}`}
+                        <div className={`h-full ${pctBarTone(pc)}`}
                           style={{ width: `${Math.round(pc * 100)}%` }} />
                       </div>
                       <span className="w-16 text-right text-text-primary tabular-nums">{fnum(d.ppp, 2)} ppp</span>

@@ -1,6 +1,7 @@
 import { getHoopsMarket } from "@/lib/data-hoops";
+import { teamColor } from "@/lib/team-colors";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
 const seasonLabelOf = (s: number) => `${s - 1}-${String(s).slice(2)}`;
 const sgn = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`;
@@ -115,8 +116,12 @@ export default async function HoopsMarketPage() {
               <div key={g.gid}
                 className="flex items-center justify-between gap-2 py-1 border-b border-border-subtle/40">
                 <span className="text-text-secondary w-20 shrink-0 text-[10px] tabular-nums">{g.date.slice(5)}</span>
-                <span className="text-text-primary min-w-0 flex-1 truncate">
-                  {g.away} @ {g.home}
+                <span className="text-text-primary min-w-0 flex-1 truncate inline-flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: teamColor(g.away) }} />
+                  {g.away}
+                  <span className="text-text-dim">@</span>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: teamColor(g.home) }} />
+                  {g.home}
                 </span>
                 <span className="tabular-nums text-text-secondary w-24 text-right shrink-0">
                   {g.open_spread != null && g.open_spread !== g.spread ? (

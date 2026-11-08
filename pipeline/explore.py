@@ -155,7 +155,7 @@ def pct_rank(vals):
     return ranks
 
 
-def similar(adv):
+def similar(adv, board=None):
     players = adv["seasons"][SEASON]["players"]
     pool = {e: p for e, p in players.items()
             if p.get("gp", 0) >= MIN_GP_VECTOR and (p.get("min") or 0) >= 250}
@@ -169,6 +169,11 @@ def similar(adv):
     archetypes = {}
     players_out = {}
     taken: set = set()
+    name_of = {}
+    if board:
+        for rows_ in board.get("seasons", {}).values():
+            for r in rows_:
+                name_of[str(r["id"])] = r.get("name")
     for j in range(K_ARCHETYPES):
         rows = np.where(assign == j)[0]
         label = archetype_label(C[j], fields, taken)
@@ -178,7 +183,8 @@ def similar(adv):
                          "centroid": [[f, float(z)] for f, z in top]}
         for i in rows:
             order = np.argsort(-sim[i])
-            nbrs = [[eids[t], round(float(sim[i, t]), 3)]
+            nbrs = [[eids[t], round(float(sim[i, t]), 3),
+                     name_of.get(str(eids[t]))]
                     for t in order if t != i][:8]
             players_out[eids[i]] = {"a": j, "n": nbrs}
     wr_gz("similar.json.gz", {
@@ -333,7 +339,8 @@ def yoy_stability(adv):
 def main():
     adv = load("advagg.json.gz")
     contracts = load("contracts.json")
-    eids, Z, fields, assign = similar(adv)
+    board = load("players.json")
+    eids, Z, fields, assign = similar(adv, board)
     # exploration prints (the read happens once, recorded in docs/explorations)
     for j in sorted({int(a) for a in assign}):
         rows = [eids[i] for i in np.where(assign == j)[0]]

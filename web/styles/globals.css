@@ -16,6 +16,9 @@
   --color-pos: oklch(0.74 0.14 155);
   --color-neg: oklch(0.68 0.15 25);
   --color-flag: oklch(0.72 0.12 300);
+  /* elite tier: top-decile percentiles get blue; judgment scale is
+     blue (elite ≥.90) → green (good ≥.75) → neutral → red (bottom ≤.25) */
+  --color-elite: oklch(0.72 0.13 245);
 
   /* Pitch Type Colors — balanced perceived brightness */
   --color-pitch-fastball: oklch(0.60 0.20 25);
