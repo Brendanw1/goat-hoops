@@ -346,6 +346,207 @@ def team_playtype_mix(team_seasons, season_rows, counts) -> dict:
     return out
 
 
+# --- P2: the history tier — 21 seasons of seasavgs rows (§0e-gated) -----------
+
+HISTORY_BDL_LABELS = range(2005, 2026)   # site season = label + 1 → 2006..2026
+HISTORY_TEAM_GAMES = {2012: 990, 2020: 1056, 2021: 1080}  # site label → games; else 1230
+LEADER_FLOOR_GP = 40
+LEADER_FLOOR_MIN = 1200
+CAREER_FLOOR_GP = 50
+CAREER_TS_FLOOR_MIN = 6000
+
+
+def _gp_weighted(b: pd.DataFrame, col: str) -> float:
+    """Σ(per-game × gp) over player rows — the season total of `col`."""
+    gp = pd.to_numeric(b["stats.gp"], errors="coerce")
+    v = pd.to_numeric(b[col], errors="coerce")
+    return float((v.fillna(0) * gp.fillna(0)).sum())
+
+
+def history_phase(out, counts, team_pkg: dict) -> dict:
+    """P2 the sleeping giant: career totals, single-season leaderboards and
+    the per-season league env from the 2005-2025 seasavgs base+advanced
+    pulls. Env uses the §0d formulas on gp-weighted sums; §0e requires the
+    env for site 2025/2026 to agree with the P1 teams.json env before the
+    doc ships. Descriptive throughout."""
+    rows_by_season: dict[int, list] = {}
+    for bdl in HISTORY_BDL_LABELS:
+        fb = BDL / f"seasavgs_{bdl}_general_base.parquet"
+        if not fb.exists():
+            continue
+        b = pd.read_parquet(fb)
+        site = bdl + 1
+        rows_by_season[site] = b
+    if not rows_by_season:
+        return {"note": "no history rows"}
+
+    # league env per season (§0d formulas, gp-weighted) -----------------------
+    env = {}
+    for site, b in rows_by_season.items():
+        gp = float(pd.to_numeric(b["stats.gp"], errors="coerce").fillna(0).sum())
+        fga = _gp_weighted(b, "stats.fga"); fta = _gp_weighted(b, "stats.fta")
+        fgm = _gp_weighted(b, "stats.fgm"); fg3m = _gp_weighted(b, "stats.fg3m")
+        fg3a = _gp_weighted(b, "stats.fg3a"); tov = _gp_weighted(b, "stats.tov")
+        oreb = _gp_weighted(b, "stats.oreb"); dreb = _gp_weighted(b, "stats.dreb")
+        pts = _gp_weighted(b, "stats.pts")
+        tg = HISTORY_TEAM_GAMES.get(site, 1230)
+        # player rows span BOTH teams' box — divide by 2 × team-games
+        pts_g = pts / (2 * tg)
+        poss_g = (fga - oreb + tov + 0.44 * fta) / (2 * tg)
+        env[site] = {
+            "g": tg, "pace": round(48 * poss_g / 48, 1), "poss_g": round(poss_g, 1),
+            "ortg": r_(100 * pts_g / poss_g),
+            "efg": round((fgm + 0.5 * fg3m) / fga, 3),
+            "ts": round(pts / (2 * (fga + 0.44 * fta)), 3),
+            "fg3ar": round(fg3a / fga, 3), "ftr": round(fta / fga, 3),
+            "tov_pct": round(tov / (fga + 0.44 * fta + tov), 3),
+            "orb_pct": round(oreb / (oreb + dreb), 3)}
+
+    # §0e: same formulas, different grain — must agree for 2025/2026 ----------
+    gate = {"label": "§0e history env vs §0d teams.json env (site 2025/2026)"}
+    tol = {"pace": 1.5, "ortg": 1.5, "efg": 0.012, "ts": 0.012,
+           "fg3ar": 0.008, "ftr": 0.008, "tov_pct": 0.008, "orb_pct": 0.008}
+    failed, detail = [], {}
+    for site in (2025, 2026):
+        lg0 = (team_pkg.get("league") or {}).get(str(site)) or {}
+        h0 = env.get(site) or {}
+        for k, t in tol.items():
+            if k not in lg0 or k not in h0 or lg0[k] is None:
+                continue
+            d = abs(float(lg0[k]) - float(h0[k]))
+            detail[f"{site}.{k}"] = {"p1": lg0[k], "hist": h0[k], "absdiff": round(d, 4)}
+            if d > t:
+                failed.append(f"{site}.{k} |{d:.3f}|>{t}")
+    gate["comparisons"] = detail
+    if failed:
+        gate["verdict"] = "FAIL"
+        print("§0e gate FAILED:", json.dumps(gate, indent=1))
+        raise SystemExit("§0e history gate failed: " + "; ".join(failed))
+    gate["verdict"] = "PASS"
+    print("§0e gate PASS:", json.dumps({k: gate[k] for k in ("label", "verdict")}))
+    counts["history_gate_0e"] = "PASS"
+
+    # per player-season rows (name + bridged eid attach); itertuples mangles
+    # 'player.id', so iterate the DataFrame directly
+    ps_rows: list[dict] = []
+    name_of: dict[int, str] = {}
+    for site, b in rows_by_season.items():
+        for _, r in b.iterrows():
+            pid = r.get("player.id")
+            if pid is None or pd.isna(pid):
+                continue
+            pid = int(pid)
+            fn, ln = r.get("player.first_name"), r.get("player.last_name")
+            nm = f"{fn or ''} {ln or ''}".strip()
+            if nm:
+                name_of.setdefault(pid, nm)
+            gp = float(pd.to_numeric(r.get("stats.gp"), errors="coerce") or 0)
+            if gp <= 0:
+                continue
+            g = lambda c: float(pd.to_numeric(r.get(c), errors="coerce") or 0)
+            ps_rows.append({
+                "pid": pid, "s": site, "gp": gp, "age": g("stats.age"),
+                "min": g("stats.min"), "pts": g("stats.pts"), "reb": g("stats.reb"),
+                "ast": g("stats.ast"), "stl": g("stats.stl"), "blk": g("stats.blk"),
+                "tov": g("stats.tov"), "fgm": g("stats.fgm"), "fga": g("stats.fga"),
+                "fg3m": g("stats.fg3m"), "fg3a": g("stats.fg3a"),
+                "ftm": g("stats.ftm"), "fta": g("stats.fta"),
+                "oreb": g("stats.oreb"), "dreb": g("stats.dreb")})
+
+    # career totals -----------------------------------------------------------
+    career: dict[int, dict] = {}
+    for r in ps_rows:
+        c = career.setdefault(r["pid"], {
+            "name": name_of.get(r["pid"]), "gp": 0, "min": 0, "pts": 0, "reb": 0,
+            "ast": 0, "stl": 0, "blk": 0, "tov": 0, "fgm": 0, "fga": 0,
+            "fg3m": 0, "fg3a": 0, "ftm": 0, "fta": 0, "oreb": 0, "dreb": 0,
+            "usg_w": 0, "first": r["s"], "last": r["s"]})
+        c["gp"] += r["gp"]
+        for k in ("min", "pts", "reb", "ast", "stl", "blk", "tov",
+                  "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb"):
+            c[k] += r[k] * r["gp"]
+        c["first"] = min(c["first"], r["s"])
+        c["last"] = max(c["last"], r["s"])
+    # usg comes from the advanced pulls, keyed (pid, site) — attach gp-weighted
+    for bdl in HISTORY_BDL_LABELS:
+        fa = BDL / f"seasavgs_{bdl}_general_advanced.parquet"
+        if not fa.exists():
+            continue
+        a = pd.read_parquet(fa)
+        for _, r in a.iterrows():
+            pid = r.get("player.id")
+            if pid is None or pd.isna(pid) or int(pid) not in career:
+                continue
+            gp = float(pd.to_numeric(r.get("stats.gp"), errors="coerce") or 0)
+            usg = pd.to_numeric(r.get("stats.usg_pct"), errors="coerce")
+            if gp > 0 and usg is not None and pd.notna(usg):
+                c = career[int(pid)]
+                c["usg_w"] += float(usg) * gp
+    players_out = {}
+    for pid, c in career.items():
+        if c["gp"] < CAREER_FLOOR_GP:
+            continue
+        eid = bdl2espn_of.get(pid)
+        players_out[str(pid)] = {
+            "name": c["name"], "eid": str(eid) if eid else None,
+            "first": c["first"], "last": c["last"],
+            "gp": int(c["gp"]), "min": int(c["min"]),
+            "pts": int(round(c["pts"])), "reb": int(round(c["reb"])),
+            "ast": int(round(c["ast"])), "stl": int(round(c["stl"])),
+            "blk": int(round(c["blk"])), "tov": int(round(c["tov"])),
+            "ts": round(c["pts"] / (2 * (c["fga"] + 0.44 * c["fta"])), 3)
+                  if c["fga"] else None,
+            "usg": round(c["usg_w"] / c["gp"], 3) if c["gp"] else None}
+
+    # leaderboards (floors fixed in §0e) --------------------------------------
+    def top(rows, key, n=40, floor=None, nd=1):
+        rs = [r for r in rows if floor is None or floor(r)]
+        rs.sort(key=lambda r: -r[key])
+        return [{"name": name_of.get(r["pid"]) or str(r["pid"]),
+                 "eid": (str(bdl2espn_of.get(r["pid"])) if bdl2espn_of.get(r["pid"]) else None),
+                 "s": r["s"], "gp": int(r["gp"]), "v": round(r[key], nd)}
+                for r in rs[:n]]
+
+    leaders_season = {
+        "pts": top(ps_rows, "pts", floor=lambda r: r["gp"] >= LEADER_FLOOR_GP),
+        "reb": top(ps_rows, "reb", floor=lambda r: r["gp"] >= LEADER_FLOOR_GP),
+        "ast": top(ps_rows, "ast", floor=lambda r: r["gp"] >= LEADER_FLOOR_GP),
+        "stl": top(ps_rows, "stl", floor=lambda r: r["gp"] >= LEADER_FLOOR_GP),
+        "blk": top(ps_rows, "blk", floor=lambda r: r["gp"] >= LEADER_FLOOR_GP)}
+    # rate rows need min — rebuild with per-game min × gp
+    for r in ps_rows:
+        r["min_tot"] = r["min"] * r["gp"]
+    ts_rows = [r for r in ps_rows
+               if r["gp"] >= LEADER_FLOOR_GP and r["min_tot"] >= LEADER_FLOOR_MIN and r["fga"] > 0]
+    ts_rows = [{**r, "ts": r["pts"] / (2 * (r["fga"] + 0.44 * r["fta"]))} for r in ts_rows]
+    leaders_season["ts"] = top(ts_rows, "ts", nd=3,
+                               floor=lambda r: r["min_tot"] >= LEADER_FLOOR_MIN)
+
+    career_rows = [v for v in players_out.values()]
+    def top_career(key, n=40, floor=None):
+        rs = [p for p in career_rows if floor is None or floor(p)]
+        rs.sort(key=lambda p: -p[key])
+        return [{"name": p["name"], "eid": p["eid"], "span": f"{p['first']}-{str(p['last'])[2:]}",
+                 "gp": p["gp"], "v": p[key]} for p in rs[:n]]
+    leaders_career = {
+        "pts": top_career("pts"), "reb": top_career("reb"), "ast": top_career("ast"),
+        "stl": top_career("stl"), "blk": top_career("blk"),
+        "ts": top_career("ts", floor=lambda p: p["min"] >= CAREER_TS_FLOOR_MIN and p["ts"] is not None)}
+
+    jwrite_gz(out / "history.json.gz", {
+        "span": {"first": min(env), "last": max(env),
+                 "note": "balldontlie season-average pulls 2005-2025 (site 2006-2026); "
+                         "totals = Σ per-game × gp; career table floors in §0e"},
+        "env": {str(k): v for k, v in sorted(env.items())},
+        "players": players_out,
+        "leaders_career": leaders_career,
+        "leaders_season": leaders_season,
+        "gate_0e": gate})
+    counts["history_env"] = len(env)
+    counts["history_players"] = len(players_out)
+    return {"env": env, "gate": gate}
+
+
 def _team_grain_bdl(raw: pd.DataFrame) -> pd.DataFrame:
     """(game, team) box sums from RAW balldontlie rows. §0d fixed rule: the
     eid/name-bridge filter stays OFF — the bridge exists for player docs, and
@@ -1744,6 +1945,7 @@ def bake(out_dir: Path | None = None) -> dict:
     starters_info = merge_bdl_starters(board, pdocs, team_seasons, counts)
     team_pkg = merge_bdl_team_analytics(team_seasons, season_rows, counts, tgx, gg, id2abbr)
     pt_league = team_playtype_mix(team_seasons, season_rows, counts)
+    history_phase(out, counts, team_pkg)
     advagg_phase(out, counts)
     careers_phase(out, counts)
     standings_phase(out, counts)

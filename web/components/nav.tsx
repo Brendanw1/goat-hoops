@@ -8,6 +8,8 @@ const NAV_ITEMS = [
   { href: "/teams", label: "Teams" },
   { href: "/players", label: "Players" },
   { href: "/stats", label: "Stats" },
+  { href: "/alltime", label: "All-Time" },
+  { href: "/eras", label: "Eras" },
   { href: "/compare", label: "Compare" },
   { href: "/comps", label: "Comps" },
   { href: "/surplus", label: "Value" },

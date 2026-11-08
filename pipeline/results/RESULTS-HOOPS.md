@@ -58,6 +58,48 @@ site 2024 (partial, 38 g/team, flagged), 2025, 2026 (complete), 2027 (live,
 ESPN-sourced, flagged).
 
 
+## §0e — history-tier consistency gate (pre-registered 2026-11-08, before any read)
+
+**What.** The P2 history doc derives, from the 21 seasavgs base pulls (site
+2006-2026), per-season league env with the §0d formulas applied to
+gp-weighted sums, career totals (Σ per-game × gp), and leaderboards. The
+env's aggregation path differs from §0d's (player-season rows vs team-game
+sums), so before the doc ships, its env for site 2025 and 2026 must agree
+with teams.json's league env (the §0d grain) — **same formulas, different
+sources.**
+
+**Fixed rules.** All rates aggregate-then-divide. Team-games per season are
+the known schedule constants: 1,230 otherwise, 990 (2011-12), 1,056 (2019-20
+COVID), 1,080 (2020-21); minutes normalized to 48 (OT share not modeled
+pre-2019 — the check's tolerances absorb it, and methods says so). The
+seasavgs pulls exclude some low-minute players; gp-weighting keeps the
+shift small but nonzero.
+
+**Tolerances (env 2025/2026 vs §0d env):** pace ± 1.5, ORtg ± 1.5,
+eFG/TS ± 0.012, fg3ar/ftr/tov_pct/orb_pct ± 0.008. A miss → stop, diagnose
+before rendering.
+
+**Leaderboard floors (fixed before the read).** Single-season counting
+leaders: gp ≥ 40. Single-season rate leaders (TS%, USG%): gp ≥ 40 and
+season minutes ≥ 1,200. Career table: gp ≥ 50 across the baked span.
+Career TS% rank: Σ min ≥ 6,000. Career totals are Σ(per-game × gp) —
+rounding drift vs official totals is possible and labeled.
+
+### §0e read (2026-11-08): PASS — the history tier ships
+
+The env for site 2025 and 2026 agrees with the §0d teams.json env on every
+toleranced key (pace/ortg/efg/ts/fg3ar/ftr/tov_pct/orb_pct) — same formulas,
+two grains. Two implementation bugs were caught by the content sanity check
+BEFORE any render: the env divided by team-games only, but player rows span
+both teams' boxes — pace read exactly 2× (186.3 instead of 93.2; the ratio
+stats were immune because the 2× cancels) — and TS leaders rounded to one
+decimal. Post-fix env arc, the era story in one table: **pace 93.2 → 101.8,
+ORtg 104.1 → 113.6, eFG .490 → .546, 3PA rate .202 → .415** (2006 → 2026).
+Leaders sanity: season pts = Harden 36.1 (2019), Kobe 35.4 (2006), Harden
+34.3 (2020); season TS = lob-finisher profiles (Kalkbrenner .768 2026);
+career (in-span) pts = LeBron 39.6k, KD 32.6k, Harden 29.3k; reb = Dwight
+13.8k, Drummond 11.5k. 1,491 career rows at the §0e floors.
+
 ## §1 — RAPM from ESPN PBP stints (pre-registered 2026-10-30, before any derivation or fit)
 
 **Why.** The spec's on/off, lineup and team-impact surfaces all need a

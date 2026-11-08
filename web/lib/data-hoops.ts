@@ -212,6 +212,29 @@ export const getHoopsGame = cache(async (gid: string): Promise<HoopsGameDoc | nu
 export const getHoopsTeams = cache(async (): Promise<HoopsTeamsDoc | null> =>
   (await fetchFromR2<HoopsTeamsDoc>("teams.json").catch(() => null)) ?? null);
 
+/** P2 history tier — 21 baked seasons of seasavgs rows (§0e-gated) */
+export type HoopsHistoryLeaderRow = {
+  name: string; eid: string | null; s?: number; span?: string; gp: number; v: number;
+};
+export type HoopsHistoryDoc = {
+  span: { first: number; last: number; note: string };
+  env: Record<string, {
+    g: number; pace: number; poss_g: number; ortg: number | null;
+    efg: number; ts: number; fg3ar: number; ftr: number;
+    tov_pct: number; orb_pct: number;
+  }>;
+  players: Record<string, {
+    name: string; eid: string | null; first: number; last: number;
+    gp: number; min: number; pts: number; reb: number; ast: number;
+    stl: number; blk: number; tov: number; ts: number | null; usg: number | null;
+  }>;
+  leaders_career: Record<string, HoopsHistoryLeaderRow[]>;
+  leaders_season: Record<string, HoopsHistoryLeaderRow[]>;
+  gate_0e: { label: string; verdict: string };
+};
+export const getHoopsHistory = cache(async (): Promise<HoopsHistoryDoc | null> =>
+  (await fetchGzippedJson<HoopsHistoryDoc>("history.json.gz")) ?? null);
+
 export const getHoopsTeam = cache(async (abbr: string): Promise<HoopsTeamDoc | null> =>
   (await fetchGzippedJson<HoopsTeamDoc>(`team/${abbr.toLowerCase()}.json.gz`)) ?? null);
 
