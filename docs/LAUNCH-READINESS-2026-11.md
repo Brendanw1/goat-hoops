@@ -128,3 +128,48 @@ the paid tier only widens history and adds refresh cadence.
 - [ ] cancel the BDL trial after the fold-in ·
 - [ ] a prod smoke test of the switcher from goatpro.dev ↔ hoops ·
 - [ ] r2_sync after the last local bake before DNS flip.
+
+
+## 8 · The task list (phased, with the finish line defined)
+
+### Phase L — launch-critical (the DNS-flip blockers, in order)
+1. **Deadline fold-in** (2026-11-09, after 11:30 PT): stop the walk, fold the
+   advanced tail into the bake, final cheap pulls (live-season seasavgs,
+   contract details if budget, one last injuries snapshot), re-bake, sync.
+   **Then the owner cancels the BDL trial.**
+2. **Vercel project + env** (§1's checklist) — a preview deploy first, the
+   smoke test on the preview URL (all 18 routes, one player page, one team
+   page, the ticker, the switcher link back to goatpro.dev).
+3. **DNS** `hoops.goatpro.dev` → the project; verify the baseball pill both
+   directions; verify the R2 keys resolve in prod (the 5-min ISR pages).
+4. **The daily cron verified green 3 consecutive days** — it is the site's
+   freshness contract (boxes, ticker, leaderboards). First run: tomorrow 09:00.
+
+### Phase P — post-launch polish (the first two weeks)
+5. **2027 stint-walk rebuild** (lineups live) — the parked diagnosis: add
+   `--label`, run the 2025 control, bisect the parse (seq semantics,
+   wallclock, join ordering). Gate: §1's two gates, then /lineups gains the
+   season selector with 2025 + live.
+6. **Run charts** on game pages (the play feed carries everything).
+7. **Usage-vs-efficiency scatter** on /stats (zero-JS SVG, labeled outliers).
+8. **Player-page split** (D1) — panel components, mechanical.
+9. **On/off waterfall + lineup diverging bars** (data already in
+   lineups.json).
+
+### Phase M — the model tier's next moves (owner-gated, new data required)
+10. **Track C — role decomposition/gravity** from the stint spine
+    (teammate 3PA-rate differentials on/off) — descriptive first, the KB's
+    WOWY confound list as the discipline spec.
+11. **A college/G-League feed** — the only path to prospect projections
+    (the documented gap); evaluate NCAA anchors before committing.
+12. **Defender context** — reopens §8's gate only if a public source ever
+    appears; otherwise the projection tier stays as shipped.
+13. **Injury-history depth** — a paid feed or manual curation; §12c's
+    availability model reopens only with it.
+
+### The standing verdicts to remember at launch
+- Every public number is descriptive or gate-passed; the reads index is the
+  receipt.
+- The market's Brier (0.202) is the bar any forecast must beat before
+  claiming predictive status.
+- The trade-value composite has printed weights and is a lens, not a price.

@@ -19,12 +19,14 @@ const STATUS_CLS: Record<string, string> = {
   "Day-To-Day": "text-flag", Questionable: "text-flag", GTD: "text-flag",
 };
 
-const BASE_PX_S = 30;  // slow roll
-const TAU = 0.55;      // seconds of exponential easing toward the target speed
+const DEFAULT_PX_S = 30;  // slow roll
+const TAU = 0.55;         // seconds of exponential easing toward the target speed
+export const TICKER_SPEED_EVENT = "ticker-speed";
 
 export function TickerTrack({ items }: { items: TickerItem[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const state = useRef({ x: 0, speed: BASE_PX_S, hover: false, last: 0, raf: 0 });
+  const base = useRef(DEFAULT_PX_S);
+  const state = useRef({ x: 0, speed: DEFAULT_PX_S, hover: false, last: 0, raf: 0 });
   const [still, setStill] = useState(false);
 
   useEffect(() => {
@@ -34,6 +36,20 @@ export function TickerTrack({ items }: { items: TickerItem[] }) {
     }
     const el = trackRef.current;
     if (!el) return;
+    // the secret slider's live speed (persisted in localStorage)
+    const saved = Number(localStorage.getItem("ticker-speed"));
+    if (Number.isFinite(saved) && saved >= 8 && saved <= 140) {
+      base.current = saved;
+      state.current.speed = saved;
+    }
+    const onSpeed = (e: Event) => {
+      const v = (e as CustomEvent<number>).detail;
+      if (Number.isFinite(v) && v >= 8 && v <= 140) {
+        base.current = v;
+        localStorage.setItem("ticker-speed", String(v));
+      }
+    };
+    window.addEventListener(TICKER_SPEED_EVENT, onSpeed);
     let half = 0;
     const measure = () => { half = el.scrollWidth / 2; };
     measure();
@@ -43,7 +59,7 @@ export function TickerTrack({ items }: { items: TickerItem[] }) {
       const s = state.current;
       const dt = Math.min((t - s.last) / 1000, 0.1);
       s.last = t;
-      const target = s.hover ? 0 : BASE_PX_S;
+      const target = s.hover ? 0 : base.current;
       s.speed += (target - s.speed) * Math.min(1, dt / TAU);
       s.x -= s.speed * dt;
       if (half > 0 && -s.x >= half) s.x += half;
@@ -54,6 +70,7 @@ export function TickerTrack({ items }: { items: TickerItem[] }) {
     return () => {
       cancelAnimationFrame(state.current.raf);
       window.removeEventListener("resize", measure);
+      window.removeEventListener(TICKER_SPEED_EVENT, onSpeed);
     };
   }, [items]);
 

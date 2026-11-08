@@ -93,9 +93,12 @@ export default async function HubPage() {
   const trendSeries = top5.map((r, i) => {
     const doc = scorerDocs[i];
     const s27 = doc?.seasons?.[String(boardSeason)];
-    const pts = (s27?.games ?? []).slice().reverse().map((g) => g.pts);
+    const games = (s27?.games ?? []).slice().reverse();
+    const pts = games.map((g) => g.pts);
+    const labels = games.map((g) =>
+      `${r.name} — ${g.date.slice(5)} ${g.res == "W" ? "W" : "L"} vs ${g.opp}: ${g.pts} pts`);
     return { name: r.name.split(" ").slice(-1)[0], color: undefined as unknown as string,
-             points: pts, team: r.team };
+             points: pts, labels, badge: r.team ?? undefined, team: r.team };
   });
   // team colors resolved after the map (avoid importing teamColor twice)
   const { teamColor } = await import("@/lib/team-colors");
@@ -139,7 +142,7 @@ export default async function HubPage() {
 
       {/* playoff picture + results/reads */}
       <div className="grid gap-3 lg:grid-cols-3">
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 lg:col-span-2">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 lg:col-span-2 card-aurora">
           <div className="flex items-center justify-between mb-1.5">
             <h2 className="text-sm font-medium text-text-primary">
               Playoff picture <span className="text-text-dim font-normal text-[10px]">· {boardSeason ? seasonLabel(boardSeason) : ""} live</span>
@@ -205,19 +208,27 @@ export default async function HubPage() {
 
       {/* scorers trend */}
       {trendSeries.length > 1 && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5">
-          <h2 className="text-sm font-medium text-text-primary mb-1.5">
-            The scorers&apos; race <span className="text-text-dim font-normal text-[10px]">
-              · {boardSeason ? seasonLabel(boardSeason) : ""} · points by game · lines in team colors
-            </span>
-          </h2>
+        <div className="rounded-xl border border-border-subtle px-4 py-3 card-aurora relative overflow-hidden">
+          <div className="flex items-baseline justify-between gap-2 mb-1">
+            <h2 className="text-base font-bold text-text-primary tracking-tight">
+              The Scorers&apos; Race
+              <span className="text-text-dim font-medium text-[11px]">
+                {" "}· every game, in team colors
+              </span>
+            </h2>
+            <span className="text-[10px] text-text-dim">{boardSeason ? seasonLabel(boardSeason) : ""} · live</span>
+          </div>
+          <p className="text-[11px] text-text-dim mb-2">
+            Points in each game played — the streaks, the spikes, the cold nights.
+            Hover any dot for the game.
+          </p>
           <LineTrend series={trendSeries} unit="pts" />
         </div>
       )}
 
       {/* archetypes */}
       {archChips.length > 0 && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 card-aurora">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-medium text-text-primary">
               Archetypes <span className="text-text-dim font-normal text-[10px]">

@@ -97,6 +97,19 @@ export function Nav() {
           })}
         </div>
 
+        {/* the secret ticker-speed slider: invisible until the cursor finds
+            this strip; eases the ticker's roll via a custom event and persists */}
+        <div className="ml-auto mr-1 hidden xl:flex items-center gap-1.5 group/sl h-8 px-1.5 rounded-full hover:bg-white/[0.05]"
+          title="ticker speed">
+          <span className="text-[9px] tracking-[0.18em] text-text-dim/0 group-hover/sl:text-text-dim/80 transition-all duration-300 select-none">
+            TICKER
+          </span>
+          <input type="range" min={8} max={140} defaultValue={30}
+            className="w-0 group-hover/sl:w-20 opacity-0 group-hover/sl:opacity-100 transition-all duration-300 accent-[var(--color-usf-gold)] cursor-pointer"
+            onChange={(e) => window.dispatchEvent(
+              new CustomEvent("ticker-speed", { detail: Number(e.target.value) }))} />
+        </div>
+
         {/* The sport switcher — the seam between the two sites. An <a>, not a
             Link: it leaves this app for the sibling origin entirely. */}
         <a href={BASEBALL_URL}

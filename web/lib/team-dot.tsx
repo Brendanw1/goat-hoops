@@ -15,10 +15,12 @@ export function TeamDot({ abbr, size = 20 }: { abbr: string | null | undefined; 
   const dark = isDark(c);
   return (
     <span aria-hidden
-      className="rounded-full grid place-items-center shrink-0 font-extrabold"
-      style={{ background: c, width: size, height: size,
-               color: dark ? "rgba(255,255,255,0.92)" : "rgba(20,18,14,0.9)",
-               fontSize: Math.max(size * 0.38, 7), letterSpacing: "-0.02em" }}>
+      className="rounded-full grid place-items-center shrink-0 font-black relative"
+      style={{ background: `radial-gradient(circle at 32% 26%, ${c}f2, ${c} 58%, rgba(0,0,0,0.35))`,
+               width: size, height: size,
+               color: dark ? "rgba(255,255,255,0.94)" : "rgba(20,18,14,0.92)",
+               fontSize: Math.max(size * 0.36, 7), letterSpacing: "-0.03em",
+               boxShadow: `inset 0 0 0 ${Math.max(size * 0.045, 1)}px rgba(255,255,255,0.22), inset 0 0 0 ${Math.max(size * 0.09, 2)}px rgba(0,0,0,0.18)` }}>
       {abbr}
     </span>
   );
