@@ -9,7 +9,7 @@ export default async function AboutPage() {
   const meta = await getHoopsMeta();
   const generated = (meta as Record<string, unknown> | null)?.generated;
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-5xl">
       <BackLink fallback="/" className="text-[11px] text-text-dim hover:text-text-secondary" />
       <h1 className="text-lg font-semibold text-text-primary">
         About <span className="text-text-dim font-normal">· sources, validation, colophon</span>

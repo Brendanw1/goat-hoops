@@ -43,7 +43,7 @@ export default async function HoopsErasPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-lg font-semibold text-text-primary">Eras</h1>
-        <p className="text-xs text-text-dim max-w-3xl">
+        <p className="text-xs text-text-dim max-w-5xl">
           The league environment, {seasonLabelOf(seasons[0])} → {seasonLabelOf(seasons[seasons.length - 1])}
           {" "}— pace, efficiency and shot diet per season, derived with one formula set
           across all 21 seasons (§0d/§0e; the 2025/2026 values cross-check against the
@@ -87,7 +87,7 @@ export default async function HoopsErasPage() {
         </table>
       </div>
 
-      <p className="text-[10px] text-text-dim/70 max-w-3xl">
+      <p className="text-[10px] text-text-dim/70 max-w-5xl">
         Derived from balldontlie season-average pulls (gp-weighted sums, possessions =
         FGA − OREB + TOV + 0.44·FTA, minutes normalized to 48 — OT share not modeled
         pre-2019, worth ≲ 0.5 pace points). Team-games are the schedule constants

@@ -9,7 +9,7 @@ export const revalidate = 300; // prod: 5-min route cache; dev renders per reque
 export default async function MethodsPage() {
   const doc = await getHoopsMethods();
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-5xl">
       <BackLink fallback="/" className="text-[11px] text-text-dim hover:text-text-secondary" />
       <h1 className="text-lg font-semibold text-text-primary">
         Methods <span className="text-text-dim font-normal">· the metrics canon</span>

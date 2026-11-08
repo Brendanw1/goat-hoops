@@ -63,7 +63,7 @@ const ReadRow = ({ r }: { r: HoopsRead }) => (
 export default async function ResearchPage() {
   const reads = await getHoopsReads();
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-5xl">
       <BackLink fallback="/" className="text-[11px] text-text-dim hover:text-text-secondary" />
       <h1 className="text-lg font-semibold text-text-primary">
         Research <span className="text-text-dim font-normal">· the reads index</span>

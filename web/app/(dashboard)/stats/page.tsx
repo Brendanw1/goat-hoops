@@ -67,7 +67,7 @@ export default async function HoopsStatsPage({ searchParams }: {
           ))}
         </div>
       </div>
-      <p className="text-xs text-text-dim max-w-3xl">
+      <p className="text-xs text-text-dim max-w-5xl">
         {rows.length} players with {MIN_GP}+ games. Click any header to sort; a column colored
         green sits in the season&apos;s top quartile (top decile bold), red the bottom.
         Shooting % bands come from the season&apos;s own player pool; TS%/USG%/ratings from the
@@ -86,7 +86,7 @@ export default async function HoopsStatsPage({ searchParams }: {
       <StatsTable rows={rows} league={lg} lower={advDoc?.lower_better ?? []} />
 
       {!rows.length ? <p className="text-xs text-text-dim">No seasons baked for this year.</p> : null}
-      <p className="text-[10px] text-text-dim/70 max-w-3xl">
+      <p className="text-[10px] text-text-dim/70 max-w-5xl">
         balldontlie + ESPN-derived data — internal research; public surfaces carry balldontlie
         numbers only while a subscription is active.
       </p>

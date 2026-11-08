@@ -66,7 +66,7 @@ export default async function HoopsMarketPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-lg font-semibold text-text-primary">Market</h1>
-        <p className="text-xs text-text-dim max-w-3xl">
+        <p className="text-xs text-text-dim max-w-5xl">
           What the betting market said before each game, and what happened —
           {seasonLabelOf(c.season)} opening lines (consensus median across up to
           13 vendors, vig removed) against every final score, plus the live
@@ -149,7 +149,7 @@ export default async function HoopsMarketPage() {
         </div>
       </div>
 
-      <p className="text-[10px] text-text-dim/70 max-w-3xl">
+      <p className="text-[10px] text-text-dim/70 max-w-5xl">
         §0g-gated odds layer (coverage 1.0, vig normalized per two-way pair,
         movements sanity-banded). Consensus = per-game vendor median; implied
         probabilities sum to 1 by construction. The market&apos;s Brier is a

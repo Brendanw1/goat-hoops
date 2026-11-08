@@ -217,7 +217,7 @@ export default async function HoopsPlayerPage({ params }: {
       </div>
 
       {(current || salary) && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs space-y-1.5">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs space-y-1.5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <h2 className="text-sm font-medium text-text-primary">Contract</h2>
             {salary && (
@@ -275,7 +275,7 @@ export default async function HoopsPlayerPage({ params }: {
       )}
 
       {projDoc?.players?.[id] && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-medium text-text-primary">
               {seasonLabel(projDoc.players[id].site)} projection
@@ -312,7 +312,7 @@ export default async function HoopsPlayerPage({ params }: {
       )}
 
       {/* Season statistics — every baked season, basic box line -------------- */}
-      <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs overflow-x-auto">
+      <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs overflow-x-auto">
         <h2 className="text-sm font-medium text-text-primary mb-1.5">Season statistics</h2>
         <table className="w-full text-[11px] tabular-nums min-w-[640px]">
           <thead>
@@ -376,7 +376,7 @@ export default async function HoopsPlayerPage({ params }: {
           }
         }
         return (
-          <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs overflow-x-auto">
+          <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs overflow-x-auto">
             <h2 className="text-sm font-medium text-text-primary mb-1.5">
               Schedule splits <span className="text-text-dim font-normal text-[10px]">
                 · {seasonLabel(latest)} · context cuts from the game log — neutral by rule
@@ -411,7 +411,7 @@ export default async function HoopsPlayerPage({ params }: {
 
       {/* Career arc ----------------------------------------------------------- */}
       {arc && arc.length > 1 && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs">
           <h2 className="text-sm font-medium text-text-primary mb-1.5">
             Career arc <span className="text-text-dim font-normal text-[10px]">· {seasonLabel(arc[0][0])} → {seasonLabel(arc[arc.length - 1][0])} · hover a point for the line</span>
           </h2>
@@ -422,7 +422,7 @@ export default async function HoopsPlayerPage({ params }: {
 
       {/* Advanced rates by season --------------------------------------------- */}
       {advDoc && advSeasons.length > 0 && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs overflow-x-auto">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs overflow-x-auto">
           <h2 className="text-sm font-medium text-text-primary mb-1.5">
             Advanced rates <span className="text-text-dim font-normal text-[10px]">· green top quartile, red bottom · vs league, per season</span>
           </h2>
@@ -475,7 +475,7 @@ export default async function HoopsPlayerPage({ params }: {
 
       {/* Similar players — descriptive exploration, not a forecast ------------ */}
       {simP && arch && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs">
           <h2 className="text-sm font-medium text-text-primary mb-1.5">
             Similar players <span className="text-text-dim font-normal text-[10px]">
               · {seasonLabel(similarDoc.season)} · {arch.label} · cosine on {similarDoc.fields.length} advanced fields
@@ -500,7 +500,7 @@ export default async function HoopsPlayerPage({ params }: {
       )}
 
       {ss && (
-        <div className="max-w-3xl space-y-3">
+        <div className="max-w-5xl space-y-3">
           {adv && (
             <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs">
               <h2 className="text-sm font-medium text-text-primary mb-1.5">
@@ -635,7 +635,7 @@ export default async function HoopsPlayerPage({ params }: {
 
       {/* Defense & activity — v2-advanced matchup/tracking roll-up ----------- */}
       {defP && defSeason && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
           <h2 className="text-sm font-medium text-text-primary mb-1.5">
             Defense &amp; activity <span className="text-text-dim font-normal text-[10px]">
               · {seasonLabel(defSeason)} · per 36 · colored vs league bands
@@ -676,7 +676,7 @@ export default async function HoopsPlayerPage({ params }: {
 
       {/* Clutch vs overall — descriptive deltas, small samples flagged -------- */}
       {clutchP && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
           <h2 className="text-sm font-medium text-text-primary mb-1.5">
             Clutch vs overall <span className="text-text-dim font-normal text-[10px]">
               · {seasonLabel(Number(clutchSeason))} · {clutchP.gp != null ? `${clutchP.gp} clutch games` : "clutch games n/a"}
@@ -701,7 +701,7 @@ export default async function HoopsPlayerPage({ params }: {
       )}
 
       {ss && ss.zones && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
           <h2 className="text-sm font-medium text-text-primary mb-1.5">Shot zones <span className="text-text-dim font-normal text-[10px]">· {ssLabel}</span></h2>
           {(() => {
             const mk = ss.shootmk;
@@ -752,7 +752,7 @@ export default async function HoopsPlayerPage({ params }: {
         </div>
       )}
       {ps && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
           <h2 className="text-sm font-medium text-text-primary mb-1.5">
             Shot heat map <span className="text-text-dim font-normal text-[10px]">· ESPN shot x/y · 2.5 ft bins</span>
           </h2>
@@ -767,7 +767,7 @@ export default async function HoopsPlayerPage({ params }: {
             if (pool.length < 30) return null;
             const xMid = pool.map((q) => q.x).sort((a, b) => a - b)[Math.floor(pool.length / 2)];
             return (
-              <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
+              <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs">
                 <h2 className="text-sm font-medium text-text-primary mb-1.5">
                   Shot quality quadrant <span className="text-text-dim font-normal text-[10px]">
                     · {ssLabel} · {pool.length} players ≥ 100 FGA · dot area = FGA · §9 diet/making

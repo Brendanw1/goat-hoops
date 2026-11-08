@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import {
   getHoopsContracts, getHoopsPlayers, getHoopsSurplus, getHoopsTeam, getHoopsTeams,
-  type HoopsTeamAnalytics,
+  type HoopsTeamAnalytics, type HoopsPlayerRow,
 } from "@/lib/data-hoops";
 import { teamColor } from "@/lib/team-colors";
+import { TeamDot } from "@/lib/team-dot";
 import { MarginStrip } from "@/components/ui/margin-strip";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
@@ -105,7 +106,7 @@ export default async function HoopsTeamPage({ params }: {
       </div>
 
       {withSurplus.length > 0 && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
           <h2 className="text-sm font-medium text-text-primary mb-1.5">
             Roster value <span className="text-text-dim font-normal text-[10px]">
               · {seasonLabelOf(surplusSeason)} production vs {seasonLabelOf(surplusSeason + 1)} cap hit · descriptive
@@ -141,6 +142,67 @@ export default async function HoopsTeamPage({ params }: {
         </div>
       )}
 
+      {(() => {
+        const season = seasons[0];
+        const roster = (playersDoc?.seasons[String(season)] ?? [])
+          .filter((r) => r.team === key)
+          .sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0));
+        const salBy = new Map(Object.entries(contracts?.salaries ?? {})
+          .filter(([, s]) => s.team === key)
+          .map(([eid, s]) => [eid, s.cap_hit as number]));
+        if (roster.length === 0) return null;
+        return (
+          <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs overflow-x-auto">
+            <h2 className="text-sm font-medium text-text-primary mb-1.5">
+              Roster <span className="text-text-dim font-normal text-[10px]">
+                · {Number(season) - 1}-{String(season).slice(2)} · per game · tap a player for the full profile
+              </span>
+            </h2>
+            <table className="w-full text-[11px] tabular-nums min-w-[620px]">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wide text-text-dim border-b border-border-subtle">
+                  <th className="text-left py-1.5 pr-2 font-medium">Player</th>
+                  <th className="text-left px-2 font-medium">Pos</th>
+                  <th className="text-right px-2 font-medium">GP</th>
+                  <th className="text-right px-2 font-medium">MPG</th>
+                  <th className="text-right px-2 font-medium">PTS</th>
+                  <th className="text-right px-2 font-medium">REB</th>
+                  <th className="text-right px-2 font-medium">AST</th>
+                  <th className="text-right px-2 font-medium">FG%</th>
+                  <th className="text-right px-2 font-medium">Cap hit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roster.map((r: HoopsPlayerRow) => (
+                  <tr key={r.id} className="border-b border-border-subtle/40 hover:bg-white/[0.03]">
+                    <td className="py-1 pr-2">
+                      <Link href={`/players/${r.id}`} className="inline-flex items-center gap-1.5 hover:underline">
+                        <TeamDot abbr={key} size={16} />
+                        <span className="text-text-primary">{r.name}</span>
+                      </Link>
+                    </td>
+                    <td className="px-2 text-text-dim">{r.pos ?? "—"}</td>
+                    <td className="text-right px-2 text-text-secondary">{r.gp}</td>
+                    <td className="text-right px-2 text-text-secondary">{r.min.toFixed(1)}</td>
+                    <td className="text-right px-2 text-text-primary font-medium">{r.pts.toFixed(1)}</td>
+                    <td className="text-right px-2 text-text-secondary">{r.reb.toFixed(1)}</td>
+                    <td className="text-right px-2 text-text-secondary">{r.ast.toFixed(1)}</td>
+                    <td className="text-right px-2 text-text-secondary">{r.fgp != null ? `${Math.round(r.fgp * 100)}%` : "—"}</td>
+                    <td className="text-right px-2 text-text-dim">
+                      {salBy.get(r.id) != null ? money(salBy.get(r.id)) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-[10px] text-text-dim/70 mt-1.5">
+              balldontlie board rows · cap hit from the {seasonLabelOf(Number(season) + 1)} book —
+              the roster value panel below weighs production against it
+            </p>
+          </div>
+        );
+      })()}
+
       {seasons.map((s) => {
         const agg = doc.seasons[s];
         return (
@@ -155,7 +217,7 @@ export default async function HoopsTeamPage({ params }: {
               </div>
             )}
             {agg.starters5?.length ? (
-              <p className="text-[11px] text-text-dim max-w-3xl">
+              <p className="text-[11px] text-text-dim max-w-5xl">
                 Most-used starting fives:{" "}
                 {agg.starters5.map((u) => (
                   <span key={u.names.join()} className="text-text-secondary">
@@ -185,7 +247,7 @@ export default async function HoopsTeamPage({ params }: {
                 );
               };
               return (
-                <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+                <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
                   <div className="flex items-baseline justify-between gap-2 mb-1.5">
                     <h3 className="text-sm font-medium text-text-primary">
                       Analytics
@@ -238,7 +300,7 @@ export default async function HoopsTeamPage({ params }: {
               const lg = board?.playtype_league?.[s] ?? {};
               const max = Math.max(...pt.mix.map((r) => r.share), 0.01);
               return (
-                <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+                <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
                   <h3 className="text-sm font-medium text-text-primary mb-1.5">
                     Play-type mix
                     <span className="text-text-dim font-normal text-[10px]">

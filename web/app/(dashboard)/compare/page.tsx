@@ -171,7 +171,7 @@ export default async function HoopsComparePage({ searchParams }: {
       </form>
 
       {aRow && bRow ? (
-        <div className="space-y-4 max-w-3xl">
+        <div className="space-y-4 max-w-5xl">
           {/* headers */}
           <div className="grid grid-cols-[110px_1fr_1fr] gap-x-3 text-xs">
             <span />
@@ -312,7 +312,7 @@ export default async function HoopsComparePage({ searchParams }: {
               </p>
             </div>
           ) : null}
-          <p className="text-[10px] text-text-dim/70 max-w-3xl">
+          <p className="text-[10px] text-text-dim/70 max-w-5xl">
             green = the season leader on that row (advanced rows also carry their league-band
             tier); zones colored at ±3 / ±10 pts vs the same-season pool. Descriptive — internal
             research.

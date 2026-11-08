@@ -60,7 +60,7 @@ export default async function HoopsAllTimePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold text-text-primary">All-time</h1>
-        <p className="text-xs text-text-dim max-w-3xl">
+        <p className="text-xs text-text-dim max-w-5xl">
           Leaderboards across the baked span {seasonLabelOf(doc.span.first)} →{" "}
           {seasonLabelOf(doc.span.last)}. Career totals are Σ(per-game × gp) over the
           span — players whose careers predate {seasonLabelOf(doc.span.first)} show
@@ -94,7 +94,7 @@ export default async function HoopsAllTimePage() {
         </div>
       </section>
 
-      <p className="text-[10px] text-text-dim/70 max-w-3xl">
+      <p className="text-[10px] text-text-dim/70 max-w-5xl">
         Source: balldontlie season-average pulls (§0e gate: the league env cross-checks
         against the §0d team-grain derivation). Descriptive leaderboards only — no
         all-time rankings are graded or claimed.
