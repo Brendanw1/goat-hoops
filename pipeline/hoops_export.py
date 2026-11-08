@@ -2147,6 +2147,22 @@ def bake(out_dir: Path | None = None) -> dict:
     standings_phase(out, counts)
     reads_phase(out, counts)
     methods_phase(out, counts)
+    news_src = ROOT / "data" / "news" / "espn.json"
+    if news_src.exists():
+        nd = json.loads(news_src.read_text())
+        # §0h-style validation: statuses in the known set, teams mappable
+        KNOWN = {"Out", "Day-To-Day", "Questionable", "Doubtful", "GTD",
+                 "Suspended", "Out For Season", "Out Indefinitely"}
+        items = nd.get("injuries", [])
+        bad_status = [i for i in items if i.get("status") not in KNOWN]
+        unmapped = [i for i in items if i.get("team") is None]
+        ticker = {"fetched": nd.get("fetched"),
+                  "injuries": items, "news": nd.get("news", []),
+                  "validation": {"items": len(items), "bad_status": len(bad_status),
+                                 "unmapped_team": len(unmapped),
+                                 "verdict": "PASS" if not bad_status else "FAIL"}}
+        jwrite(out / "ticker.json", ticker)
+        counts["ticker_items"] = len(items)
     proj_src = ROOT / "data" / "projections" / "projections_2027.json"
     if proj_src.exists():
         proj = json.loads(proj_src.read_text())

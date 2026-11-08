@@ -285,6 +285,16 @@ export type HoopsMarketDoc = {
 export const getHoopsMarket = cache(async (): Promise<HoopsMarketDoc | null> =>
   (await fetchFromR2<HoopsMarketDoc>("market.json").catch(() => null)) ?? null);
 
+export type HoopsTickerDoc = {
+  fetched: string;
+  injuries: { kind: string; status: string; player: string; team: string | null;
+              team_full: string; comment: string; date: string }[];
+  news: { headline: string; link: string | null; published: string; byline: string }[];
+  validation: { items: number; bad_status: number; unmapped_team: number; verdict: string };
+};
+export const getHoopsTicker = cache(async (): Promise<HoopsTickerDoc | null> =>
+  (await fetchFromR2<HoopsTickerDoc>("ticker.json").catch(() => null)) ?? null);
+
 export const getHoopsProjections = cache(async (): Promise<HoopsProjectionsDoc | null> =>
   (await fetchFromR2<HoopsProjectionsDoc>("projections.json").catch(() => null)) ?? null);
 
