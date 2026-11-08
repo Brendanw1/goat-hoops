@@ -265,6 +265,23 @@ export type HoopsProjectionsDoc = {
     pts36: number; reb36: number; ast36: number; mpg: number;
   }>;
 };
+export type HoopsMarketDoc = {
+  calibration: {
+    season: number; n: number; brier: number | null; home_fav_cover: number | null;
+    deciles: { p_lo: number; p_hi: number; n: number; actual: number }[];
+  };
+  live: {
+    season: number; n: number; with_movement: number; snap_span: [string, string] | null;
+    games: { gid: string; date: string; home: string; away: string;
+             open_spread: number | null; spread: number | null; move: number | null;
+             open_total: number | null; total: number | null; move_total: number | null;
+             p_home: number | null; n: number }[];
+  };
+  gate_0g: { label: string; verdict: string };
+};
+export const getHoopsMarket = cache(async (): Promise<HoopsMarketDoc | null> =>
+  (await fetchFromR2<HoopsMarketDoc>("market.json").catch(() => null)) ?? null);
+
 export const getHoopsProjections = cache(async (): Promise<HoopsProjectionsDoc | null> =>
   (await fetchFromR2<HoopsProjectionsDoc>("projections.json").catch(() => null)) ?? null);
 

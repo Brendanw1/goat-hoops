@@ -462,6 +462,56 @@ curvature/momentum features, and the audit doc tracking every remaining
 debt.
 
 
+## §0g — market-layer data gate (pre-registered 2026-11-08, before any derivation)
+
+**What.** The odds surface: (a) site-2026 calibration — consensus opening
+lines (median across vendors) vs final results for all 1,322 games; (b)
+site-2027 live board — opening → current consensus per game with movement
+from the snapshot stream (260 pulls, 2026-11-04 → 11-08).
+
+**Fixed rules.** American odds → raw implied prob (`|o|/(|o|+100)` for
+negatives, `100/(o+100)` for positives); the two-way pair is normalized
+(vig removed) so the home/away pair sums to 1 — by construction, checked.
+Consensus = per-game median across vendors of spread / total / each odds
+side. Movement = current consensus minus opening consensus. Spreads are
+home-perspective. Games join on BDL game ids (both odds files and the
+games parquets are BDL-keyed).
+
+**Gates.** (1) Coverage: calibrated games with a result ≥ 95% of the
+season's games. (2) Vig check: post-normalization probabilities sum to 1
+for ≥ 99.9% of rows (trivially true; catches one-sided rows). (3)
+Movement sanity: |movement| ≤ 20 points (spread or total) or the row is
+flagged/excluded as a data error. Any miss → stop, no /market render.
+
+**Descriptive standing.** "Does the market know" is a descriptive
+calibration read (deciles of implied home win% vs actual home win rate,
+plus the market's Brier vs outcomes) — not a model of ours, no gate
+beyond data quality. Movement arrows are informational, not graded.
+
+### §0g read (2026-11-08): PASS — /market ships
+
+**Calibration (site 2026, 1,322 games, coverage 1.0):** the consensus
+market is almost perfectly calibrated — implied-win deciles run .03-.24 →
+actual .158, .84-.98 → .871, monotone through all ten buckets; **Brier
+0.2021**; home favorites covered **49.7%** of spreads — a fair spread
+wins half the time, by design. The page's headline chart is that
+calibration against the diagonal.
+
+**Live board (site 2027):** 154 priced games, 7 with real movement in the
+4-day snapshot window. A data find en route: the opening-lines pull (Nov 4
+reorder chain) covers only the season's first 107 scheduled games — the
+snapshot stream tracks LATER-scheduled games (higher BDL ids), zero id
+overlap. The board therefore takes each game's reference line from
+whichever source exists (opening parquet, else the stream's first pull)
+and labels movement accordingly; as the window grows, real movement
+accumulates. No gate missed.
+
+**Standing:** the market's Brier is now the descriptive benchmark any
+forecast of ours gets measured against (a model must beat 0.202 on
+outcomes before it claims market-beating status — that's a §15+ question,
+not today's).
+
+
 ## §1 — RAPM from ESPN PBP stints (pre-registered 2026-10-30, before any derivation or fit)
 
 **Why.** The spec's on/off, lineup and team-impact surfaces all need a

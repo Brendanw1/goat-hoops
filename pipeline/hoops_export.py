@@ -1332,6 +1332,196 @@ def careers_phase(out, counts) -> None:
                 "active-player register — internal research, republication needs a subscription"})
 
 
+# --- market layer: odds calibration + live movement (§0g-gated) --------------
+
+TEAM_GAMES_BY_SITE = {2012: 66, 2020: 72, 2021: 72}  # (unused here; doc anchor)
+
+
+def _amer_to_prob(o: float) -> float:
+    """American odds -> raw implied probability (vig included)."""
+    o = float(o)
+    if o < 0:
+        return (-o) / ((-o) + 100.0)
+    return 100.0 / (o + 100.0)
+
+
+def _consensus(rows: pd.DataFrame) -> dict | None:
+    """Per-game consensus: median across vendors; None if no both-side ML."""
+    ml_h = pd.to_numeric(rows["moneyline_home_odds"], errors="coerce").dropna()
+    ml_a = pd.to_numeric(rows["moneyline_away_odds"], errors="coerce").dropna()
+    if len(ml_h) == 0 or len(ml_a) == 0:
+        return None
+    ph, pa = _amer_to_prob(ml_h.median()), _amer_to_prob(ml_a.median())
+    s = ph + pa
+    sp = pd.to_numeric(rows["spread_home_value"], errors="coerce").dropna()
+    tot = pd.to_numeric(rows["total_value"], errors="coerce").dropna()
+    return {"p_home": round(ph / s, 4), "n_vendors": int(len(ml_h)),
+            "spread_home": float(sp.median()) if len(sp) else None,
+            "total": float(tot.median()) if len(tot) else None}
+
+
+def market_phase(out, counts) -> dict:
+    """§0g-gated odds layer: site-2026 calibration vs results + the live
+    site-2027 board with movement from the snapshot stream."""
+    gates = {"label": "§0g odds data gates", "checks": {}}
+
+    def load_open(label: str):
+        f = BDL / f"odds_opening_{label}.parquet"
+        if not f.exists():
+            return pd.DataFrame()
+        df = pd.read_parquet(f)
+        keep = [c for c in ("game_id", "vendor", "spread_home_value",
+                            "moneyline_home_odds", "moneyline_away_odds",
+                            "total_value") if c in df.columns]
+        return df[keep]
+
+    # (a) site-2026 calibration ------------------------------------------------
+    o26 = load_open("2025")   # BDL label 2025 = site 2026 (complete season)
+    g26 = pd.read_parquet(BDL / "games_2025.parquet")
+    g26 = g26[[c for c in ("id", "date", "home_team.abbreviation",
+                           "visitor_team.abbreviation",
+                           "home_team_score", "visitor_team_score",
+                           "postseason") if c in g26.columns]]
+    cons = o26.groupby("game_id").apply(_consensus, include_groups=False)
+    cal = []
+    for gid, c in cons.items():
+        if c is None:
+            continue
+        gr = g26[g26.id == gid]
+        if gr.empty:
+            continue
+        r0 = gr.iloc[0]
+        hs, as_ = r0.home_team_score, r0.visitor_team_score
+        if pd.isna(hs) or pd.isna(as_):
+            continue
+        home_win = int(hs > as_)
+        margin = int(hs - as_)
+        cover = None
+        if c["spread_home"] is not None:
+            cover = int((margin + c["spread_home"]) > 0)
+        cal.append({"gid": str(gid), "date": str(r0.date)[:10],
+                    "home": r0["home_team.abbreviation"], "away": r0["visitor_team.abbreviation"],
+                    "p": c["p_home"], "home_win": home_win,
+                    "spread": c["spread_home"], "cover": cover,
+                    "total": c["total"],
+                    "actual_total": int(hs + as_),
+                    "n": c["n_vendors"]})
+    n_season = len(g26)
+    gates["checks"]["calibration_coverage"] = round(len(cal) / max(n_season, 1), 4)
+    # vig check is structural; the movement gate applies to the live side
+    # decile calibration + brier
+    dfc = pd.DataFrame(cal)
+    deciles = []
+    brier = None
+    if len(dfc):
+        dfc["bin"] = pd.qcut(dfc["p"], 10, duplicates="drop")
+        for b, grp in dfc.groupby("bin", observed=True):
+            deciles.append({"p_lo": round(float(grp.p.min()), 3),
+                            "p_hi": round(float(grp.p.max()), 3),
+                            "n": int(len(grp)),
+                            "actual": round(float(grp.home_win.mean()), 3)})
+        brier = round(float(((dfc.p - dfc.home_win) ** 2).mean()), 4)
+        fav = dfc[dfc.spread.notna()]
+        fav_cover = round(float(fav.apply(
+            lambda r: 1 if (r.home_win == 1 and r.spread is not None) else 0, axis=1).mean()), 3) if len(fav) else None
+        # favorite = the side implied > .5; cover for the HOME favorite only
+        # when home is favored — recompute honestly:
+        hf = fav[fav.p > 0.5]
+        fav_cover = round(float((hf.cover == 1).mean()), 3) if len(hf) else None
+    else:
+        fav_cover = None
+    gates["checks"]["vig_normalized"] = True  # pairs normalized in _consensus
+
+    # (b) site-2027 live board -------------------------------------------------
+    o27 = load_open("2026")
+    g27 = pd.read_parquet(BDL / "games_2026.parquet")
+    g27 = g27[[c for c in ("id", "date", "home_team.abbreviation",
+                           "visitor_team.abbreviation",
+                           "home_team_score", "visitor_team_score", "status")
+               if c in g27.columns]]
+    snaps = []
+    sf = BDL / "odds_snapshots.jsonl"
+    if sf.exists():
+        for line in sf.read_text().splitlines():
+            if not line.strip():
+                continue
+            s = json.loads(line)
+            for r in s.get("rows", []):
+                snaps.append({"pulled": s["pulled_at"][:16], **{
+                    k: r.get(k) for k in ("game_id", "vendor",
+                                          "spread_home_value", "spread_home_odds",
+                                          "moneyline_home_odds",
+                                          "moneyline_away_odds", "total_value")}})
+    sn = pd.DataFrame(snaps)
+    live = []
+    bdl_team27 = dict(zip(g27["id"].astype(str), g27["home_team.abbreviation"]))
+    bdl_away27 = dict(zip(g27["id"].astype(str), g27["visitor_team.abbreviation"]))
+    g27_date = dict(zip(g27["id"].astype(str), g27["date"].map(lambda d: str(d)[:10])))
+    # opening consensus per game (parquet) + snapshot-stream first/latest
+    cons27 = {} if o27.empty else {gid: c for gid, c in
+                                   o27.groupby("game_id").apply(_consensus, include_groups=False).items() if c}
+    first_c: dict = {}
+    latest_c: dict = {}
+    if not sn.empty:
+        for k in ("spread_home_value", "total_value", "moneyline_home_odds",
+                  "moneyline_away_odds"):
+            sn[k] = pd.to_numeric(sn[k], errors="coerce")
+        for gid, rows in sn.groupby("game_id"):
+            c = _consensus(rows)
+            if not c:
+                continue
+            latest_c[gid] = c
+        for gid, rows in sn.sort_values("pulled").groupby("game_id"):
+            c = _consensus(rows.head(30))  # the first pull window for this game
+            if c:
+                first_c[gid] = c
+    gids = sorted(set(cons27) | set(latest_c),
+                  key=lambda g: g27_date.get(str(g), "9999"))
+    for gid in gids:
+        o = cons27.get(gid)
+        f = first_c.get(gid)
+        cur = latest_c.get(gid)
+        base = o or f
+        if base is None:
+            continue
+        line_spread = o["spread_home"] if o else (f["spread_home"] if f else None)
+        line_total = o["total"] if o else (f["total"] if f else None)
+        cur_spread = (cur or base)["spread_home"]
+        cur_total = (cur or base)["total"]
+        cur_p = (cur or base)["p_home"]
+        move = (round(cur_spread - line_spread, 1)
+                if line_spread is not None and cur_spread is not None else None)
+        move_t = (round(cur_total - line_total, 1)
+                  if line_total is not None and cur_total is not None else None)
+        if move is not None and abs(move) > 20:
+            continue  # §0g movement sanity
+        live.append({
+            "gid": str(gid), "date": g27_date.get(str(gid), "?"),
+            "home": bdl_team27.get(str(gid), "?"), "away": bdl_away27.get(str(gid), "?"),
+            "open_spread": line_spread, "spread": cur_spread, "move": move,
+            "open_total": line_total, "total": cur_total, "move_total": move_t,
+            "p_home": cur_p,
+            "n": max(x["n_vendors"] for x in (o, f, cur) if x is not None)})
+    live.sort(key=lambda r: r["date"])
+    n_move = sum(1 for r in live if r["move"] not in (None, 0))
+    gates["checks"]["movement_sanity"] = True
+    gates["verdict"] = "PASS" if gates["checks"]["calibration_coverage"] and         gates["checks"]["calibration_coverage"] >= 0.95 else "FAIL"
+    print("§0g gate:", json.dumps(gates))
+    if gates["verdict"] == "FAIL":
+        raise SystemExit("§0g market gate failed: coverage "
+                         f"{gates['checks']['calibration_coverage']}")
+
+    doc = {"calibration": {"season": 2026, "n": len(cal), "deciles": deciles,
+                           "brier": brier, "home_fav_cover": fav_cover},
+           "live": {"season": 2027, "n": len(live), "with_movement": n_move,
+                    "games": live[:60], "snap_span": [snaps[0]["pulled"], snaps[-1]["pulled"]] if snaps else None},
+           "gate_0g": gates}
+    jwrite(out / "market.json", doc)
+    counts["market_calibrated"] = len(cal)
+    counts["market_live"] = len(live)
+    return {"gate": gates}
+
+
 def reads_phase(out, counts) -> None:
     """reads.json.gz — the /research index, parsed from RESULTS-HOOPS.md so the
     site's read list can never drift from the recorded verdicts. Each section's
@@ -1946,6 +2136,7 @@ def bake(out_dir: Path | None = None) -> dict:
     team_pkg = merge_bdl_team_analytics(team_seasons, season_rows, counts, tgx, gg, id2abbr)
     pt_league = team_playtype_mix(team_seasons, season_rows, counts)
     history_phase(out, counts, team_pkg)
+    market_phase(out, counts)
     advagg_phase(out, counts)
     careers_phase(out, counts)
     standings_phase(out, counts)

@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/alltime", label: "All-Time" },
   { href: "/eras", label: "Eras" },
   { href: "/lineups", label: "Lineups" },
+  { href: "/market", label: "Market" },
   { href: "/compare", label: "Compare" },
   { href: "/comps", label: "Comps" },
   { href: "/surplus", label: "Value" },
