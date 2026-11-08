@@ -265,6 +265,85 @@ ANALYTICS_NUM = ("pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb",
 BDL_TEAM_ANALYTICS = {2024: "2023", 2025: "2024", 2026: "2025"}
 ESPN_TEAM_ANALYTICS = 2027  # live season: ESPN mart only, always PARTIAL
 ANALYTICS_FULL_AT = 1200    # team-games; below this a season block ships partial-flagged
+PLAYTYPE_CATS = ("isolation", "prballhandler", "prrollman", "spotup", "transition",
+                 "postup", "cut", "handoff", "offscreen", "offrebound")
+
+
+def _bdl_fullname_map() -> dict[str, str]:
+    """BDL full team name -> SITE abbreviation (ESPN convention: GS/NO/NY/SA/
+    UTAH/WSH where BDL says GSW/NOP/NYK/SAS/UTA/WAS)."""
+    df = load_bdl_box(BDL_TEAM_ANALYTICS[2026])
+    if df.empty or "team.full_name" not in df.columns:
+        return {}
+    sub = df[["team.full_name", "team.abbreviation"]].dropna().drop_duplicates()
+    bdl_to_site = {"GSW": "GS", "NOP": "NO", "NYK": "NY", "SAS": "SA",
+                   "UTA": "UTAH", "WAS": "WSH"}
+    return {fn: bdl_to_site.get(a, a)
+            for fn, a in zip(sub["team.full_name"], sub["team.abbreviation"])}
+
+
+def team_playtype_mix(team_seasons, season_rows, counts) -> dict:
+    """Team play-type mix + PPP from the seasavgs playtype pulls (rows carry
+    stats.team_name). Descriptive: possession-weighted roll-up of player
+    rows — a team's possession split by play type, not a possession-true
+    team dashboard (BDL is player-scoped). Written into team docs +
+    teams.json league env."""
+    names = _bdl_fullname_map()
+    if not names:
+        return {}
+    out = {}
+    for season, bdl_label in BDL_TEAM_ANALYTICS.items():
+        per_team: dict[str, dict[str, list]] = {}
+        league: dict[str, list] = {}
+        for cat in PLAYTYPE_CATS:
+            f = BDL / f"seasavgs_{bdl_label}_playtype_{cat}.parquet"
+            if not f.exists():
+                continue
+            pt = pd.read_parquet(f)
+            poss = pd.to_numeric(pt.get("stats.poss"), errors="coerce")
+            ppp = pd.to_numeric(pt.get("stats.ppp"), errors="coerce")
+            ok = poss.notna() & ppp.notna() & (poss > 0)
+            pt = pt[ok]
+            if pt.empty:
+                continue
+            pt = pt.assign(_poss=poss[ok], _w=(poss * ppp)[ok])
+            for tn, r in pt.groupby("stats.team_name"):
+                abbr = names.get(tn)
+                if not abbr or abbr not in NBA_TEAMS:
+                    continue
+                slot = per_team.setdefault(abbr, {})
+                cur = slot.get(cat, [0.0, 0.0])
+                cur[0] += float(r["_poss"].sum())
+                cur[1] += float(r["_w"].sum())
+                slot[cat] = cur
+            cur = league.get(cat, [0.0, 0.0])
+            cur[0] += float(pt["_poss"].sum())
+            cur[1] += float(pt["_w"].sum())
+            league[cat] = cur
+        if not per_team:
+            continue
+        tot_poss = sum(v[0] for v in league.values())
+        lg = {c: {"share": round(v[0] / tot_poss, 3),
+                  "ppp": round(v[1] / v[0], 3)} for c, v in league.items() if v[0] > 0}
+        built = {}
+        for abbr, slot in per_team.items():
+            tp = sum(v[0] for v in slot.values())
+            if tp <= 0:
+                continue
+            mix = sorted(
+                ({"cat": c, "share": round(v[0] / tp, 3), "ppp": round(v[1] / v[0], 3)}
+                 for c, v in slot.items() if v[0] > 0),
+                key=lambda r: -r["share"])
+            built[abbr] = {"poss_g": round(tp, 1), "mix": mix}
+            doc_slot = team_seasons.get(abbr, {}).get(season)
+            if doc_slot is not None:
+                doc_slot["playtype"] = built[abbr]
+        for r in season_rows.get(season, []):
+            if r["abbr"] in built:
+                r["playtype"] = built[r["abbr"]]
+        out[str(season)] = lg
+        counts[f"team_playtype_{season}"] = len(built)
+    return out
 
 
 def _team_grain_bdl(raw: pd.DataFrame) -> pd.DataFrame:
@@ -1664,6 +1743,7 @@ def bake(out_dir: Path | None = None) -> dict:
     seasons_meta.update(merge_bdl_box(board, pdocs, team_seasons, season_rows, out, counts))
     starters_info = merge_bdl_starters(board, pdocs, team_seasons, counts)
     team_pkg = merge_bdl_team_analytics(team_seasons, season_rows, counts, tgx, gg, id2abbr)
+    pt_league = team_playtype_mix(team_seasons, season_rows, counts)
     advagg_phase(out, counts)
     careers_phase(out, counts)
     standings_phase(out, counts)
@@ -1744,7 +1824,8 @@ def bake(out_dir: Path | None = None) -> dict:
     for s in season_rows:
         season_rows[s].sort(key=lambda r: -(r["w"] + r["l"]))
     jwrite(out / "teams.json", {"seasons": season_rows,
-                                "league": team_pkg.get("league", {})})
+                                "league": team_pkg.get("league", {}),
+                                "playtype_league": pt_league})
     for abbr, seasons in team_seasons.items():
         jwrite_gz(out / "team" / f"{abbr.lower()}.json.gz", {"seasons": seasons})
     counts["teams"] = len(team_seasons)

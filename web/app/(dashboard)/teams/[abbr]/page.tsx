@@ -225,6 +225,45 @@ export default async function HoopsTeamPage({ params }: {
                 </div>
               );
             })()}
+            {agg.playtype && (() => {
+              const pt = agg.playtype;
+              const lg = board?.playtype_league?.[s] ?? {};
+              const max = Math.max(...pt.mix.map((r) => r.share), 0.01);
+              return (
+                <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+                  <h3 className="text-sm font-medium text-text-primary mb-1.5">
+                    Play-type mix
+                    <span className="text-text-dim font-normal text-[10px]">
+                      {" "}· {seasonLabelOf(Number(s))} · share of player-tracked possessions
+                    </span>
+                  </h3>
+                  <div className="space-y-1">
+                    {pt.mix.map((r) => {
+                      const l = lg[r.cat];
+                      return (
+                        <div key={r.cat} className="flex items-center gap-2">
+                          <span className="w-28 shrink-0 text-text-dim">{r.cat}</span>
+                          <div className="h-2.5 flex-1 rounded-sm bg-white/[0.05] overflow-hidden">
+                            <div className="h-full rounded-sm bg-white/30" style={{ width: `${(r.share / max) * 100}%` }} />
+                          </div>
+                          <span className="w-10 text-right tabular-nums text-text-secondary">
+                            {(r.share * 100).toFixed(0)}%
+                          </span>
+                          <span className="w-24 text-right tabular-nums text-text-dim">
+                            {r.ppp.toFixed(2)}
+                            {l ? ` lg ${l.ppp.toFixed(2)}` : ""}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[10px] text-text-dim/70 mt-1.5">
+                    possession-weighted roll-up of player play-type rows — a close
+                    proxy, not a possession-true team dashboard
+                  </div>
+                </div>
+              );
+            })()}
             <div className="grid gap-1.5 sm:grid-cols-2">
               {agg.games.map((g) =>
                 g.ext ? (

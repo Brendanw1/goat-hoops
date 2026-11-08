@@ -42,10 +42,16 @@ export type HoopsTeamAnalytics = {
   opp_efg: number; opp_tsp: number; opp_tov_pct: number; opp_orb_pct: number;
   partial: boolean; src: "bdl" | "espn";
 };
+export type HoopsTeamPlaytype = {
+  poss_g: number;
+  mix: { cat: string; share: number; ppp: number }[];
+};
 export type HoopsTeamsDoc = {
   seasons: Record<string, HoopsTeamAgg[]>;
   /** per-season league env for the team analytics context coloring */
   league?: Record<string, HoopsTeamAnalytics>;
+  /** per-season league play-type mix (share + ppp) for context */
+  playtype_league?: Record<string, Record<string, { share: number; ppp: number }>>;
 };
 export type HoopsTeamGame = {
   id: string; date: string; type: string; opp: string | null; home: boolean;
@@ -59,6 +65,7 @@ export type HoopsTeamDoc = {
     /** most-used starting fives (exact-5 groups only; pulls are partial — coverage in meta) */
     starters5?: { names: string[]; g: number }[];
     analytics?: HoopsTeamAnalytics;
+    playtype?: HoopsTeamPlaytype;
   }>;
 };
 export type HoopsPlayerRow = {
