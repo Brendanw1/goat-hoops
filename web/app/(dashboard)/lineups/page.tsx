@@ -125,6 +125,12 @@ export default async function HoopsLineupsPage({
             <span className="text-flag">PARTIAL</span>). Minutes are
             possession-proportional estimates (§0f); ratings are possession-exact.
           </p>
+          <p className="text-[11px] text-flag max-w-2xl">
+            Why not the current season: the 2026-27 stint derivation ran but its
+            §1 quality gates failed (player-minutes reconciliation — likely an
+            ESPN feed change mid-season; diagnosis in the ledger). No surface
+            ships on failed gates — this window stays until the rebuild passes.
+          </p>
         </div>
         <form method="get" className="flex items-center gap-2">
           <select name="team" defaultValue={abbr}
