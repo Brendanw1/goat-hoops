@@ -33,7 +33,20 @@ export type HoopsTeamAgg = {
   ftm: number; fta: number; reb: number; ast: number; tov: number; stl: number;
   blk: number; paint: number | null; fastbreak: number | null;
 };
-export type HoopsTeamsDoc = { seasons: Record<string, HoopsTeamAgg[]> };
+/** §0d-gated pace / four-factors / ratings block (RESULTS-HOOPS §0d) */
+export type HoopsTeamAnalytics = {
+  pace: number; poss_g: number;
+  ortg: number | null; drtg: number | null; net: number | null;
+  efg: number; tsp: number; fg3ar: number; ftr: number;
+  tov_pct: number; orb_pct: number; drb_pct: number;
+  opp_efg: number; opp_tsp: number; opp_tov_pct: number; opp_orb_pct: number;
+  partial: boolean; src: "bdl" | "espn";
+};
+export type HoopsTeamsDoc = {
+  seasons: Record<string, HoopsTeamAgg[]>;
+  /** per-season league env for the team analytics context coloring */
+  league?: Record<string, HoopsTeamAnalytics>;
+};
 export type HoopsTeamGame = {
   id: string; date: string; type: string; opp: string | null; home: boolean;
   pts: number; opp_pts: number; res: string;
@@ -45,6 +58,7 @@ export type HoopsTeamDoc = {
     games: HoopsTeamGame[];
     /** most-used starting fives (exact-5 groups only; pulls are partial — coverage in meta) */
     starters5?: { names: string[]; g: number }[];
+    analytics?: HoopsTeamAnalytics;
   }>;
 };
 export type HoopsPlayerRow = {

@@ -257,6 +257,197 @@ def bdl_ot(gi_row) -> int | None:
     return n or None
 
 
+# --- P1 team tier: pace / four factors / ratings (§0d-gated) ------------------
+
+ANALYTICS_NUM = ("pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb",
+                 "dreb", "reb", "ast", "stl", "blk", "turnover")
+# site label -> BDL box pull label (BDL keys are starting years)
+BDL_TEAM_ANALYTICS = {2024: "2023", 2025: "2024", 2026: "2025"}
+ESPN_TEAM_ANALYTICS = 2027  # live season: ESPN mart only, always PARTIAL
+ANALYTICS_FULL_AT = 1200    # team-games; below this a season block ships partial-flagged
+
+
+def _team_grain_bdl(raw: pd.DataFrame) -> pd.DataFrame:
+    """(game, team) box sums from RAW balldontlie rows. §0d fixed rule: the
+    eid/name-bridge filter stays OFF — the bridge exists for player docs, and
+    a team total must not silently lose an unmapped player. min>0 drops DNP
+    rows; postseason rows are excluded (regular season only)."""
+    df = raw.copy()
+    for c in BDL_NUM_COLS:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df[df["min"].fillna(0) > 0]
+    if "game.postseason" in df.columns:
+        df = df[~df["game.postseason"].fillna(False).astype(bool)]
+    df["abbr"] = df["team.id"].map(
+        lambda t: bdl_team_abbr.get(int(t)) if pd.notna(t) else None)
+    df = df[df["abbr"].isin(NBA_TEAMS)]
+    df["date"] = df["game.date"].map(lambda d: str(d)[:10])
+    df["ot"] = pd.to_numeric(df["game.period"], errors="coerce").map(
+        lambda p: max(0, int(p) - 4) if pd.notna(p) else 0)
+    df = df.rename(columns={"game.id": "game_id"})
+    cols = [c for c in ANALYTICS_NUM if c in df.columns]
+    return df.groupby(["game_id", "abbr", "date", "ot"])[cols].sum().reset_index()
+
+
+def _team_grain_espn(tgx: pd.DataFrame, gg: pd.DataFrame, id2abbr) -> pd.DataFrame:
+    """The same (game, team) grain from the ESPN mart (live seasons)."""
+    t = tgx.copy()
+    t["abbr"] = t["team_id"].map(lambda x: id2abbr.get(str(int(x))))
+    t = t[t["abbr"].isin(NBA_TEAMS) & t["game_id"].isin(gg.index)]
+    t = t.join(gg[["date_et", "n_periods", "season_type"]], on="game_id")
+    t = t[t["season_type"] == 2]
+    t["date"] = t["date_et"].map(lambda d: str(d)[:10])
+    t["ot"] = t["n_periods"].map(lambda p: max(0, int(p or 4) - 4))
+    ren = {"points": "pts",
+           "fieldGoalsMade-fieldGoalsAttempted_made": "fgm",
+           "fieldGoalsMade-fieldGoalsAttempted_att": "fga",
+           "threePointFieldGoalsMade-threePointFieldGoalsAttempted_made": "fg3m",
+           "threePointFieldGoalsMade-threePointFieldGoalsAttempted_att": "fg3a",
+           "freeThrowsMade-freeThrowsAttempted_made": "ftm",
+           "freeThrowsMade-freeThrowsAttempted_att": "fta",
+           "totalRebounds": "reb", "offensiveRebounds": "oreb",
+           "defensiveRebounds": "dreb", "assists": "ast", "steals": "stl",
+           "blocks": "blk", "totalTurnovers": "turnover"}
+    t = t.rename(columns=ren)
+    cols = [c for c in ANALYTICS_NUM if c in t.columns]
+    return t.groupby(["game_id", "abbr", "date", "ot"])[cols].sum().reset_index()
+
+
+def _attach_opponent(g: pd.DataFrame) -> pd.DataFrame:
+    """Each (game, team) row gains the same game's other side (`_o` suffix).
+    Games that don't yield exactly two sides drop out."""
+    m = g.merge(g, on="game_id", suffixes=("", "_o"))
+    return m[m["abbr"] != m["abbr_o"]].reset_index(drop=True)
+
+
+def team_analytics_block(g: pd.DataFrame) -> tuple[dict, dict]:
+    """Per-team and league analytics off the (game, team) grain. §0d rules:
+    aggregate-then-divide (Σ/Σ, never a mean of ratios), two-sided
+    possessions, minutes = 240 + 25·OT. ORtg/DRtg divide opponent points by
+    the same possessions (the two sides of one possession count)."""
+    m = _attach_opponent(g)
+    if m.empty:
+        return {}, {}
+    m["poss_own"] = m["fga"] - m["oreb"] + m["turnover"] + 0.44 * m["fta"]
+    m["poss_opp"] = m["fga_o"] - m["oreb_o"] + m["turnover_o"] + 0.44 * m["fta_o"]
+    m["poss"] = 0.5 * (m["poss_own"] + m["poss_opp"])
+    m["min"] = 48 + 5 * m["ot"]  # team-minutes on the clock (5 players × game min)
+    sums = ["pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb",
+            "reb", "ast", "stl", "blk", "turnover",
+            "pts_o", "fga_o", "fta_o", "fgm_o", "fg3m_o", "oreb_o", "dreb_o",
+            "turnover_o", "poss_own", "poss_opp", "poss", "min"]
+
+    def derived(r) -> dict:
+        fga, fta = r["fga"], r["fta"]
+        opp_fga, opp_fta = r["fga_o"], r["fta_o"]
+        to = r["turnover"] + fga + 0.44 * fta
+        opp_to = r["turnover_o"] + opp_fga + 0.44 * opp_fta
+        d = {
+            "ortg": r_(100 * r["pts"] / r["poss_own"]),
+            "drtg": r_(100 * r["pts_o"] / r["poss_own"]),
+            "net": None,  # filled right after, from the unrounded pair
+            "efg": round((r["fgm"] + 0.5 * r["fg3m"]) / fga, 3),
+            "tsp": round(r["pts"] / (2 * (fga + 0.44 * fta)), 3),
+            "fg3ar": round(r["fg3a"] / fga, 3),
+            "ftr": round(fta / fga, 3),
+            "tov_pct": round(r["turnover"] / to, 3),
+            "orb_pct": round(r["oreb"] / (r["oreb"] + r["dreb_o"]), 3),
+            "drb_pct": round(r["dreb"] / (r["dreb"] + r["oreb_o"]), 3),
+            "opp_efg": round((r["fgm_o"] + 0.5 * r["fg3m_o"]) / opp_fga, 3),
+            "opp_tsp": round(r["pts_o"] / (2 * (opp_fga + 0.44 * opp_fta)), 3),
+            "opp_tov_pct": round(r["turnover_o"] / opp_to, 3),
+            "opp_orb_pct": round(r["oreb_o"] / (r["oreb_o"] + r["dreb"]), 3)}
+        d["net"] = round(d["ortg"] - d["drtg"], 1) if d["ortg"] is not None and d["drtg"] is not None else None
+        return d
+
+    out = {}
+    for abbr, r in m.groupby("abbr"):
+        s = r[sums].sum()
+        row = {"pace": round(48 * s["poss"] / s["min"], 1),
+               "poss_g": round(s["poss"] / len(r), 1)}
+        row.update(derived(s))
+        out[abbr] = row
+    s = m[sums].sum()
+    env = {"pace": round(48 * s["poss"] / s["min"], 1),
+           "poss_g": round(s["poss"] / len(m), 1)}
+    env.update(derived(s))
+    return out, {"league": env, "teams": out}
+
+
+def r_(x) -> float | None:
+    """Ratings round to 1 decimal; None-safe."""
+    return None if x is None or pd.isna(x) else round(float(x), 1)
+
+
+def merge_bdl_team_analytics(team_seasons, season_rows, counts,
+                             tgx, gg, id2abbr) -> dict:
+    """§0d-gated team analytics into team docs + teams.json. The site-2025
+    BDL sums must first clear the preregistered agreement bars vs the ESPN
+    official team boxes; a miss stops the bake before anything renders."""
+    ge = _team_grain_espn(tgx, gg, id2abbr)
+    gb25 = _team_grain_bdl(load_bdl_box(BDL_TEAM_ANALYTICS[2025]))
+    ge25 = ge[ge["game_id"].map(
+        lambda gid: int(gg.loc[gid].season_year) == 2025)] if not ge.empty else ge
+    gate = {"label": "§0d BDL-summed team boxes vs ESPN team_game (site 2025)"}
+    if gb25.empty or ge25.empty:
+        gate["verdict"] = "SKIP (empty grain)"
+    else:
+        m = gb25.merge(ge25, on=["date", "abbr"], suffixes=("_b", "_e"))
+        bars = {"pts": .99, "reb": .99, "fga": .99, "ftm": .99,
+                "ast": .97, "oreb": .97, "stl": .97, "blk": .97}
+        cols, failed = {}, []
+        for c, bar in bars.items():
+            if f"{c}_b" not in m or f"{c}_e" not in m:
+                continue
+            rate = float((m[f"{c}_b"] - m[f"{c}_e"]).abs().lt(1e-6).mean())
+            cols[c] = round(rate, 4)
+            if rate < bar:
+                failed.append(f"{c} {rate:.3f}<{bar}")
+        gate["matched_team_games"] = int(len(m))
+        gate["rates"] = cols
+        gate["tov_delta_per_game"] = round(
+            float((m["turnover_e"] - m["turnover_b"]).mean()), 2) if "turnover_e" in m else None
+        if failed:
+            gate["verdict"] = "FAIL"
+            print("§0d gate FAILED:", json.dumps(gate, indent=1))
+            raise SystemExit("§0d team-analytics gate failed: " + "; ".join(failed))
+        gate["verdict"] = "PASS"
+        print("§0d gate PASS:", json.dumps(gate))
+    counts["team_gate_0d"] = gate.get("verdict", "SKIP")
+
+    league = {}
+    for season, bdl_label in BDL_TEAM_ANALYTICS.items():
+        g = _team_grain_bdl(load_bdl_box(bdl_label))
+        if g.empty:
+            continue
+        teams, pkg = team_analytics_block(g)
+        partial = len(g) < ANALYTICS_FULL_AT
+        league[season] = {**pkg["league"], "partial": partial, "src": "bdl"}
+        for abbr, row in teams.items():
+            block = {**row, "partial": partial, "src": "bdl"}
+            if abbr in team_seasons and season in team_seasons[abbr]:
+                team_seasons[abbr][season]["analytics"] = block
+        for r in season_rows.get(season, []):
+            if r["abbr"] in teams:
+                r["analytics"] = {**teams[r["abbr"]], "partial": partial, "src": "bdl"}
+        counts[f"team_analytics_{season}"] = len(teams)
+    ge27 = ge[ge["game_id"].map(
+        lambda gid: int(gg.loc[gid].season_year) == ESPN_TEAM_ANALYTICS)] if not ge.empty else ge
+    if not ge27.empty:
+        teams, pkg = team_analytics_block(ge27)
+        league[ESPN_TEAM_ANALYTICS] = {**pkg["league"], "partial": True, "src": "espn"}
+        for abbr, row in teams.items():
+            block = {**row, "partial": True, "src": "espn"}
+            if abbr in team_seasons and ESPN_TEAM_ANALYTICS in team_seasons[abbr]:
+                team_seasons[abbr][ESPN_TEAM_ANALYTICS]["analytics"] = block
+        for r in season_rows.get(ESPN_TEAM_ANALYTICS, []):
+            if r["abbr"] in teams:
+                r["analytics"] = {**teams[r["abbr"]], "partial": True, "src": "espn"}
+        counts[f"team_analytics_{ESPN_TEAM_ANALYTICS}"] = len(teams)
+    return {"gate": gate, "league": league}
+
+
 # espn-id/abbr bridges shared with the box phases (set inside bake(); module
 # globals keep the helpers' signatures small)
 bdl2espn_of: dict[int, int] = {}
@@ -1472,6 +1663,7 @@ def bake(out_dir: Path | None = None) -> dict:
         pass  # stub result on empty harvest — reads.json keeps the static line
     seasons_meta.update(merge_bdl_box(board, pdocs, team_seasons, season_rows, out, counts))
     starters_info = merge_bdl_starters(board, pdocs, team_seasons, counts)
+    team_pkg = merge_bdl_team_analytics(team_seasons, season_rows, counts, tgx, gg, id2abbr)
     advagg_phase(out, counts)
     careers_phase(out, counts)
     standings_phase(out, counts)
@@ -1551,7 +1743,8 @@ def bake(out_dir: Path | None = None) -> dict:
     # deferred writes: teams, players, player docs, meta -----------------------
     for s in season_rows:
         season_rows[s].sort(key=lambda r: -(r["w"] + r["l"]))
-    jwrite(out / "teams.json", {"seasons": season_rows})
+    jwrite(out / "teams.json", {"seasons": season_rows,
+                                "league": team_pkg.get("league", {})})
     for abbr, seasons in team_seasons.items():
         jwrite_gz(out / "team" / f"{abbr.lower()}.json.gz", {"seasons": seasons})
     counts["teams"] = len(team_seasons)
@@ -1567,6 +1760,8 @@ def bake(out_dir: Path | None = None) -> dict:
     validation = dict(luma)
     if bdl_check_info:
         validation["bdl"] = bdl_check_info
+    if team_pkg.get("gate"):
+        validation["team_gate_0d"] = team_pkg["gate"]
     jwrite(out / "meta.json", {
         "seasons": seasons_meta, "validation": validation, "starters": starters_info,
         "note": "descriptive Phase 1: raw box values, averages and per-36 only; "

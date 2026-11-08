@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
-import { getHoopsContracts, getHoopsPlayers, getHoopsSurplus, getHoopsTeam, getHoopsTeams } from "@/lib/data-hoops";
+import {
+  getHoopsContracts, getHoopsPlayers, getHoopsSurplus, getHoopsTeam, getHoopsTeams,
+  type HoopsTeamAnalytics,
+} from "@/lib/data-hoops";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +15,41 @@ const money = (v: number | null | undefined) => {
 };
 const seasonLabelOf = (s: number) => `${s - 1}-${String(s).slice(2)}`;
 const surplusSeason = 2026; // the surplus doc's production season (2025-26)
+const ord = (i: number) => `${i + 1}${["st", "nd", "rd"][i] ?? "th"}`;
+
+/** rank chips reuse the standings convention: 1-6 green, 25-30 red */
+const rankTone = (i: number) =>
+  i < 6 ? "text-pos" : i >= 25 ? "text-neg" : "text-text-dim";
+
+type MetricKey = keyof Pick<HoopsTeamAnalytics,
+  "ortg" | "drtg" | "net" | "efg" | "tsp" | "tov_pct" | "orb_pct" | "drb_pct"
+  | "opp_efg" | "opp_tsp" | "opp_tov_pct" | "fg3ar" | "ftr" | "pace">;
+
+/** 1 = higher is better, -1 = lower is better, 0 = no rank (context only) */
+const METRIC_DIR: Record<MetricKey, 1 | -1 | 0> = {
+  ortg: 1, drtg: -1, net: 1, efg: 1, tsp: 1, tov_pct: -1, orb_pct: 1,
+  drb_pct: 1, opp_efg: -1, opp_tsp: -1, opp_tov_pct: 1, fg3ar: 0, ftr: 0, pace: 0,
+};
+
+/** league rank of one team's metric among the clubs carrying analytics that season */
+function rankOf(
+  seasonRows: { abbr: string; analytics?: HoopsTeamAnalytics }[],
+  abbr: string, key: MetricKey,
+): number | null {
+  const dir = METRIC_DIR[key];
+  if (!dir) return null;
+  const rows = seasonRows.filter(
+    (r) => r.analytics && (r.analytics[key] as number | null) != null);
+  if (rows.length < 2) return null;
+  const sorted = [...rows].sort((x, y) => dir === 1
+    ? (y.analytics![key] as number) - (x.analytics![key] as number)
+    : (x.analytics![key] as number) - (y.analytics![key] as number));
+  const i = sorted.findIndex((r) => r.abbr === abbr);
+  return i < 0 ? null : i;
+}
+
+const fmtPct = (v: number | null | undefined) =>
+  v == null ? "—" : `${(v * 100).toFixed(1)}%`;
 
 /** One club: season aggregates and the game list (each row links its report). */
 export default async function HoopsTeamPage({ params }: {
@@ -120,6 +158,73 @@ export default async function HoopsTeamPage({ params }: {
                 <span className="text-text-dim/70"> balldontlie starters pull — partial season</span>
               </p>
             ) : null}
+            {agg.analytics && (() => {
+              const a = agg.analytics;
+              const lg = board?.league?.[s];
+              const seasonRows = board?.seasons[s] ?? [];
+              const cell = (label: string, mk: MetricKey, text: string) => {
+                const rk = rankOf(seasonRows, key, mk);
+                return (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-text-dim">{label}</span>
+                    <span className="tabular-nums text-text-primary">
+                      {text}
+                      {rk != null && (
+                        <span className={`ml-1.5 text-[10px] ${rankTone(rk)}`}>{ord(rk)}</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              };
+              return (
+                <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-3xl">
+                  <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                    <h3 className="text-sm font-medium text-text-primary">
+                      Analytics
+                      <span className="text-text-dim font-normal text-[10px]">
+                        {" "}· {seasonLabelOf(Number(s))} · {a.src === "espn" ? "ESPN mart" : "balldontlie boxes"}
+                      </span>
+                    </h3>
+                    {a.partial && (
+                      <span className="text-[10px] text-flag">PARTIAL</span>
+                    )}
+                  </div>
+                  <div className="tabular-nums mb-2">
+                    <span className="text-text-secondary">net </span>
+                    <span className={`font-medium ${a.net == null ? "text-text-dim" : a.net >= 0 ? "text-pos" : "text-neg"}`}>
+                      {a.net != null ? `${a.net > 0 ? "+" : ""}${a.net.toFixed(1)}` : "—"}
+                    </span>
+                    <span className="text-text-dim">
+                      {" "}· ORtg {a.ortg ?? "—"} · DRtg {a.drtg ?? "—"} · pace {a.pace.toFixed(1)}
+                      {lg ? ` (lg ${lg.pace?.toFixed(1)})` : ""}
+                    </span>
+                  </div>
+                  <div className="grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
+                    <div className="space-y-0.5">
+                      <p className="text-[10px] text-text-dim/70 uppercase tracking-wide">Offense</p>
+                      {cell("eFG", "efg", fmtPct(a.efg))}
+                      {cell("TS%", "tsp", fmtPct(a.tsp))}
+                      {cell("3PA share", "fg3ar", fmtPct(a.fg3ar))}
+                      {cell("FT rate", "ftr", fmtPct(a.ftr))}
+                      {cell("TOV%", "tov_pct", fmtPct(a.tov_pct))}
+                      {cell("ORB%", "orb_pct", fmtPct(a.orb_pct))}
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-[10px] text-text-dim/70 uppercase tracking-wide">Defense</p>
+                      {cell("DRtg", "drtg", a.drtg != null ? a.drtg.toFixed(1) : "—")}
+                      {cell("opp eFG", "opp_efg", fmtPct(a.opp_efg))}
+                      {cell("opp TS%", "opp_tsp", fmtPct(a.opp_tsp))}
+                      {cell("opp TOV%", "opp_tov_pct", fmtPct(a.opp_tov_pct))}
+                      {cell("DRB%", "drb_pct", fmtPct(a.drb_pct))}
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-text-dim/70 mt-1.5">
+                    §0d-gated team grain (BDL sums vs ESPN boxes: all columns ≥ 0.99/0.97 bars) —
+                    descriptive; possessions two-sided; live season flagged PARTIAL
+                  </div>
+                </div>
+              );
+            })()}
             <div className="grid gap-1.5 sm:grid-cols-2">
               {agg.games.map((g) =>
                 g.ext ? (

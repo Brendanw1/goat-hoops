@@ -1,4 +1,63 @@
 
+## §0d — team-tier analytics gate (pre-registered 2026-11-08, before any derivation ran)
+
+**What.** The P1 team tier (scope P1: pace, ORtg/DRtg/net, four factors, own
+and opponent) derives team-season analytics from a team-game grain built two
+ways: (a) RAW balldontlie box rows summed to (game, team) — site 2024 (BDL
+2023 pull, 38 g/team, PARTIAL — flagged), site 2025 (BDL 2024, complete
+1,230 g), site 2026 (BDL 2025, complete 1,230 g) — and (b) the ESPN mart
+`team_game` for the live season 2027 (partial, flagged). Before any derived
+number renders, the BDL-summed team grain must clear an agreement gate
+against the ESPN official team boxes on the site-2025 overlap (BDL 2024 vs
+ESPN season_year 2025, the same season the §0b player-level gate used).
+
+**Fixed rules.** Sums from raw BDL rows — the eid/name-bridge filter is for
+player docs and must NOT apply (an unmapped player would silently undercount
+a team total); `min > 0` to drop DNP rows; opponent box = the same game's
+other team's sum; all rates aggregate-then-divide (Σ/Σ, never a mean of
+ratios); possessions two-sided, `poss = 0.5·(own + opp)` per game; minutes =
+240 + 25·OT from the game's final period count, identical rule on both
+sources.
+
+**Gates (site-2025 overlap, per (game, team)).** Exact-match rates:
+pts ≥ 0.99, reb ≥ 0.99, fga ≥ 0.99, ftm ≥ 0.99, ast ≥ 0.97, oreb ≥ 0.97,
+stl ≥ 0.97, blk ≥ 0.97. Turnovers are NOT gated (ESPN `totalTurnovers`
+includes team turnovers absent from player box sums) — the per-game mean
+delta is recorded. Any column below its bar → stop: no analytics renders,
+diagnose before proceeding.
+
+**Formulas (fixed).** `poss_g = FGA − OREB + TOV + 0.44·FTA` (own and opp);
+`pace = 48·poss/min`; `ORtg = 100·PTS/poss_own`; `DRtg = 100·oppPTS/poss_opp`;
+`net = ORtg − DRtg`; `eFG = (FGM + 0.5·FG3M)/FGA`; `TS = PTS/(2·(FGA + 0.44·FTA))`;
+`3PAR = FG3A/FGA`; `FTr = FTA/FGA`; `TOV% = TOV/(FGA + 0.44·FTA + TOV)`;
+`ORB% = OREB/(OREB + oppDREB)`. League env per season computed the same way
+from all team-games of the season (every game enters twice, once per side).
+
+**Descriptive standing.** These are descriptive season aggregates off official
+boxes (plus the one derived quantity, possessions) — no model claim, no gate
+beyond source agreement. Live-season blocks carry a PARTIAL flag until the
+season completes.
+
+### §0d read (2026-11-08): PASS — the team tier ships
+
+1,376 team-games matched on (date, team). Exact-match rates vs the ESPN
+official team boxes: **pts .9993, reb .9964, fga .9978, ftm .9985, ast .9971,
+oreb .9978, stl 1.000, blk .9985** — every column above its preregistered
+bar. Turnover delta (not gated): 0.75/game, ESPN team boxes carrying the
+team-only turnovers player sums can't. §0b re-passed in the same bake run
+(688/688 scores, 11,326 boxes pts/reb/ast 100%/100%/100%).
+
+Two implementation bugs were caught by the smell test BEFORE any site render
+and fixed in place: pace initially divided by team-minutes-on-court (240+)
+instead of clock minutes — league pace read 20.3 — and `net` was never
+emitted. Post-fix league env for site 2026: **pace 101.3, ORtg 113.5, eFG
+.546, TOV% .122, ORB% .260**; net top-4 OKC +11.0, SA +8.1, DET +8.0, BOS
++7.9; bottom WSH −11.6, BKN −10.1, SAC −9.9 — consistent with the standings
+the hub already renders (DET 60-22). Baked: analytics blocks for 30 teams ×
+site 2024 (partial, 38 g/team, flagged), 2025, 2026 (complete), 2027 (live,
+ESPN-sourced, flagged).
+
+
 ## §1 — RAPM from ESPN PBP stints (pre-registered 2026-10-30, before any derivation or fit)
 
 **Why.** The spec's on/off, lineup and team-impact surfaces all need a
