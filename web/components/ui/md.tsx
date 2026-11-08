@@ -29,7 +29,7 @@ export function Md({ body }: { body: string }) {
     const line = lines[i];
     if (!line.trim()) { i++; continue; }
     if (/^#{1,6}\s/.test(line)) {
-      const depth = line.match(/^#+/)[0].length;
+      const depth = line.match(/^#+/)?.[0]?.length ?? 1;
       const txt = line.replace(/^#+\s*/, "");
       blocks.push(depth <= 2
         ? <h3 key={key++} className="text-[13px] font-semibold text-text-primary mt-4 mb-1">{inline(txt, `h${key}`)}</h3>
