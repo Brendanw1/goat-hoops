@@ -1999,6 +1999,10 @@ def bake(out_dir: Path | None = None) -> dict:
                         continue
                     players.setdefault(str(eid), {})[key] = ss_pick(r, tuple(
                         c.replace("stats.", "") for c in df.columns if c.startswith("stats.")))
+                    if "name" not in players[str(eid)]:
+                        fn, ln = r.get("player.first_name"), r.get("player.last_name")
+                        if pd.notna(fn) and pd.notna(ln):
+                            players[str(eid)]["name"] = f"{fn} {ln}".strip()
                     pp = r.get("player.position")
                     if pd.notna(pp):
                         players[str(eid)]["pos"] = str(pp)[:1]
@@ -2070,7 +2074,8 @@ def bake(out_dir: Path | None = None) -> dict:
                     cats["shootmk"] = {"xefg": round(num / den, 3),
                                        "efg": round(float(efg), 3),
                                        "diff": round(float(efg) - num / den, 3),
-                                       "n_fga": int(den)}
+                                       "n_fga": int(den),
+                                       "name": cats.get("name")}
         else:
             print(f"seasavgs {site_yr}: §9 geometry gate failed — leagueZones/shootmk withheld")
         # league percentile ranks (0 lowest .. 1 highest) for the chip panel

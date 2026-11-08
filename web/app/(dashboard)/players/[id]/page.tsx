@@ -10,6 +10,8 @@ import {
 import type { HoopsContractDeal, HoopsSSCat } from "@/lib/data-hoops";
 import { teamColor } from "@/lib/team-colors";
 import { pctTone, pctBarTone } from "@/lib/tone";
+import { PercentileRadar } from "@/components/ui/percentile-radar";
+import { ShotQuadrant } from "@/components/ui/shot-quadrant";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -517,50 +519,66 @@ export default async function HoopsPlayerPage({ params }: {
               <PanelNote>balldontlie snapshot — internal research</PanelNote>
             </div>
           )}
-          {ss && (
+          {ss && (() => {
+            const KEYS = [["TS%", "adv.ts_pct"], ["USG%", "adv.usg_pct"],
+              ["Net rtg", "adv.net_rating"], ["PIE", "adv.pie"],
+              ["Drive pts", "drives.drive_pts"], ["AST created", "passing.ast_points_created"],
+              ["Distance", "speed.dist_miles"], ["Deflections", "hustle.deflections"]] as const;
+            const radarAxes = KEYS
+              .filter(([, k]) => typeof ranks?.[k] === "number")
+              .map(([label, k]) => ({ label: String(label), v: Number(ranks![k]),
+                                     pos: ss.pct_ranks_pos?.[k] }));
+            return (
             <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs">
               <h2 className="text-sm font-medium text-text-primary mb-1.5">
                 League percentile <span className="text-text-dim font-normal text-[10px]">· {ssLabel} · blue top-decile, green top-quartile, red bottom-quartile</span>
               </h2>
-              <div className="grid grid-cols-4 gap-1.5">
-                {([["TS%", ranks?.["adv.ts_pct"]], ["USG%", ranks?.["adv.usg_pct"]],
-                   ["Net rtg", ranks?.["adv.net_rating"]], ["PIE", ranks?.["adv.pie"]],
-                   ["Drive pts", ranks?.["drives.drive_pts"]], ["AST pts created", ranks?.["passing.ast_points_created"]],
-                   ["Distance", ranks?.["speed.dist_miles"]], ["Deflections", ranks?.["hustle.deflections"]]] as const)
-                  .filter(([, v]) => typeof v === "number")
-                  .map(([label, v]) => (
-                    <div key={label} className="bg-white/[0.03] rounded px-2 py-1">
-                      <div className="text-text-dim text-[10px]">{label}</div>
-                      <div className={`font-medium tabular-nums ${pctTone(typeof v === "number" ? v : null)}`}>
-                        {typeof v === "number" ? ord(v) : "—"}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-              {ss.pos && ss.pct_ranks_pos && Object.keys(ss.pct_ranks_pos).length > 0 && (
-                <>
-                  <div className="text-text-dim text-[10px] mt-1.5">vs {ss.pos} pool (40+ players)</div>
+              <div className="flex flex-col sm:flex-row gap-3 items-center">
+                <div className="shrink-0 w-[210px]">
+                  <PercentileRadar axes={radarAxes} />
+                  <p className="text-[10px] text-text-dim/70 text-center -mt-1">
+                    blue = league · dashed gold = {ss.pos ?? "position"} pool
+                  </p>
+                </div>
+                <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="grid grid-cols-4 gap-1.5">
-                    {([["TS%", "adv.ts_pct"], ["Net rtg", "adv.net_rating"], ["PIE", "adv.pie"],
-                       ["Deflections", "hustle.deflections"]] as const)
-                      .filter(([, k]) => typeof ss.pct_ranks_pos?.[k] === "number")
+                    {KEYS
+                      .filter(([, k]) => typeof ranks?.[k] === "number")
                       .map(([label, k]) => {
-                        const v = ss.pct_ranks_pos![k];
+                        const v = ranks![k] as number;
                         return (
-                          <div key={label} className="bg-white/[0.03] rounded px-2 py-1">
+                          <div key={k} className="bg-white/[0.03] rounded px-2 py-1">
                             <div className="text-text-dim text-[10px]">{label}</div>
-                            <div className={`font-medium tabular-nums ${pctTone(v)}`}>
-                              {ord(v)}
-                            </div>
+                            <div className={`font-medium tabular-nums ${pctTone(v)}`}>{ord(v)}</div>
                           </div>
                         );
                       })}
                   </div>
-                </>
-              )}
+                  {ss.pos && ss.pct_ranks_pos && Object.keys(ss.pct_ranks_pos).length > 0 && (
+                    <>
+                      <div className="text-text-dim text-[10px] pt-0.5">vs {ss.pos} pool (40+ players)</div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {([["TS%", "adv.ts_pct"], ["Net rtg", "adv.net_rating"], ["PIE", "adv.pie"],
+                           ["Deflections", "hustle.deflections"]] as const)
+                          .filter(([, k]) => typeof ss.pct_ranks_pos?.[k] === "number")
+                          .map(([label, k]) => {
+                            const v = ss.pct_ranks_pos![k];
+                            return (
+                              <div key={label} className="bg-white/[0.03] rounded px-2 py-1">
+                                <div className="text-text-dim text-[10px]">{label}</div>
+                                <div className={`font-medium tabular-nums ${pctTone(v)}`}>{ord(v)}</div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
               <PanelNote>computed at bake time from the balldontlie category rows — internal research</PanelNote>
             </div>
-          )}
+            );
+          })()}
           {pt.length > 0 && (
             <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs">
               <h2 className="text-sm font-medium text-text-primary mb-1.5">
@@ -739,6 +757,28 @@ export default async function HoopsPlayerPage({ params }: {
             Shot heat map <span className="text-text-dim font-normal text-[10px]">· ESPN shot x/y · 2.5 ft bins</span>
           </h2>
           <ShotHeatMap grid={ps.grid} label={ps.label} />
+          {ss?.shootmk && ssDoc && (() => {
+            const pool = Object.entries(ssDoc.players)
+              .filter(([, p]) => p.shootmk && (p.shootmk.n_fga ?? 0) >= 100)
+              .map(([pid, p]) => ({
+                id: pid, name: p.shootmk!.name ?? pid,
+                x: p.shootmk!.xefg, y: p.shootmk!.diff, n: p.shootmk!.n_fga,
+              }));
+            if (pool.length < 30) return null;
+            const xMid = pool.map((q) => q.x).sort((a, b) => a - b)[Math.floor(pool.length / 2)];
+            return (
+              <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
+                <h2 className="text-sm font-medium text-text-primary mb-1.5">
+                  Shot quality quadrant <span className="text-text-dim font-normal text-[10px]">
+                    · {ssLabel} · {pool.length} players ≥ 100 FGA · dot area = FGA · §9 diet/making
+                  </span>
+                </h2>
+                <ShotQuadrant pool={pool} highlight={id} xMid={xMid} />
+                <PanelNote>x = the league&apos;s eFG in the zones he takes (the diet); y = his actual eFG minus
+                  that (the making) — RESULTS-HOOPS §9, descriptive benchmark</PanelNote>
+              </div>
+            );
+          })()}
           <div className="text-[10px] text-text-dim/70">ESPN-derived coordinates — internal research</div>
         </div>
       )}

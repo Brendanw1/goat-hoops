@@ -6,6 +6,7 @@ import {
   type HoopsTeamAnalytics,
 } from "@/lib/data-hoops";
 import { teamColor } from "@/lib/team-colors";
+import { MarginStrip } from "@/components/ui/margin-strip";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -148,6 +149,11 @@ export default async function HoopsTeamPage({ params }: {
               {Number(s) - 1}-{String(s).slice(2)} · {agg.w}-{agg.l} · {agg.pts} pts/g ·{" "}
               opp {agg.opp_pts} · REB {agg.reb} · AST {agg.ast} · TOV {agg.tov}
             </h2>
+            {agg.games.length > 8 && (
+              <div className="rounded-lg border border-border-subtle bg-surface-1 px-3 py-2 max-w-5xl">
+                <MarginStrip games={[...agg.games].reverse()} />
+              </div>
+            )}
             {agg.starters5?.length ? (
               <p className="text-[11px] text-text-dim max-w-3xl">
                 Most-used starting fives:{" "}

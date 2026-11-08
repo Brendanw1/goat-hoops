@@ -32,17 +32,45 @@ export function Nav() {
     <nav className="sticky top-0 z-40 w-full border-b border-border-subtle bg-black/40 backdrop-blur-md">
       <div className="flex items-center gap-2 px-4 py-2 sm:px-6">
         <Link href="/" aria-label="GOAT-Pro Hoops home"
-          className="relative z-10 shrink-0 grid place-items-center w-12 h-12 rounded-full transition-transform duration-200 hover:scale-105 active:scale-95 ring-1 ring-slate-900/25
-            bg-[linear-gradient(135deg,#ffffff_0%,#f7f9fb_45%,#e7ecf2_100%)]
-            shadow-[0_4px_16px_rgba(2,6,12,0.55),0_1px_3px_rgba(2,6,12,0.4),inset_0_-6px_10px_rgba(128,96,60,0.42),inset_0_3px_6px_rgba(255,255,255,0.9),inset_0_0_0_1px_rgba(22,30,44,0.07)]">
-          <span aria-hidden className="absolute inset-0 rounded-full
-            bg-[radial-gradient(circle_at_30%_24%,rgba(255,255,255,1)_0%,rgba(255,255,255,0)_42%),radial-gradient(circle_at_72%_92%,rgba(232,119,34,0.5)_0%,rgba(232,119,34,0)_50%)]" />
-          {/* the ball's seam: one great circle, unlike the baseball's laces */}
-          <span aria-hidden className="absolute w-7 h-7 rounded-full border border-[#b45309]/40
-            [transform:rotate(-24deg)_scaleY(0.42)]" />
-          <span className="relative text-center leading-none">
-            <span className="block text-[12px] font-extrabold tracking-tight text-[#131c2b]">GOAT</span>
-            <span className="mt-[3px] block text-[8.5px] font-bold tracking-[0.22em] text-[#5c6b82]">HOOPS</span>
+          className="relative z-10 shrink-0 grid place-items-center w-12 h-12 rounded-full transition-transform duration-200 hover:scale-105 active:scale-95
+            shadow-[0_4px_16px_rgba(2,6,12,0.55),0_1px_3px_rgba(2,6,12,0.4)]">
+          {/* the basketball: pebbled-orange sphere, four seam curves, the
+              wordmark on the leather — read as a ball first, a name second */}
+          <svg viewBox="0 0 48 48" className="absolute inset-0 w-full h-full" aria-hidden>
+            <defs>
+              <radialGradient id="ballLeather" cx="0.34" cy="0.26" r="0.95">
+                <stop offset="0%" stopColor="#F98E4C" />
+                <stop offset="45%" stopColor="#E56F2E" />
+                <stop offset="80%" stopColor="#B84A17" />
+                <stop offset="100%" stopColor="#8C3410" />
+              </radialGradient>
+              <radialGradient id="ballSheen" cx="0.32" cy="0.2" r="0.4">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.5)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+              </radialGradient>
+            </defs>
+            <circle cx="24" cy="24" r="23" fill="url(#ballLeather)" />
+            {/* pebble hint: sparse darker freckles, denser toward the rim */}
+            <g fill="rgba(90,30,8,0.35)">
+              {[[10, 14], [14, 9], [19, 6], [30, 7], [36, 11], [40, 17], [42, 26],
+                [40, 34], [35, 40], [28, 43], [19, 42], [12, 37], [8, 30], [7, 21],
+                [16, 30], [13, 25], [34, 30], [37, 22], [30, 40], [11, 20]].map(([x, y], i) => (
+                <circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 0.7 : 0.5} />
+              ))}
+            </g>
+            {/* the four seams of a basketball */}
+            <g stroke="#4A1D07" strokeWidth="1.5" fill="none" opacity="0.9">
+              <line x1="24" y1="1.5" x2="24" y2="46.5" />
+              <line x1="1.5" y1="24" x2="46.5" y2="24" />
+              <path d="M 8 5 C 19 12, 19 36, 8 43" />
+              <path d="M 40 5 C 29 12, 29 36, 40 43" />
+            </g>
+            <circle cx="24" cy="24" r="23" fill="url(#ballSheen)" />
+            <circle cx="24" cy="24" r="22.7" fill="none" stroke="rgba(30,12,4,0.55)" strokeWidth="0.6" />
+          </svg>
+          <span className="relative text-center leading-none drop-shadow-[0_1px_1px_rgba(255,220,180,0.7)]">
+            <span className="block text-[12px] font-extrabold tracking-tight text-[#2B1103]">GOAT</span>
+            <span className="mt-[3px] block text-[8.5px] font-bold tracking-[0.22em] text-[#3E1A08]">HOOPS</span>
           </span>
         </Link>
 

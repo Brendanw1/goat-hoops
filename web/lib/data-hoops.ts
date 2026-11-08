@@ -309,7 +309,7 @@ export type HoopsSSPlayer = {
   catch_shoot?: HoopsSSCat; pullup?: HoopsSSCat; post?: HoopsSSCat; elbow?: HoopsSSCat;
   eff?: HoopsSSCat; poss_t?: HoopsSSCat; def_t?: HoopsSSCat;
   /** §9 zone shot-making benchmark (bake-time, gate-gated) */
-  shootmk?: { xefg: number; efg: number; diff: number; n_fga: number };
+  shootmk?: { xefg: number; efg: number; diff: number; n_fga: number; name?: string | null };
   /** position letter (G/F/C, first of the feed's value) + its pool's ranks */
   pos?: string;
   pct_ranks_pos?: Record<string, number>;
