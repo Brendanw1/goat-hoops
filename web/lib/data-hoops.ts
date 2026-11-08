@@ -235,6 +235,26 @@ export type HoopsHistoryDoc = {
 export const getHoopsHistory = cache(async (): Promise<HoopsHistoryDoc | null> =>
   (await fetchGzippedJson<HoopsHistoryDoc>("history.json.gz")) ?? null);
 
+/** P3 lineups tier — §0f-gated unit + on-off rows (stint walk, PARTIAL) */
+export type HoopsUnitRow = {
+  ids: string[]; names: string[]; min: number; poss: number; gp: number;
+  ortg: number; drtg: number | null; net: number | null;
+};
+export type HoopsOnOffRow = {
+  pid: string; name: string; on_min: number; on_poss: number;
+  on_net: number; off_net: number; diff: number;
+  on_ortg: number; on_drtg: number;
+};
+export type HoopsLineupsDoc = {
+  seasons: Record<string, {
+    coverage: { games: number; of: number; partial: boolean; source: string };
+    teams: Record<string, { units: HoopsUnitRow[]; onoff: HoopsOnOffRow[] }>;
+  }>;
+  gate_0f: { label: string; verdict: string; score_exact: number | null };
+};
+export const getHoopsLineups = cache(async (): Promise<HoopsLineupsDoc | null> =>
+  (await fetchGzippedJson<HoopsLineupsDoc>("lineups.json.gz")) ?? null);
+
 export const getHoopsTeam = cache(async (abbr: string): Promise<HoopsTeamDoc | null> =>
   (await fetchGzippedJson<HoopsTeamDoc>(`team/${abbr.toLowerCase()}.json.gz`)) ?? null);
 

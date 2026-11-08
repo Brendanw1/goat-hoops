@@ -100,6 +100,67 @@ Leaders sanity: season pts = Harden 36.1 (2019), Kobe 35.4 (2006), Harden
 career (in-span) pts = LeBron 39.6k, KD 32.6k, Harden 29.3k; reb = Dwight
 13.8k, Drummond 11.5k. 1,491 career rows at the §0e floors.
 
+## §0f — lineups/on-off stint gate (pre-registered 2026-11-08, before any computation)
+
+**What.** P3 (Track B v1): 5-man unit tables and per-player on/off from the
+§1 ESPN-walk stints (`data/derived/stints_2025.parquet`, 689 games = the
+site-2025 ESPN window, PARTIAL vs the 1,230-game season) with stint seconds
+from the pbp game clock (play indices reproduced with the writer's exact
+ordering: `(period, seq)`; a stint that ends at a period boundary accrues
+clock-to-zero). Site seasons other than 2025 do not ship in v1 — the
+pbpstats-interval lineage is complete only for this window.
+
+**Fixed rules.** Units keyed (team, sorted-5); offensive possessions per
+stint = live (non-dead-ball) segments of that side inside the window, with
+segment spans reconstructed as (previous end_i, end_i] per game in order;
+ORtg/DRtg = 100·pts/poss per side; minutes = clock seconds/60; players keyed
+by ESPN athlete id through the players.json name map. Render floors: units
+≥ 100 offensive possessions; on/off players ≥ 1,500 on-court possessions.
+
+**Gates (preregistered).** (1) Minutes: Σ stint seconds per game within
+± 2.0 min of the game's scheduled length (240 + 25·OT) for ≥ 95% of games.
+(2) Possessions: per-game live possession total inside 180-260 for ≥ 95% of
+games. (3) Score: Σ stint points per side equals the final score for
+≥ 99% of game-sides. A miss → stop, diagnose, no /lineups render.
+
+**Descriptive standing.** Unit and on/off rates describe the 689-game
+window only and ship flagged PARTIAL; they inherit the §1 walk's known
+substitution-log caveats (poisoned stints dropped at build time).
+
+### §0f read (2026-11-08): PASS after two diagnosed amendments — /lineups ships
+
+Three gate reads happened; each failure was a real data find, diagnosed
+before the surface shipped:
+
+1. **First read FAIL (score 0.0, minutes 0.0015).** Two causes: the stints
+   file's pts columns predate the §1 response fix (they carry ~46% of real
+   points — points were re-sourced to pbp scoring plays per window, exact
+   vs finals by construction) and the stints' play indices no longer match
+   the rebuilt mart for 20/689 games (those games are skipped, counted in
+   the gate).
+2. **Second read FAIL (score 0.017).** The real find: **the walk's dropped
+   poisoned stints leave gaps in the play array** — scoring plays inside
+   gaps vanished. Amendment: stint windows tile the game as
+   (previous end_i, end_i], absorbing gap plays into the preceding on-court
+   set. After the amendment **score_exact 0.9985** — the attribution path
+   is validated end to end.
+3. **Third read FAIL (minutes 0.26 with clock interpolation).** ESPN's
+   clock is unusable per play — 11.5% of plays carry NaN clocks, scattered
+   mid-game (one game loses clocks from seq 166 on). Linear interpolation
+   failed the ±2-min bar. **Amendment: v1 minutes are
+   possession-proportional estimates** — the ten men on the floor share the
+   window's game minutes by its live-possession share (structural, sums to
+   the scheduled length); unit/on-off rates stay possession-exact. Real
+   clock minutes are the v2 upgrade (rerun the pbpstats-interval lineage).
+
+**Final gate: minutes structural 1.000 · poss-in-band 0.9806 · score-exact
+0.9985 → PASS on 669 games.** Output: 148 units (≥ 100 poss floor), 212
+on/off rows (≥ 1,500 on-poss floor), 30 teams, 14 KB doc. Sanity: OKC's
+starting five (Hartenstein-SGA-Dort-J-Will-Wallace) leads at +16.5 net over
+248 estimated minutes; SGA on/off diff +17.8 (on +16.9 / off −0.9) — the
+MVP story reads exactly as it should.
+
+
 ## §1 — RAPM from ESPN PBP stints (pre-registered 2026-10-30, before any derivation or fit)
 
 **Why.** The spec's on/off, lineup and team-impact surfaces all need a

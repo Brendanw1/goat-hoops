@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/stats", label: "Stats" },
   { href: "/alltime", label: "All-Time" },
   { href: "/eras", label: "Eras" },
+  { href: "/lineups", label: "Lineups" },
   { href: "/compare", label: "Compare" },
   { href: "/comps", label: "Comps" },
   { href: "/surplus", label: "Value" },

@@ -25,6 +25,20 @@ export default async function HoopsErasPage() {
   const first = doc.env[String(seasons[0])];
   const last = doc.env[String(seasons[seasons.length - 1])];
 
+  // per-column volume ramp: each cell's backdrop is the value's own column
+  // quantile (white alpha on the dark surface — magnitude, not judgment; the
+  // 3PA-share column visibly brightens down the table = the era story)
+  const spans = new Map<string, { min: number; max: number }>();
+  for (const c of COLS) {
+    const vs = seasons.map((s) => doc.env[String(s)][c.key] as number);
+    spans.set(c.key, { min: Math.min(...vs), max: Math.max(...vs) });
+  }
+  const tint = (key: string, v: number) => {
+    const s = spans.get(key)!;
+    const q = s.max > s.min ? (v - s.min) / (s.max - s.min) : 0;
+    return { backgroundColor: `rgba(255,255,255,${(0.02 + q * 0.09).toFixed(3)})` };
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -45,7 +59,7 @@ export default async function HoopsErasPage() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full max-w-3xl text-xs tabular-nums">
+        <table className="w-full max-w-4xl text-xs tabular-nums">
           <thead>
             <tr className="text-[10px] uppercase tracking-wide text-text-dim border-b border-border-subtle">
               <th className="text-left py-1.5 pr-3 font-medium">Season</th>
@@ -61,7 +75,8 @@ export default async function HoopsErasPage() {
                 <tr key={s} className="border-b border-border-subtle/40">
                   <td className="py-1 pr-3 text-text-secondary">{seasonLabelOf(s)}</td>
                   {COLS.map((c) => (
-                    <td key={c.key} className="py-1 px-2 text-right text-text-secondary">
+                    <td key={c.key} className="py-1 px-2 text-right text-text-secondary"
+                      style={tint(c.key, e[c.key] as number)}>
                       {c.fmt(e[c.key] as number)}
                     </td>
                   ))}

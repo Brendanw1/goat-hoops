@@ -72,11 +72,12 @@ export default async function HoopsAllTimePage() {
 
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-text-primary">
-          Career <span className="text-text-dim font-normal text-[10px]">· gp ≥ 50 in span; TS% needs 6,000+ span minutes</span>
+          Career <span className="text-text-dim font-normal text-[10px]">· top 20 of 40 shown · gp ≥ 50 in span; TS% needs 6,000+ span minutes</span>
         </h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {CAREER_CARDS.map((c) => (
-            <Card key={c.key} title={c.label} rows={doc.leaders_career[c.key] ?? []} fmt={c.fmt} />
+            <Card key={c.key} title={c.label}
+              rows={(doc.leaders_career[c.key] ?? []).slice(0, 20)} fmt={c.fmt} />
           ))}
         </div>
       </section>
@@ -87,7 +88,8 @@ export default async function HoopsAllTimePage() {
         </h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {CAREER_CARDS.map((c) => (
-            <Card key={c.key} title={c.label} rows={doc.leaders_season[c.key] ?? []} fmt={c.fmt} />
+            <Card key={c.key} title={c.label}
+              rows={(doc.leaders_season[c.key] ?? []).slice(0, 20)} fmt={c.fmt} />
           ))}
         </div>
       </section>
