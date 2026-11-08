@@ -1,0 +1,51 @@
+{
+ "as_of": "2026-11-08",
+ "v1_ranges": {
+  "violations_pre_floor": {
+   "ts_out": 184,
+   "pts36_over": 7,
+   "min_pg_over": 0,
+   "gp_over": 0,
+   "usg_over": 0
+  },
+  "violations_post_floor": {
+   "ts_out": 0,
+   "pts36_over": 0,
+   "min_pg_over": 0,
+   "gp_over": 0,
+   "usg_over": 0
+  },
+  "note": "pre-floor violations are small-sample artifacts; the floor is the cleaner and the hard check rides post-floor",
+  "hard_fail": false
+ },
+ "v2_cross_source": {
+  "seasons": {
+   "2025": {
+    "players": 569,
+    "agreement": 0.8735,
+    "mean_abs_diff": 0.176,
+    "mismatch_gt2": 5
+   },
+   "2026": {
+    "players": 582,
+    "agreement": 0.933,
+    "mean_abs_diff": 0.079,
+    "mismatch_gt2": 1
+   }
+  },
+  "hard_fail": false
+ },
+ "v3_anomalies": {
+  "pts36_abs_z_gt6": 6,
+  "zero_min_rows": 1,
+  "rows_total": 10596,
+  "hard_fail": false
+ },
+ "v4_drift": {
+  "mpg_first5_to_last5": -1.49,
+  "pts36_first5_to_last5": 1.77,
+  "note": "informational \u2014 the era drift the \u00a714 target-space migration will normalize",
+  "hard_fail": false
+ },
+ "verdict": "PASS"
+}

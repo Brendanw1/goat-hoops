@@ -45,6 +45,16 @@ def per36(row: pd.Series) -> dict:
 
 
 def main() -> int:
+    # the table build refuses to run on a failed validation (audit H4)
+    val_path = DERIVED / "validation_report.json"
+    if not val_path.exists():
+        print("validation report missing — run data_validation.py first")
+        return 1
+    val = json.loads(val_path.read_text())
+    if val.get("verdict") != "PASS":
+        print(f"validation verdict {val.get('verdict')} — table build aborted")
+        return 1
+
     wide = pd.read_parquet(MART / "bdl_season.parquet")
     wide["site"] = wide["season"] + 1
     wide = wide[wide["site"].isin(SITES)].copy()
@@ -87,6 +97,12 @@ def main() -> int:
     base["min_tier"] = pd.cut(base["min_pg"], [0, 15, 25, 32, 48],
                               labels=False)
 
+    # v3 (audit H2/M1): schedule normalization + age curvature -----------------
+    TEAM_GAMES = {2012: 66, 2020: 72, 2021: 72}  # 2019-20 varied 70-75 per team
+    base["team_games"] = base["site"].map(lambda s: TEAM_GAMES.get(s, 82))
+    base["gp_frac"] = base["gp"] / base["team_games"]
+    base["age_sq"] = base["age"] ** 2
+
     # lags + rolling means (by player, consecutive seasons only) --------------
     base = base.sort_values(["pid", "site"])
     g = base.groupby("pid")
@@ -99,6 +115,14 @@ def main() -> int:
         base[f"lag1_{c}"] = g[c].shift(1).where(c1)
         base[f"lag2_{c}"] = g[c].shift(2).where(c2)
         base[f"rm2_{c}"] = ((g[c].shift(1) + g[c].shift(2)) / 2).where(c2)
+
+    # v3 (audit H1/M2): rookie-bias indicators + momentum ---------------------
+    base["has_lag1"] = base["lag1_pts36"].notna().astype(int)
+    base["has_lag2"] = base["lag2_pts36"].notna().astype(int)
+    base["rookie"] = 1 - base["has_lag1"]
+    for c in ("pts36", "reb36", "ast36"):
+        base[f"mom_{c}"] = base[f"lag1_{c}"] - base[f"rm2_{c}"]
+    base["lag1_gp_frac"] = g["gp_frac"].shift(1).where(c1)
 
     # targets: NEXT season (consecutive) --------------------------------------
     for c in ["pts36", "reb36", "ast36", "min_pg", "gp"]:
@@ -137,6 +161,12 @@ def main() -> int:
         "v2_note": "2026-11-08: raw tracking source columns added for §12b "
                    "(drives/touches/paint/front-ct/def_rim_fga/dist_miles); "
                    "§10/§11 feature sets unchanged and their reads remain valid",
+        "v3_note": "2026-11-08: the §13 senior rebuild — validation-gated "
+                   "(data_validation.py must PASS first); added has_lag1/"
+                   "has_lag2/rookie indicators (the zero-imputation bias fix), "
+                   "gp_frac + lag1_gp_frac (schedule normalization), age_sq, "
+                   "momentum features; prior reads remain valid",
+        "validation": {"verdict": val["verdict"], "as_of": val["as_of"]},
         "sealed": "2026-11-08",
     }
     (DERIVED / "modeling_table_SEALED.json").write_text(json.dumps(seal, indent=1))

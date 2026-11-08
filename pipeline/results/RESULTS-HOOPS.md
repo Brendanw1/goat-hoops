@@ -394,6 +394,73 @@ ever lands (per-player injury detail, load data), §12c re-opens.
 ridge — the day's only PASS — stands as the projection tier's model.
 Every read's artifact is sealed under `data/projections/`.
 
+## §13 — the senior-MLE rebuild: validation, v3 features, conformal intervals (pre-registered 2026-11-08, before any fit)
+
+**Why.** The owner-directed senior-ML review (`docs/MODELING-AUDIT-2026-11.md`)
+found the pipeline needed what it now has, in this order: **validate first**
+(the audit's H4), then features (H1/H2/M1/M2), then the model — with
+intervals (M4) rather than another point-forecast class (§12a said the class
+lever is empty).
+
+**Stage 1 — validation (`pipeline/data_validation.py`), run and PASSED
+before the v3 table built.** V1 ranges: pre-floor violations are
+cup-of-coffee artifacts (ts-out rows: gp mean 3.3) — zero post-floor
+violations (the HARD check). V2 cross-source (audit H5, the trader-semantics
+check): seasavgs gp vs box played-games agreement .874 (site 2025) / .933
+(site 2026), mean |Δ| 0.18/0.08 — **rows are combined seasons; an early
+probe that said otherwise had counted the box parquets' DNP rows** (the box
+carries ~7 DNP rows per game; any box-side sum must filter min > 0, the
+same rule §0b's ready() already applied). V3 anomalies: 6 pts36 |z| > 6
+rows flagged (informational). V4 drift: mpg −1.49, pts36 +1.77 first-5 vs
+last-5 seasons — the era drift quantified; the target-space migration that
+normalizes it is §14, not this read.
+
+**Stage 2 — table v3.** Same grain, same targets, three feature additions:
+rookie-bias fix (`has_lag1/has_lag2/rookie` indicators riding the existing
+zero-imputation — H1), schedule normalization (`gp_frac = gp/team_games`
+with the recorded constants, + its lag — H2), curvature and momentum
+(`age_sq`, `mom_pts36/reb36/ast36` — M1/M2). §10/§11/§12 feature sets
+unchanged; their reads remain valid.
+
+**Stage 3 — the read.** Ridge v3 (same estimator, λ grid, nested selection)
+on the v3 feature matrix vs the §11 ridge on the identical folds.
+**Gate:** composite MAE ratio ≤ 0.98 on ≥ 4/5 folds — the standard ladder.
+**Intervals (M4):** split-conformal, cross-fold — for fold S, calibrate the
+90% residual quantile on the OTHER four folds' residuals, evaluate
+empirical coverage on S; gate: mean coverage ∈ [0.85, 0.95] per target.
+**Ship rule:** PASS on the composite gate → the panel re-bakes with
+intervals and the v3 label. The interval gate must ALSO pass for intervals
+to render; a composite PASS with an interval FAIL ships point forecasts
+only, both recorded.
+
+### §13 read (2026-11-08): FAIL on both gates — and the validation layer just caught a would-be production bug
+
+**Composite:** 2021 0.9986, 2022 0.9954, 2023 0.9961, 2024 0.9967, 2025
+0.9906 — the v3 features improve **all five folds** but none clears the
+0.98 ladder bar. **Verdict: FAIL, 0/5.** The H1 rookie-bias fix measured
+directly on the second-year slice (fold 2025, n=19): pts36 MAE 2.680 →
+2.566 (−4%) — real, small, direction confirmed. The consistent ~0.5-1%
+gains are kept in the table (v3 ships as the training artifact); the
+§11 ridge remains the shipped panel model.
+
+**Intervals: FAIL, and this is the read's most valuable number.**
+Cross-fold conformal at nominal 90% achieved empirical coverage of only
+.80 (pts36) / .72 (reb36) / .84 (ast36) / .78 (mpg) — **under-coverage
+across the board.** The residual distribution is not exchangeable across
+folds: era drift widens errors in later seasons, so residuals pooled from
+2006-2020 understate the width a 2021-2025 forecast needs. Shipping naive
+conformal would have put overconfident intervals on a public site — the
+validation-first discipline the owner asked for is what kept that off the
+page. The §14 fix is drift-aware calibration (per-era or rolling-window
+residual quantiles), preregistered separately.
+
+**What §13 leaves behind (all permanent):** the validation suite (the
+table build now refuses to run without a PASS), the trader-semantics
+verification (combined seasons; box DNP rows filtered — the rule §0b
+already applied, now codified), the v3 table with the bias/schedule/
+curvature/momentum features, and the audit doc tracking every remaining
+debt.
+
 
 ## §1 — RAPM from ESPN PBP stints (pre-registered 2026-10-30, before any derivation or fit)
 

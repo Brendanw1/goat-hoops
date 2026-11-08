@@ -41,5 +41,10 @@
  ],
  "notes": "rate space per-36; targets consecutive-season only; retired players first-class; nba_pid = rendering bridge (not training)",
  "v2_note": "2026-11-08: raw tracking source columns added for \u00a712b (drives/touches/paint/front-ct/def_rim_fga/dist_miles); \u00a710/\u00a711 feature sets unchanged and their reads remain valid",
+ "v3_note": "2026-11-08: the \u00a713 senior rebuild \u2014 validation-gated (data_validation.py must PASS first); added has_lag1/has_lag2/rookie indicators (the zero-imputation bias fix), gp_frac + lag1_gp_frac (schedule normalization), age_sq, momentum features; prior reads remain valid",
+ "validation": {
+  "verdict": "PASS",
+  "as_of": "2026-11-08"
+ },
  "sealed": "2026-11-08"
 }
