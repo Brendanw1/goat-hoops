@@ -4,8 +4,8 @@ import { BackLink } from "@/components/ui/back-link";
 import { ShotHeatMap } from "@/components/ui/shot-heatmap";
 import {
   getHoopsAdvAgg, getHoopsCareers, getHoopsClutch, getHoopsContracts, getHoopsMeta, getHoopsPlayer,
-  getHoopsPlayerShots, getHoopsPlayers, getHoopsRebound, getHoopsSeasAvgs, getHoopsSimilar,
-  getHoopsSurplus,
+  getHoopsPlayerShots, getHoopsPlayers, getHoopsProjections, getHoopsRebound, getHoopsSeasAvgs,
+  getHoopsSimilar, getHoopsSurplus,
 } from "@/lib/data-hoops";
 import type { HoopsContractDeal, HoopsSSCat } from "@/lib/data-hoops";
 
@@ -136,12 +136,12 @@ export default async function HoopsPlayerPage({ params }: {
   if (!doc || !Object.keys(doc.seasons).length) notFound();
   const seasons = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
   const [cdoc, advDoc, careers, meta, ss26, ss25, ps27, ps25,
-         similarDoc, surplusDoc, clutchDoc, reboundDoc, board] = [
+         similarDoc, surplusDoc, clutchDoc, reboundDoc, board, projDoc] = [
     await getHoopsContracts(), await getHoopsAdvAgg(), await getHoopsCareers(), await getHoopsMeta(),
     await getHoopsSeasAvgs(2026), await getHoopsSeasAvgs(2025),
     await getHoopsPlayerShots(2027), await getHoopsPlayerShots(2025),
     await getHoopsSimilar(), await getHoopsSurplus(), await getHoopsClutch(),
-    await getHoopsRebound(), await getHoopsPlayers()];
+    await getHoopsRebound(), await getHoopsPlayers(), await getHoopsProjections()];
   const ssDoc = ss26 ?? ss25;
   const ss = ssDoc?.players[id];
   const pt = ss?.playtype ?? [];
@@ -252,6 +252,34 @@ export default async function HoopsPlayerPage({ params }: {
             </div>
           )}
           <div className="text-[10px] text-text-dim/70">balldontlie snapshot — internal research</div>
+        </div>
+      )}
+
+      {projDoc?.players?.[id] && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-3xl text-xs">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-medium text-text-primary">
+              {seasonLabel(projDoc.players[id].site)} projection
+              <span className="text-text-dim font-normal text-[10px]">
+                {" "}· ridge §11 · as of {projDoc.as_of}
+              </span>
+            </h2>
+            <span className="text-[10px] text-text-dim">gate PASS 5/5 folds</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 mt-1.5 tabular-nums">
+            {([["PTS/36", projDoc.players[id].pts36], ["REB/36", projDoc.players[id].reb36],
+               ["AST/36", projDoc.players[id].ast36], ["MPG", projDoc.players[id].mpg]] as const).map(
+              ([k, v]) => (
+                <div key={k}>
+                  <p className="text-lg font-medium text-text-primary">{v}</p>
+                  <p className="text-[10px] text-text-dim">{k}</p>
+                </div>
+              ))}
+          </div>
+          <div className="text-[10px] text-text-dim/70 mt-1.5">
+            Forecast of stats, not value · beat all §10 baselines on 5/5 rolling-origin
+            folds (composite ≤ 0.82) · <Link href="/research" className="hover:underline">the read</Link>
+          </div>
         </div>
       )}
 

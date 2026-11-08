@@ -161,6 +161,121 @@ starting five (Hartenstein-SGA-Dort-J-Will-Wallace) leads at +16.5 net over
 MVP story reads exactly as it should.
 
 
+## §10 — projection foundation: baselines read (pre-registered 2026-11-08, before any read beyond the seal's coverage counts)
+
+**What.** The first projection-tier read per PROJECTIONS-SCOPE §3: run the
+three preregistered naive baselines on the sealed modeling table and record
+how far each is from truth, per target per fold. **No pass/fail** — §10 is
+the skill measurement every later gate is written against. The descriptive
+half (age curves) rides with §11, not here.
+
+**Artifact.** `data/derived/modeling_table.parquet` + `_SEALED.json`
+(sealed 2026-11-08: 8,433 rows at the 250-minute floor, 1,635 players, 21
+seasons, 7,124 consecutive-season targets, bridge 99.7%; floor sensitivity
+100/250/400 recorded in the seal).
+
+**Folds (time only).** Train = rows with site ≤ S−1; predict site S for
+rows whose target exists (consecutive seasons). S ∈ {2021, 2022, 2023,
+2024, 2025} — five origins, no random folds (era/role leak).
+
+**Targets.** next_pts36, next_reb36, next_ast36, next_min_pg, next_gp.
+
+**Baselines (fixed formulas).**
+1. *naive repeat* — the target's own lag1 (last season's value).
+2. *league-mean + minutes shrink* — `w·lag1 + (1−w)·μ_train`, where
+   `w = m/(m+2000)` with `m = lag1_gp·lag1_min_pg` and `μ_train` = the
+   training rows' mean of the target (league-level; the table carries no
+   position column — positional shrink is a later increment).
+3. *two-year weighted* — `⅔·lag1 + ⅓·lag2`, falling back to lag1 when
+   lag2 is absent.
+
+**Metrics per target × fold × baseline.** MAE, RMSE, Pearson r. The
+composite used by later gates: per fold, the mean over the five targets of
+the MAE ratio (model / baseline). §11's ship rule: the ridge must beat
+EACH of the three baselines on ≥ 4 of 5 folds with composite ratio
+≤ 0.98, else FAIL — no panel renders.
+
+**Machine protocol.** Fits are small; 3 threads, nice 10 anyway. Artifacts
+sealed under `data/projections/projection_baselines.json`.
+
+### §10 read (2026-11-08): the skill measurement (descriptive — no verdict)
+
+Per-fold MAEs are stable across all five origins (no era drift in the
+baselines' skill): pts36 repeat MAE 2.76-2.98 (r .71-.77), reb36 ~1.0
+(r .85-.90), ast36 ~0.9 (r .81-.87), min_pg 5.1-5.6 (r .60-.70), gp
+17-21 (r .16-.27). Three findings the later gates are written against:
+
+1. **The two-year blend is the baseline to beat** — composite MAE ratio
+   vs repeat 0.966-0.975 on every fold. The ridge's effective bar is
+   therefore ≈ 0.95 (0.98 × 0.97).
+2. **The minutes-shrink formula LOSES to naive repeat** (composite 1.13-1.21)
+   — regression toward a league mean without position hurts rate forecasts;
+   the K=2000 shrink over-pulls low-minute players. Its formula stays as
+   preregistered (a positional shrink is a later increment).
+3. **Availability (gp) is nearly unpredictable from history** (r ≈ .2) —
+   the scope's plan to make games a separate §12 model, not a ridge target
+   to brag about, is confirmed by the data.
+
+Artifact sealed: `data/projections/projection_baselines.json` (25
+target-fold cells × 3 baselines + composites).
+
+## §11 — ridge with age + lags (pre-registered 2026-11-08, before any fit)
+
+**Model.** One standardized ridge per target over the sealed modeling
+table's lag features: `lag1/lag2/rm2` of the per-36 core + rate cols
+(pts36, reb36, ast36, stl36, blk36, tov36, ts_pct, usg_pct, ast_pct, gp,
+min_pg), current-season context (age, era index, min_tier, season
+z-scores of the core rates). Missing features impute to 0 AFTER
+standardization. λ chosen per (target, fold) by nested rolling origin:
+fit site ≤ S−2, validate S−1, grid λ ∈ {1, 3, 10, 30, 100, 300}. The
+same fold structure and composite as §10.
+
+**Ship rule (as preregistered in §10).** The ridge must beat EACH of the
+three §10 baselines on ≥ 4 of 5 folds with composite MAE ratio ≤ 0.98 —
+i.e. effectively ≤ ~0.95 vs repeat, ≤ ~0.94 vs twoyr after their measured
+composites. **Any FAIL → no projections panel renders and §12 increments
+are the next lever, not a looser gate.** If PASS: bake a projections doc
+(site-2027 point forecasts per current player: per-36 core + mpg, as-of
+stamp, "forecast of stats, not value") and render a player-page panel;
+no league-wide leaderboard.
+
+**Descriptive half.** The age-curve table (per-age league mean of each
+rate, survivorship-caveated) rides along in the same artifact for the
+/eras narrative — descriptive only, rendered nowhere until the owner asks.
+
+### §11 read (2026-11-08): PASS — the first projections panel ships
+
+One honest implementation bug en route, fixed before the verdict: the first
+fit omitted the intercept (predictions collapsed toward 0 — mean 1.6 vs
+actual 15.4 — while correlations stayed high, the classic tell); the
+recorded verdict is the corrected, centered read.
+
+**Composite MAE ratios (ridge / baseline, per fold — lower is better):**
+
+| fold | vs repeat | vs shrink | vs twoyr |
+|---|---|---|---|
+| 2021 | .639 | .522 | .662 |
+| 2022 | .694 | .624 | .806 |
+| 2023 | .710 | .630 | .818 |
+| 2024 | .775 | .636 | .799 |
+| 2025 | .816 | .686 | .839 |
+
+**Verdict: PASS — 5/5 folds under the 0.98 bar vs all three §10 baselines**
+(the ship rule needed 4/5). The ridge beats even the two-year blend by
+~16-34% on the composite. Correlations: pts36 r .83, reb36 r .90-.92 —
+the lag/z/age/role features genuinely add structure, not just shrinkage.
+
+Sanity on the site-2027 forecasts (450 current players): SGA 31.9 pts36
+leading at age 27, Giannis 31.3/12.3, Luka 31.1/8.5, Wemby 28.4/14.3
+climbing at 22, Embiid's minutes honestly regressed down at 32 — no
+nonsense at the top of the board.
+
+**Ships:** projections doc (as-of 2026-11-08, "forecast of stats, not
+value") + player-page panel. NO league-wide leaderboard (scope §4). §12
+increments (LightGBM, tracking features, availability model, intervals)
+are the next levers, each preregistered.
+
+
 ## §1 — RAPM from ESPN PBP stints (pre-registered 2026-10-30, before any derivation or fit)
 
 **Why.** The spec's on/off, lineup and team-impact surfaces all need a

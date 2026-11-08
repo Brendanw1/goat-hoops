@@ -1,0 +1,44 @@
+{
+ "grain": "one row per player-season, site 2006-2026",
+ "source": "data/mart/bdl_season.parquet (BDL season-average pulls)",
+ "minute_floor": 250,
+ "floor_sensitivity": {
+  "100": {
+   "rows": 9357,
+   "players": 1869,
+   "rows_with_target": 7605
+  },
+  "250": {
+   "rows": 8433,
+   "players": 1635,
+   "rows_with_target": 7124
+  },
+  "400": {
+   "rows": 7725,
+   "players": 1486,
+   "rows_with_target": 6699
+  }
+ },
+ "rows": 8433,
+ "players": 1635,
+ "seasons": 21,
+ "rows_with_target": 7124,
+ "bridge_coverage": 0.9969168741847504,
+ "target_cols": [
+  "next_pts36",
+  "next_reb36",
+  "next_ast36",
+  "next_min_pg",
+  "next_gp"
+ ],
+ "feature_families": [
+  "per36 core",
+  "advanced rates",
+  "season z-scores",
+  "age/era/role",
+  "lags 1/2",
+  "rm2"
+ ],
+ "notes": "rate space per-36; targets consecutive-season only; retired players first-class; nba_pid = rendering bridge (not training)",
+ "sealed": "2026-11-08"
+}

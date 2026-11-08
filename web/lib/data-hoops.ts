@@ -255,6 +255,19 @@ export type HoopsLineupsDoc = {
 export const getHoopsLineups = cache(async (): Promise<HoopsLineupsDoc | null> =>
   (await fetchGzippedJson<HoopsLineupsDoc>("lineups.json.gz")) ?? null);
 
+/** §11 ridge point forecasts for site 2027 (gate PASS 2026-11-08) */
+export type HoopsProjectionsDoc = {
+  as_of: string;
+  model: string;
+  targets: string;
+  players: Record<string, {
+    name: string; nba_pid: string | null; bdl_pid: number; age: number; site: number;
+    pts36: number; reb36: number; ast36: number; mpg: number;
+  }>;
+};
+export const getHoopsProjections = cache(async (): Promise<HoopsProjectionsDoc | null> =>
+  (await fetchFromR2<HoopsProjectionsDoc>("projections.json").catch(() => null)) ?? null);
+
 export const getHoopsTeam = cache(async (abbr: string): Promise<HoopsTeamDoc | null> =>
   (await fetchGzippedJson<HoopsTeamDoc>(`team/${abbr.toLowerCase()}.json.gz`)) ?? null);
 

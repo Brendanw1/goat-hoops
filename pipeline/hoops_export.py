@@ -1951,6 +1951,18 @@ def bake(out_dir: Path | None = None) -> dict:
     standings_phase(out, counts)
     reads_phase(out, counts)
     methods_phase(out, counts)
+    proj_src = ROOT / "data" / "projections" / "projections_2027.json"
+    if proj_src.exists():
+        proj = json.loads(proj_src.read_text())
+        # the site keys players by ESPN id — re-key through the bridge
+        players = {}
+        for v in proj.get("players", {}).values():
+            eid = bdl2espn_of.get(int(v["bdl_pid"]))
+            if eid:
+                players[str(eid)] = v
+        proj["players"] = players
+        jwrite(out / "projections.json", proj)
+        counts["projections"] = len(players)
 
     # playershots_{season}.json.gz — half-court heat grids from ESPN x/y ------
     # coordinates are feet on the attacking half (x 0-50, y 0 baseline -> 47);
