@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BackLink } from "@/components/ui/back-link";
-import { getHoopsLineups, type HoopsOnOffRow, type HoopsUnitRow } from "@/lib/data-hoops";
+import { OnOffBars } from "@/components/ui/onoff-bars";
+import { getHoopsLineups, type HoopsUnitRow } from "@/lib/data-hoops";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -62,31 +63,6 @@ function UnitTable({ units }: { units: HoopsUnitRow[] }) {
   );
 }
 
-function OnOffCard({ title, rows, tone }: {
-  title: string; rows: HoopsOnOffRow[]; tone: "pos" | "neg";
-}) {
-  return (
-    <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs min-w-0">
-      <h3 className="text-sm font-medium text-text-primary mb-1.5">{title}</h3>
-      <div className="space-y-1">
-        {rows.map((r) => (
-          <div key={r.pid} className="flex items-baseline justify-between gap-2">
-            <span className="text-text-secondary truncate">
-              <Link href={`/players/${r.pid}`} className="hover:underline">{r.name}</Link>
-              <span className="text-text-dim/70 ml-1.5 text-[10px] tabular-nums">
-                on {r.on_net > 0 ? "+" : ""}{r.on_net.toFixed(1)} / off {r.off_net > 0 ? "+" : ""}{r.off_net.toFixed(1)}
-              </span>
-            </span>
-            <span className={`tabular-nums font-medium shrink-0 ${tone === "pos" ? "text-pos" : "text-neg"}`}>
-              {r.diff > 0 ? "+" : ""}{r.diff.toFixed(1)}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /** Five-man units + on/off from the §0f-gated stint walk (descriptive, PARTIAL). */
 export default async function HoopsLineupsPage({
   searchParams,
@@ -118,9 +94,7 @@ export default async function HoopsLineupsPage({
 
   const hero = data.units[0];
   const best = [...data.units].sort((a, b) => (b.net ?? -99) - (a.net ?? -99))[0];
-  const onoff = [...data.onoff].sort((a, b) => b.diff - a.diff);
-  const upside = onoff.slice(0, 6);
-  const downside = onoff.slice(-6).reverse();
+  const onoff = data.onoff;
 
   return (
     <div className="space-y-5">
@@ -233,10 +207,7 @@ export default async function HoopsLineupsPage({
           On/off <span className="text-text-dim font-normal text-[10px]">· ≥ 1,500 on-court poss · net differential vs floor time without him</span>
         </h2>
         {onoff.length ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <OnOffCard title="Rises with him" rows={upside} tone="pos" />
-            <OnOffCard title="Sinks with him" rows={downside} tone="neg" />
-          </div>
+          <OnOffBars rows={onoff} abbr={abbr} />
         ) : (
           <p className="text-xs text-text-dim">
             No {abbr} player has 1,500 on-court possessions yet — the floor keeps

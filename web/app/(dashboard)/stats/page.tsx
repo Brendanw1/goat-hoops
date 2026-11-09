@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { BackLink } from "@/components/ui/back-link";
 import { StatsTable, type StatsRow } from "@/components/ui/stats-table";
-import { getHoopsAdvAgg, getHoopsMeta, getHoopsPlayers, hoopsSeasons } from "@/lib/data-hoops";
+import { getHoopsAdvAgg, getHoopsMeta, getHoopsPlayers, getHoopsSeasAvgs, hoopsSeasons } from "@/lib/data-hoops";
+import { UsageScatter, type ScatterRow } from "@/components/ui/usage-scatter";
 
 export const metadata = { title: "Hoops stats" };
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
@@ -49,6 +50,25 @@ export default async function HoopsStatsPage({ searchParams }: {
     }
   }
 
+  // advanced fields: advagg covers through 2025-26; a season the walk hasn't
+  // reached (the live one) takes usage/TS from the season-averages doc instead
+  const usgCovered = rows.filter((r) => r.usg != null).length;
+  let enriched = rows;
+  if (usgCovered < rows.length / 2) {
+    const sa = await getHoopsSeasAvgs(season);
+    if (sa?.players) {
+      enriched = rows.map((r) => {
+        const a = sa.players[r.id]?.adv;
+        return a && typeof a.usg_pct === "number" && typeof a.ts_pct === "number"
+          ? { ...r, usg: a.usg_pct, ts: a.ts_pct } : r;
+      });
+    }
+  }
+  const scatterPool: ScatterRow[] = enriched.flatMap((r) =>
+    r.usg != null && r.ts != null
+      ? [{ id: r.id, name: r.name, team: r.team, usg: r.usg, ts: r.ts, gp: r.gp, min: r.min }]
+      : []);
+
   const qs = (s: number) => `/stats?season=${s}`;
 
   return (
@@ -83,7 +103,14 @@ export default async function HoopsStatsPage({ searchParams }: {
         })()}
       </p>
 
-      <StatsTable rows={rows} league={lg} lower={advDoc?.lower_better ?? []} />
+      <section className="space-y-2 max-w-5xl">
+        <h2 className="text-sm font-medium text-text-primary">
+          Usage vs efficiency <span className="text-text-dim font-normal text-[10px]">· {season - 1}-{String(season).slice(2)} · the offensive-role map</span>
+        </h2>
+        <UsageScatter pool={scatterPool} seasonLabel={`${season - 1}-${String(season).slice(2)}`} />
+      </section>
+
+      <StatsTable rows={enriched} league={lg} lower={advDoc?.lower_better ?? []} />
 
       {!rows.length ? <p className="text-xs text-text-dim">No seasons baked for this year.</p> : null}
       <p className="text-[10px] text-text-dim/70 max-w-5xl">
