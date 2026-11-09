@@ -51,17 +51,26 @@ export default async function HoopsStatsPage({ searchParams }: {
   }
 
   // advanced fields: advagg covers through 2025-26; a season the walk hasn't
-  // reached (the live one) takes usage/TS from the season-averages doc instead
+  // reached (the live one) takes usage/TS from the season-averages doc —
+  // a frozen trial snapshot once the subscription lapses, so it gets a flag
   const usgCovered = rows.filter((r) => r.usg != null).length;
   let enriched = rows;
+  let snapshotAsOf: string | null = null;
   if (usgCovered < rows.length / 2) {
     const sa = await getHoopsSeasAvgs(season);
     if (sa?.players) {
+      let filled = 0;
       enriched = rows.map((r) => {
         const a = sa.players[r.id]?.adv;
-        return a && typeof a.usg_pct === "number" && typeof a.ts_pct === "number"
-          ? { ...r, usg: a.usg_pct, ts: a.ts_pct } : r;
+        if (a && typeof a.usg_pct === "number" && typeof a.ts_pct === "number") {
+          filled += 1;
+          return { ...r, usg: a.usg_pct, ts: a.ts_pct };
+        }
+        return r;
       });
+      if (filled > 0) {
+        snapshotAsOf = meta?.seasons[String(season)]?.last ?? null;
+      }
     }
   }
   const scatterPool: ScatterRow[] = enriched.flatMap((r) =>
@@ -93,6 +102,11 @@ export default async function HoopsStatsPage({ searchParams }: {
         Shooting % bands come from the season&apos;s own player pool; TS%/USG%/ratings from the
         balldontlie v2-advanced roll-ups.
         {season === 2024 && <> <span className="text-flag">The 2023-24 season is partial (567 of 1230 games covered).</span></>}
+        {snapshotAsOf && (
+          <span className="text-flag">
+            {` 2026-27 advanced columns are the season-averages snapshot through ${snapshotAsOf} (trial subscription, now closed) — they hold until a resub; basic columns stay live daily.`}
+          </span>
+        )}
         {(() => {
           const cov = advDoc?.coverage?.[String(season)];
           return cov && cov.full === false ? (
