@@ -91,19 +91,30 @@ function OnOffCard({ title, rows, tone }: {
 export default async function HoopsLineupsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ team?: string }>;
+  searchParams: Promise<{ team?: string; season?: string }>;
 }) {
   const doc = await getHoopsLineups();
   if (!doc || !Object.keys(doc.seasons).length) {
     return <p className="text-sm text-text-dim">Lineups doc not baked yet.</p>;
   }
-  const { team } = await searchParams;
-  const seasonKey = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a))[0];
+  const { team, season: seasonParam } = await searchParams;
+  const seasonKeys = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
+  const seasonKey = seasonParam && doc.seasons[seasonParam] ? seasonParam : seasonKeys[0];
   const season = doc.seasons[seasonKey];
+  const live = seasonKey === seasonKeys[0] && season.coverage.partial && seasonKeys.length > 1;
   const teamKeys = Object.keys(season.teams).sort();
-  const abbr = team && season.teams[team.toUpperCase()] ? team.toUpperCase() : "OKC";
-  const data = season.teams[abbr];
+  // the live season only lists teams with a qualifying unit yet — fall back
+  // gracefully when a ?team= carried over from the other season isn't here:
+  // OKC if present, else the team whose top unit has logged the most together
+  const want = team?.toUpperCase();
+  const deepest = [...teamKeys].sort((x, y) =>
+    (season.teams[y].units[0]?.poss ?? 0) - (season.teams[x].units[0]?.poss ?? 0))[0];
+  const abbr = want && season.teams[want] ? want : season.teams.OKC ? "OKC" : deepest;
+  const data = season.teams[abbr] ?? { units: [], onoff: [] };
   const cov = season.coverage;
+  const gate = season.gate_0f ?? doc.gate_0f;
+  const fullKey = seasonKeys.find((k) => !doc.seasons[k].coverage.partial
+    || doc.seasons[k].coverage.games >= 1000);
 
   const hero = data.units[0];
   const best = [...data.units].sort((a, b) => (b.net ?? -99) - (a.net ?? -99))[0];
@@ -121,30 +132,55 @@ export default async function HoopsLineupsPage({
           </h1>
           <p className="text-xs text-text-dim max-w-2xl">
             {seasonLabelOf(Number(seasonKey))} · five-man units and on/off from the
-            possession-stint walk ({cov.games} of {cov.of} games,{" "}
+            possession-stint walk (
+            {live ? <>live · {cov.games} games in</> : <>{cov.games.toLocaleString()} of {cov.of.toLocaleString()} games</>},{" "}
             <span className="text-flag">PARTIAL</span>). Minutes are
             possession-proportional estimates (§0f); ratings are possession-exact.
           </p>
-          <p className="text-[11px] text-flag max-w-2xl">
-            Why not the current season: the 2026-27 stint derivation ran but its
-            §1 quality gates failed (player-minutes reconciliation — likely an
-            ESPN feed change mid-season; diagnosis in the ledger). No surface
-            ships on failed gates — this window stays until the rebuild passes.
-          </p>
         </div>
-        <form method="get" className="flex items-center gap-2">
-          <select name="team" defaultValue={abbr}
-            className="rounded-md border border-border-subtle bg-surface-1 px-2 py-1.5 text-xs text-text-primary">
-            {teamKeys.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-          <button type="submit"
-            className="rounded-md border border-border-subtle px-2.5 py-1.5 text-xs text-text-secondary hover:text-text-primary">
-            Go
-          </button>
-        </form>
+        <div className="flex items-center gap-2">
+          <nav aria-label="season" className="flex rounded-md border border-border-subtle overflow-hidden text-xs">
+            {seasonKeys.map((k) => {
+              const on = k === seasonKey;
+              const isLive = k === seasonKeys[0] && doc.seasons[k].coverage.partial && seasonKeys.length > 1;
+              return (
+                <Link key={k} href={`/lineups?season=${k}&team=${abbr}`}
+                  aria-current={on ? "page" : undefined}
+                  className={`px-2.5 py-1.5 ${on ? "bg-surface-1 text-text-primary font-medium"
+                    : "text-text-dim hover:text-text-secondary"}`}>
+                  {seasonLabelOf(Number(k))}{isLive && <span className="ml-1 text-flag">live</span>}
+                </Link>
+              );
+            })}
+          </nav>
+          <form method="get" className="flex items-center gap-2">
+            <input type="hidden" name="season" value={seasonKey} />
+            <select name="team" defaultValue={abbr}
+              className="rounded-md border border-border-subtle bg-surface-1 px-2 py-1.5 text-xs text-text-primary">
+              {teamKeys.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <button type="submit"
+              className="rounded-md border border-border-subtle px-2.5 py-1.5 text-xs text-text-secondary hover:text-text-primary">
+              Go
+            </button>
+          </form>
+        </div>
       </div>
+      {live && (
+        <p className="text-[11px] text-text-dim max-w-5xl -mt-2">
+          Early-season window: a unit appears at 100 possessions together and on/off at
+          1,500 on-court possessions (≈ mid-December for starters). {teamKeys.length} of
+          30 teams have a qualifying unit so far.
+          {fullKey && fullKey !== seasonKey && (
+            <> The full table is in{" "}
+              <Link href={`/lineups?season=${fullKey}&team=${abbr}`} className="underline hover:text-text-secondary">
+                {seasonLabelOf(Number(fullKey))}
+              </Link>.</>
+          )}
+        </p>
+      )}
 
       {hero && (
         <div className="rounded-xl border border-border-subtle bg-surface-1 px-4 py-3.5 max-w-5xl">
@@ -187,22 +223,34 @@ export default async function HoopsLineupsPage({
         <h2 className="text-sm font-medium text-text-primary">
           Units <span className="text-text-dim font-normal text-[10px]">· ≥ 100 possessions · sorted by minutes</span>
         </h2>
-        <UnitTable units={data.units} />
+        {data.units.length ? <UnitTable units={data.units} /> : (
+          <p className="text-xs text-text-dim">No {abbr} unit has reached 100 possessions together yet.</p>
+        )}
       </section>
 
       <section className="space-y-2 max-w-5xl">
         <h2 className="text-sm font-medium text-text-primary">
           On/off <span className="text-text-dim font-normal text-[10px]">· ≥ 1,500 on-court poss · net differential vs floor time without him</span>
         </h2>
-        <div className="grid gap-3 md:grid-cols-2">
-          <OnOffCard title="Rises with him" rows={upside} tone="pos" />
-          <OnOffCard title="Sinks with him" rows={downside} tone="neg" />
-        </div>
+        {onoff.length ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <OnOffCard title="Rises with him" rows={upside} tone="pos" />
+            <OnOffCard title="Sinks with him" rows={downside} tone="neg" />
+          </div>
+        ) : (
+          <p className="text-xs text-text-dim">
+            No {abbr} player has 1,500 on-court possessions yet — the floor keeps
+            small-sample on/off swings off the page.
+          </p>
+        )}
       </section>
 
       <p className="text-[10px] text-text-dim/70 max-w-5xl">
-        §0f-gated stint walk over ESPN PBP (score reconciliation {doc.gate_0f.score_exact != null ? `${(doc.gate_0f.score_exact * 100).toFixed(1)}%` : "—"}
-        exact vs finals; skipped {cov.of - cov.games} index-mismatched games).
+        §0f-gated stint walk over ESPN PBP — {gate.verdict} for {seasonLabelOf(Number(seasonKey))}
+        {gate.score_exact != null && (
+          <> (stint points reconcile to finals on {(gate.score_exact * 100).toFixed(1)}% of game-sides
+            {gate.skipped_index_mismatch != null && <>; {gate.skipped_index_mismatch} index-mismatched games skipped</>})</>
+        )}.
         *Minutes estimated by possession share — real clock minutes land with the
         interval-lineage rerun (§0f read). Descriptive only: lineup net ratings are
         small-sample, roster-mix confounded, and are not impact ratings.

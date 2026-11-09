@@ -1,7 +1,13 @@
 """lineups_build.py — P3 v1: 5-man units + per-player on/off from the §1
-ESPN-walk stints (site 2025, the 689-game ESPN window, PARTIAL).
+ESPN-walk stints (PARTIAL by construction for a live season).
 
-    python pipeline/lineups_build.py
+    python pipeline/lineups_build.py                      # site 2025
+    python pipeline/lineups_build.py --season 2027        # the live season
+    python pipeline/lineups_build.py --season 2025 --label control
+                         # read stints_2025_control/possessions_2025_control
+
+Each run MERGES its season into lineups.json.gz (seasons[season], with that
+season's own gate_0f) — building one season never erases another.
 
 Inputs (all read-only):
   - data/derived/stints_{season}.parquet — 10-man windows from the §1 walk;
@@ -27,6 +33,7 @@ A miss exits non-zero before the doc is written.
 Output: data/export/web/lineups.json.gz — descriptive only.
 """
 
+import argparse
 import gzip
 import json
 import sys
@@ -39,7 +46,6 @@ from paths import MART, ROOT  # noqa: E402
 
 DERIVED = ROOT / "data" / "derived"
 OUT = ROOT / "data" / "export" / "web"
-SEASON = 2025
 GAMES_FULL = 1230
 
 UNIT_MIN_POSS = 100     # §0f render floor: units
@@ -48,11 +54,17 @@ ONOFF_MIN_OFF_POSS = 500
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--season", type=int, default=2025)
+    ap.add_argument("--label", default="",
+                    help="read stints_{season}_{label}/possessions_{season}_{label}")
+    args = ap.parse_args()  # not `a`: the on/off loop below binds `a`
+    season, sfx = args.season, (f"_{args.label}" if args.label else "")
     games = pd.read_parquet(MART / "games.parquet")
-    gs = games[(games.season_year == SEASON) & (games.season_type == 2)
+    gs = games[(games.season_year == season) & (games.season_type == 2)
                & games.completed & (games.n_plays > 0)]
-    st = pd.read_parquet(DERIVED / f"stints_{SEASON}.parquet")
-    ps = pd.read_parquet(DERIVED / f"possessions_{SEASON}.parquet")
+    st = pd.read_parquet(DERIVED / f"stints_{season}{sfx}.parquet")
+    ps = pd.read_parquet(DERIVED / f"possessions_{season}{sfx}.parquet")
     pg = pd.read_parquet(MART / "player_game.parquet",
                          columns=["game_id", "team_id", "athlete_id", "pts"])
     pb = pd.read_parquet(MART / "pbp.parquet",
@@ -91,7 +103,7 @@ def main() -> int:
     def five(lst) -> tuple:
         return tuple(sorted(str(x) for x in lst))
 
-    gate = {"label": "§0f stint reconciliation (site 2025, ESPN window)",
+    gate = {"label": f"§0f stint reconciliation (site {season}, ESPN window)",
             "skipped_index_mismatch": 0}
     min_ok = poss_ok = score_ok = tot_side = n_games = 0
     units: dict[tuple, dict] = {}
@@ -233,16 +245,27 @@ def main() -> int:
         d["units"].sort(key=lambda r: -r["min"])
         d["onoff"].sort(key=lambda r: -r["diff"])
 
-    doc = {"seasons": {str(SEASON): {
-        "coverage": {"games": n_games, "of": GAMES_FULL, "partial": True,
-                     "source": "ESPN PBP stint walk (§1 lineage)"},
-        "teams": doc_teams}},
+    # merge: this season's entry (with its own gate) into the existing doc
+    path = OUT / "lineups.json.gz"
+    doc: dict = {"seasons": {}}
+    if path.exists():
+        with gzip.open(path, "rt") as f:
+            doc = json.load(f)
+    doc.setdefault("seasons", {})[str(season)] = {
+        "coverage": {"games": n_games, "of": GAMES_FULL,
+                     "partial": n_games < GAMES_FULL,
+                     "source": "ESPN PBP stint walk (§1 lineage)"
+                               + (f", input label '{args.label}'" if args.label else "")},
+        "teams": doc_teams,
         "gate_0f": gate}
-    with gzip.open(OUT / "lineups.json.gz", "wt") as f:
+    if season == 2025:
+        doc["gate_0f"] = gate  # legacy top-level field for older readers
+    with gzip.open(path, "wt") as f:
         json.dump(doc, f)
     n_units = sum(len(d["units"]) for d in doc_teams.values())
     n_onoff = sum(len(d["onoff"]) for d in doc_teams.values())
-    print(f"units kept: {n_units} | on/off rows: {n_onoff} | teams: {len(doc_teams)}")
+    print(f"site {season}: units kept {n_units} | on/off rows {n_onoff} | "
+          f"teams {len(doc_teams)} | doc seasons now {sorted(doc['seasons'])}")
     return 0
 
 

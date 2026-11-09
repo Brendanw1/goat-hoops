@@ -245,12 +245,18 @@ export type HoopsOnOffRow = {
   on_net: number; off_net: number; diff: number;
   on_ortg: number; on_drtg: number;
 };
+export type HoopsGate0f = {
+  label: string; verdict: string;
+  score_exact?: number | null; skipped_index_mismatch?: number;
+};
 export type HoopsLineupsDoc = {
   seasons: Record<string, {
     coverage: { games: number; of: number; partial: boolean; source: string };
     teams: Record<string, { units: HoopsUnitRow[]; onoff: HoopsOnOffRow[] }>;
+    gate_0f?: HoopsGate0f;
   }>;
-  gate_0f: { label: string; verdict: string; score_exact: number | null };
+  /** legacy top-level gate (site 2025) — per-season gates supersede it */
+  gate_0f: HoopsGate0f;
 };
 export const getHoopsLineups = cache(async (): Promise<HoopsLineupsDoc | null> =>
   (await fetchGzippedJson<HoopsLineupsDoc>("lineups.json.gz")) ?? null);

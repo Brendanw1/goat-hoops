@@ -1239,3 +1239,158 @@ only if a per-possession defender-context surface ever lands.
 
 Campaign table: §1 0.464 → §2 0.618 → §3 0.621 → §4 0.658 → §5 0.676 → §6 tie → §7 prior FAIL
 (τ suspect) → **§8 τ freed, still FAIL → response-side ceiling confirmed.**
+
+## §15 — gravity: teammate 3PA rate, a WOWY expression on the stint spine (pre-registered 2026-11-08, before any computation)
+
+Track C (launch doc M10). The expression follows the ASA WOWY design held in
+the KB (americansocceranalysis-com-34fc07b4fe4b): state the participation
+criteria, the filter, and the normalization; treat it as within-team
+importance, never league-wide quality. Descriptive lens — no projection claim.
+
+- **Unit**: stint windows (game, side, on-court five, play-index window
+  (start_i, end_i]) from `data/derived/stints_2025.parquet` (2024-25 regular
+  season; the §0f-validated spine).
+- **Participation**: ON = X among the team's five; OFF = X's team on court, X
+  not among the five.
+- **Primary metric**: teammate 3PA per 100 TEAM possessions, ON minus OFF
+  (X's own attempts excluded from both splits). Team possessions from
+  `possessions_2025.parquet` segments ending inside the window; shots from the
+  mart PBP (`is_shooting`, side-matched, `points_attempted==3`), positional
+  order per game — the same index alignment §0f already validated (0.9985).
+- **Secondary (reported, not gated)**: teammate 3PA share of teammate FGA,
+  ON minus OFF (possession-free robustness view).
+- **Qualifiers**: ≥600 ON team-possessions, ≥600 OFF team-possessions, and
+  ≥300 teammate FGA in each split.
+- **Confound discipline (ASA list, printed with the table)**: garbage time
+  NOT excluded (stated limitation); co-star overlap = share of X's OFF
+  possessions where the team's top-usage teammate (seasavgs usg, excluding X)
+  is ALSO off; positions kept separate in reporting (no cross-pool ranking);
+  team context stated (a weak attack's gravity ≠ a historic one's).
+
+### Gates (pre-assigned)
+- **G1 stability**: odd/even-game split-half Spearman ρ of gravity among
+  qualifiers ≥ 0.35 (each half must independently meet the qualifier floors).
+- **G2 directional**: median gravity of the top seasavgs-usage quartile
+  (among qualifiers) > median of the bottom quartile — attention should
+  bend shot diets.
+- **Ship rule**: both pass → descriptive surface eligible (read now; a
+  team-page lens post-launch). Any fail → recorded FAIL, no surface.
+
+### §15 amendment (2026-11-08, pre-computation — no number had been produced)
+Implementation review found a structural bias in the primary metric as
+registered: ON counts the FOUR teammates' threes while OFF counts all FIVE
+players on court (X's replacement included) — a 4-vs-5 comparison that biases
+every player by roughly −1/5 of the team rate and mostly measures the
+replacement's shot diet. Corrected to the **pairing WOWY** (the ASA note's
+pairing form): for each teammate T, T's own 3PA per 100 team possessions WITH
+X vs WITHOUT X (T on court in both; same games — OFF = X on that game's roster
+but not among the five), averaged across teammates with harmonic-mean
+possession weights; pairs enter at ≥100 possessions in each split. Floors,
+gates (G1 ρ ≥ 0.35 split-half; G2 top-usage-quartile median > bottom) and the
+ship rule are UNCHANGED. Two implementation facts also recorded: free throws
+carry `is_shooting` (pa 1) and are excluded from FGA; 578 of 138,179
+possession segments (0.4%) have no controlling team and drop.
+
+### §15 read (2026-11-08): G1 PASS, G2 FAIL (reversed) — the volume metric measures usage displacement, not gravity
+
+Pairing WOWY over 2024-25 (323 qualifiers; 97 qualify in both halves).
+
+| gate | result | bar | verdict |
+|---|---|---|---|
+| G1 split-half Spearman | **0.431** | ≥ 0.35 | PASS |
+| G2 top-usage-q median vs bottom-q | **−0.618 vs +0.556** | top > bottom | **FAIL (reversed)** |
+
+**Verdict: FAIL — no surface.** The table's top is low-usage rim-runners
+(Sims +3.04, Hayes +2.21, Kornet +2.01, Gobert +1.89); the bottom is high-usage
+bigs and scorers (Towns −2.62, Porziņģis −2.44, Davis −2.19, LaVine −2.02).
+
+**Diagnosis (the read's useful line).** Possessions are zero-sum: a high-usage
+player on the floor takes the team's shots himself, so teammates' 3PA *per team
+possession* falls mechanically; a non-shooting big uses almost nothing, so
+everyone else shoots more. Primary vs usage: Spearman **−0.532** (n=264). The
+stable effect G1 certified is real — it is usage displacement, the wrong
+construct for gravity (the ASA confound "the normalization drives the result").
+
+**Exploratory, NOT confirmatory (same sample):** the registered secondary — the
+usage-neutral diet view, teammates' 3PA share of their own FGA, with minus
+without — runs Spearman **+0.196** with usage (the direction gravity predicts:
+stars draw help, teammates' diets tilt to threes); primary vs secondary +0.269.
+Not promoted here — switching metrics after seeing the gate is the forking path
+the gates exist to block.
+
+Limitations recorded: the stint spine recovers 0.865 of possessions and 0.856 of
+FGA (evicted/poisoned windows; symmetric across both, so rates are unbiased to
+first order, but gap windows may cluster in substitution-heavy stretches);
+garbage time included; 59 of 323 qualifiers lack a seasavgs usage row (BDL pool
+coverage) and sit out G2.
+
+**Why.** Track C's first gravity expression measured teammates' 3PA volume per
+team possession; possessions are zero-sum, so it ranked usage displacement
+(Spearman −0.532 with usage) — the diet form carries the test to held-out data (§15b).
+
+## §15b — gravity as a diet shift: the held-out confirmation (pre-registered 2026-11-08, before any held-out data exists)
+
+- **Primary**: the §15 secondary — pairing WOWY on teammates' 3PA SHARE of their
+  own FGA, with X minus without X, harmonic-weighted across pairs (pair floor
+  100 possessions per split). Usage-neutral by construction.
+- **Held-out sample**: the 2026-27 season's stint spine, run ONLY after that
+  walk passes §1's two gates (the parked P5 rebuild) AND at least 60 qualifiers
+  meet the §15 floors (≥600 possessions each split, ≥300 teammate FGA each split;
+  for rotation stars the OFF floor binds near ~20 games — expected mid-December
+  or later). 2024-25 is now the EXPLORATION sample and may not be reused for it.
+- **Gates (unchanged from §15)**: G1 split-half Spearman ≥ 0.35; G2 top-usage
+  quartile median > bottom-quartile median.
+- **Ship rule**: both pass → the descriptive gravity lens is eligible (a team-page
+  panel: "who bends the defense"), labeled within-team importance, never league
+  quality. Any fail → closed with Track C's volume form.
+
+**Why.** §15's volume form failed on construct, not noise (G1 0.431 certified a
+stable effect); the usage-neutral diet form showed gravity's predicted direction
+in exploration (+0.196 with usage) and earns a clean held-out test.
+
+### §0f update (2026-11-08, later the same day): the walk generalized — full-season 2025 AND the live 2026-27 season both PASS
+
+The "2027 lineups failure" is resolved, and the resolution corrects the
+record: there never was a 2027-specific regression. The 2025 control run
+(under the new --label guard) fails the same §1 gates the 2027 walk fails
+(minutes median |Δ| ~7 min, possessions ~86% within ±2) — the ESPN sub-walk
+drifts in EVERY season; the 0.28-minute spine the §1 read cites was
+pbpstats' official intervals (stints_from_pt), a different lineage that
+needs a paid pull to extend. §0f was always the ship gate, and §0f's
+structural reconciliation holds wherever the ESPN PBP is complete.
+
+- **Site 2025 full season**: 1,199 of 1,230 games (35 index-mismatched
+  skips), minutes structural 1.000, poss-in-band 0.980, score-exact 0.9992
+  → PASS. 263 units, 311 on/off rows — replacing the 669-game/148-unit
+  window above (OKC's five and SGA's +17.8 unchanged in substance).
+- **Site 2027 LIVE**: 134 of ~139 held games, minutes structural 1.000,
+  poss-in-band 0.9925, score-exact 1.000 → **PASS — live lineups ship.**
+  21 units across 19 teams (100-poss floor), on/off empty until ~mid-December
+  (1,500-poss floor) — the floors are the honesty device, not a data gap.
+- The stale "why not the current season" banner is retired; /lineups gains
+  season pills (2026-27 live · 2024-25). The daily cron now re-walks the
+  live season and re-runs §0f every morning (gate-halting).
+- §1's two ESPN-side gates stay recorded as FAIL for the sub-walk lineage in
+  every season — unchanged; that campaign's ceiling read stands.
+
+**Verdict: PASS (2025 full season and 2027 live; §1 sub-walk gates remain FAIL by design of the lineage).**
+
+### §15 window note + §15b spine amendment (2026-11-08, before any §15b computation)
+
+Window: §15's numbers were computed on the then-production 2024-25 spine —
+39,738 stint rows over the 689-game ESPN window held at run time. The spine
+was promoted the same day to the full 1,234-game walk (70,432 rows, §0f
+update above) after §15 closed. The gate verdicts are untouched (the sample
+met its preregistered floors); a rerun on the promoted spine would only
+tighten the split-half halves' floors. Recorded so the csv/json lineage is
+unambiguous.
+
+§15b spine amendment: the held-out sample is now CONCRETE — the live
+2026-27 ESPN stint spine (stints_2027.parquet, rebuilt 2026-11-08, §0f PASS
+at 134 games). The "after P5 passes §1's gates" condition is satisfied by
+the corrected reading of the gates: §0f is the ship gate for this lineage
+and it passes; §1's sub-walk gates fail in every season including the one
+§15 explored on, so they were never a 2027-specific bar. The qualifier
+floors (≥600 possessions each split, ~20 games) still gate the RUN DATE,
+not the spine: first eligible window ≈ mid-December 2026, re-derived by the
+daily cron's walk. No other §15b term changes.

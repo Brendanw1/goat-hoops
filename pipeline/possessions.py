@@ -201,7 +201,11 @@ def derive_stints(periods, types, tids, p1s, p2s, is_scoring, starters,
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2025)
+    ap.add_argument("--label", default="",
+                    help="suffix every output (stints_{season}_{label}.parquet, gate_*) — "
+                         "control/bisect runs must never overwrite the validated production files")
     a = ap.parse_args()
+    sfx = f"_{a.label}" if a.label else ""
     g = pd.read_parquet(MART / "games.parquet")
     games = g[(g.season_year == a.season) & (g.season_type == 2) & g.completed & (g.n_plays > 0)]
     pg = pd.read_parquet(MART / "player_game.parquet")
@@ -262,8 +266,8 @@ def main() -> None:
           f"subs {diag_tot['subs_applied']:,}/{diag_tot['subs_skipped']:,} | "
           f"evidence adds {diag_tot['evidence_adds']:,}, evictions {diag_tot['evictions']:,}")
     DERIVED.mkdir(parents=True, exist_ok=True)
-    ps.to_parquet(DERIVED / f"possessions_{a.season}.parquet", index=False)
-    st.to_parquet(DERIVED / f"stints_{a.season}.parquet", index=False)
+    ps.to_parquet(DERIVED / f"possessions_{a.season}{sfx}.parquet", index=False)
+    st.to_parquet(DERIVED / f"stints_{a.season}{sfx}.parquet", index=False)
 
     # ---- gate 1: possessions vs pbpstats (dead-ball excluded) -----------
     pbs_f = Path.home() / "Projects/vt_baseball/hoops_mart/data/pbpstats/games.parquet"
@@ -292,7 +296,7 @@ def main() -> None:
             gate = "PASS" if (within2 >= 0.95 and mae < 1.5) else "FAIL"
             print(f"GATE possessions-vs-pbpstats: {gate} — within±2 {within2:.1%}, "
                   f"MAE {mae:.2f} ({n_joined} joined games)")
-            (DERIVED / f"gate_possessions_{a.season}.json").write_text(json.dumps({
+            (DERIVED / f"gate_possessions_{a.season}{sfx}.json").write_text(json.dumps({
                 "within2": within2, "mae": mae, "n_games": int(n_joined),
                 "pass": gate == "PASS"}))
 
@@ -321,7 +325,7 @@ def main() -> None:
         med = float(delta.median())
         gate2 = "PASS" if med <= 0.5 else "FAIL"
         print(f"GATE player-minutes: {gate2} — median |Δ| {med:.2f} min over {len(cmp):,} player-games")
-        (DERIVED / f"gate_minutes_{a.season}.json").write_text(json.dumps({
+        (DERIVED / f"gate_minutes_{a.season}{sfx}.json").write_text(json.dumps({
             "median_abs_delta": med, "n": int(len(cmp)), "pass": gate2 == "PASS"}))
 
 

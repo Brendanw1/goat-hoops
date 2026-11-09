@@ -104,8 +104,11 @@ the paid tier only widens history and adds refresh cadence.
 
 ## 6 · Limitations — stated, not hidden
 
-1. Lineups cover the 2024-25 window only until the 2026-27 walk passes its
-   gates (the page says so, with the diagnosis pointer).
+1. Lineups: the live 2026-27 season ships (§0f PASS, 134 games at
+   2026-11-08; the 1,500-possession on/off floor fills ~mid-December) with
+   the full 2024-25 season beside it; minutes remain possession-proportional
+   estimates — the sub-walk lineage fails §1's minutes gate in every season
+   (recorded in §0f's update read).
 2. Projections cover players ≥ 250 minutes (the modeling floor) — early-
    season rookies appear as they qualify; the panel and /rookies say so.
 3. Interval calibration is era-local (one-fold-back conformal); a shock
@@ -134,8 +137,13 @@ the paid tier only widens history and adds refresh cadence.
 
 ### Phase L — launch-critical (the DNS-flip blockers, in order)
 1. **Deadline fold-in** (2026-11-09, after 11:30 PT): stop the walk, fold the
-   advanced tail into the bake, final cheap pulls (live-season seasavgs,
-   contract details if budget, one last injuries snapshot), re-bake, sync.
+   advanced tail into the bake, final cheap pulls (contract details if budget,
+   one last injuries snapshot), re-bake, sync. The live-season seasavgs pull
+   already ran 2026-11-08 — clear its receipts first so the fold-in refreshes
+   them through the final morning
+   (`DELETE FROM receipts WHERE step='bdl_seasavgs' AND key LIKE '2026_%'`,
+   then `bdl_pull.py --season-avgs 2026`; the bake's seasavgs loop now
+   includes BDL label 2026 → site 2027).
    **Then the owner cancels the BDL trial.**
 2. **Vercel project + env** (§1's checklist) — a preview deploy first, the
    smoke test on the preview URL (all 18 routes, one player page, one team
@@ -146,10 +154,15 @@ the paid tier only widens history and adds refresh cadence.
    freshness contract (boxes, ticker, leaderboards). First run: tomorrow 09:00.
 
 ### Phase P — post-launch polish (the first two weeks)
-5. **2027 stint-walk rebuild** (lineups live) — the parked diagnosis: add
-   `--label`, run the 2025 control, bisect the parse (seq semantics,
-   wallclock, join ordering). Gate: §1's two gates, then /lineups gains the
-   season selector with 2025 + live.
+5. **2027 stint-walk rebuild** — **DONE 2026-11-08 (ahead of launch).** The
+   control run exonerated 2027: the ESPN sub-walk fails §1's minutes gate in
+   EVERY season (the 0.28-minute spine was pbpstats' official intervals, a
+   different lineage). §0f — the ship gate — PASSes: the live 2026-27 season
+   ships on /lineups (134 games, floors honest: 21 units at 100 poss, on/off
+   from ~mid-December), the 2024-25 table is now the FULL 1,199-game season
+   (was 669), and the daily cron re-walks + re-gates the live season every
+   morning. Season pills on the page; the stale "why not the current season"
+   banner is retired.
 6. **Run charts** on game pages (the play feed carries everything).
 7. **Usage-vs-efficiency scatter** on /stats (zero-JS SVG, labeled outliers).
 8. **Player-page split** (D1) — panel components, mechanical.
@@ -157,9 +170,13 @@ the paid tier only widens history and adds refresh cadence.
    lineups.json).
 
 ### Phase M — the model tier's next moves (owner-gated, new data required)
-10. **Track C — role decomposition/gravity** from the stint spine
-    (teammate 3PA-rate differentials on/off) — descriptive first, the KB's
-    WOWY confound list as the discipline spec.
+10. **Track C — role decomposition/gravity**: §15 RAN 2026-11-08 — the
+    volume form (teammates' 3PA per team possession, pairing WOWY) FAILED G2
+    reversed: it measures usage displacement (ρ −0.53 with usage), not
+    gravity. §15b is preregistered: the usage-neutral diet form (+0.20 with
+    usage in exploration), tested on HELD-OUT data — the live 2026-27 stint
+    spine (§0f PASS; spine amendment recorded in RESULTS §15b) once the
+    possession floors accrue (~20 games, mid-December).
 11. **A college/G-League feed** — the only path to prospect projections
     (the documented gap); evaluate NCAA anchors before committing.
 12. **Defender context** — reopens §8's gate only if a public source ever
