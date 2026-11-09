@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { getHoopsGame } from "@/lib/data-hoops";
 import { ShotChart } from "@/components/ui/shot-chart";
+import { RunChart } from "@/components/ui/run-chart";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -56,6 +57,11 @@ export default async function HoopsGamePage({ params }: {
             </div>
           </Link>
         ))}
+      </div>
+
+      <div className="space-y-2 max-w-5xl">
+        <h2 className="text-sm font-medium text-text-primary">The run of play</h2>
+        <RunChart plays={plays} home={game.home} away={game.away} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
