@@ -1707,3 +1707,80 @@ opportunities that don't end in an assist (tracking-only today — catalog B).
 0.0004). It earns its place as a validated volume measure, but it adds
 almost nothing over that sum. It carries Box Creation inside its formula;
 this test validated the whole, not that part.
+
+## §16 — Box Plus/Minus 2.0 + VORP from the ESPN box (pre-registered 2026-11-15, before any computation)
+
+**What.** Catalog C1: Daniel Myers' BPM 2.0 with its published coefficients
+(basketball-reference.com/about/bpm2.html, KB
+`sources/basketball/basketball-reference-com-457a28b29d.md`), season level,
+regular season, per (season, team, athlete) stint. A player's season BPM is
+the minutes-weighted mean over stints; VORP is summed over stints.
+
+**Fixed rules.**
+- Per 100 = per the player's possessions: minutes share × average of both
+  teams' possessions (the §0h STL% denominator).
+- Position = 2.130 + 8.668·%TRB − 2.486·%STL + 0.992·%PF − 3.536·%AST +
+  1.667·%BLK, with % = the player's share of the team's totals while on
+  court. Blended with 50 minutes at the listed position (PG 1, SG 2, G 1.5,
+  SF 3, F 3.5, PF 4, C 5, else 3), shifted so the team's minutes-weighted
+  mean is 3.0 (iterated with the 1-5 clip), clipped to 1-5.
+- Offensive role = 6.00 − 6.642·%AST − 8.544·%threshold points; threshold
+  points = PTS − TSA·(team PTS/TSA − 0.33). Same 50-minute blend at role
+  4.0, team mean 3.0, clip 1-5.
+- Coefficients interpolate linearly between the position-1 and position-5
+  columns (FGA/FTA by offensive role); position constant (3 − pos)·(−0.409)
+  below 3, else 0; role constant (3 − role)·(−1.387).
+- Points adjusted for team context: PTS + TSA·(1.00 − team PTS/TSA). The 1.00
+  baseline is not printed in the source; it is reconstructed from the worked
+  example (2017 LeBron, 34.9 → 30.4 per 100 at Cleveland's shooting) and is
+  stated as such.
+- Team adjustment: one constant per team so Σ BPM·(min / (team min / 5)) =
+  the team's net rating per 100 (Σ/Σ). **Simplification:** no strength-of-
+  schedule or average-lead correction (each is a few tenths for most teams).
+- VORP = (BPM + 2.0) · min / (team min / 5) · team games / 82.
+
+**Gates (both must pass).**
+1. *Benchmark (external):* Pearson r between our BPM pooled over site
+   seasons 2025 + 2026 (minutes-weighted) and LUMA Basketball Research
+   `xpts_rapm` season 2026 `net_rapm` (its three-season window 2024-2026),
+   on players with LUMA poss ≥ 2,500 and ≥ 1,000 pooled ESPN minutes,
+   bridged by normalized name (ambiguous names dropped): **r ≥ 0.60**, AND
+   at least 0.03 above the same r for Game Score per 36 pooled the same way.
+   (Our own RAPM reached 0.676 vs `xpts_net` in §5; a box-only rating gets a
+   lower bar but must beat the simplest box composite.)
+2. *Stability:* year-to-year r of BPM 2025 → 2026, players ≥ 1,000 minutes
+   in both: **r ≥ 0.60**.
+
+Pass → BPM and VORP render on `/leaders` and the player page as "a box-score
+estimate of impact, not a forecast", LUMA credited for the benchmark. Fail →
+off, with a data / handling / modeling diagnosis. Bars do not move.
+
+## §17 — Regressed percentiles (pre-registered 2026-11-15, before any computation)
+
+**What.** Catalog C3: show each rate stat regressed toward the league mean
+beside the raw value, with the shrinkage set by measured reliability.
+
+**Fixed rules.** Exposure = minutes, one constant per stat
+(**simplification:** attempt-based stats would be better served by an
+attempt exposure; minutes keeps one rule for every stat). For stat s:
+- *Fit on site 2025 only:* split each player's regular-season games into odd
+  and even by date order; compute s on each half (Σ/Σ, the site's own
+  definitions); r = Pearson r across players with ≥ 500 minutes in total;
+  m = median half-minutes of those players; k = m·(1 − r)/r. r ≤ 0 → s is
+  not regressed.
+- *Regressed value:* (min·x + k·μ) / (min + k), μ = the minutes-weighted
+  mean of the qualified pool in the same season.
+- Stats: every live rate on `/leaders` that isn't a count (TS%, eFG%, FT
+  rate, 3PA rate, USG%, AST%, AST/TO, TO ratio, OREB/DREB/REB%, STL%, BLK%,
+  the §0i zone rates and FG%, self-created %, pull-up rate and eFG%, the
+  per-36 creation and playmaking rates, Offensive Load) plus BPM if §16 passes.
+
+**Gate (held out in time, site 2026).** Split each player's 2025-26 games at
+the league's median game date. With k from 2025 and μ from the first-half
+pool, for players with ≥ 300 minutes in each half: per stat, compare
+MSE(regressed first half → raw second half) with MSE(raw first half → raw
+second half). A stat passes when the regressed MSE is lower. **Overall pass:
+≥ 80% of stats pass AND the median MSE reduction across stats is ≥ 5%.**
+Overall pass → the regressed value renders beside raw on `/leaders` for the
+stats that passed individually; stats that failed show raw only. Overall
+fail → nothing renders. Bars do not move.
