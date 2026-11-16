@@ -2658,3 +2658,55 @@ placement measurement (player-games both sources hold). The registered
 measurement's 0.922 stays on the record next to it. The §22-b walk becomes the
 default for every season, /lineups and on/off rebuild on it, and §22's
 visuals ship, with structural gates 3–5 re-checked per season at bake time.
+
+## §23 — possession start types and the inferred shot clock (pre-registered 2026-11-16, before any of it is built)
+
+**Why.** Phase 2 of `docs/PBP-ROADMAP-2026-11.md`: points per possession by
+how the possession began and by how deep into the shot clock it ended
+(possession anatomy), and offensive rebounding against transition defense
+(crash or retreat). Possession *counts* already pass (§21). Start types and
+timing are new claims, so they are tested against pbpstats' per-possession
+data from NBA.com's logs.
+
+**Definitions (fixed now).**
+- *Start class*, four values both sources can express:
+  - *after a make*: opponent made FG, or made final FT;
+  - *after a defensive rebound*: opponent missed FG or FT, including blocks;
+  - *after a live-ball turnover*: steal;
+  - *after a dead ball*: dead-ball turnover, violation, foul, timeout, or
+    period start.
+
+  pbpstats mapping: "Off * Make" and "Off FT Make" → make; "Off * Miss",
+  "Off FT Miss", "Off * Block" → rebound; "Off Steal" → live TO;
+  "Off Dead Ball" and "Off Timeout" → dead ball.
+- *Inferred shot clock*: seconds elapsed since the possession started, reset at
+  an offensive rebound (the NBA resets to 14 then: elapsed restarts at 10).
+- *Transition*: a possession starting after a defensive rebound or a live-ball
+  turnover that ends within 8 s of its start. Computed identically on both
+  sources.
+- *Matching*: game via (Eastern date, home abbreviation); team via its
+  offense; possession via the same team, period and start time within ±3 s.
+
+**Data.** 2024-25 regular season, the only season with pbpstats
+possessions in hand, on the §22-b walk's possession segments.
+
+**Gates.**
+1. Start-class agreement on matched possessions ≥ 95%, with ≥ 90% of our
+   possessions matched.
+2. Team points per possession by start class vs pbpstats: r ≥ 0.95 over the
+   30 × 4 (team, class) cells.
+3. Inferred shot clock: ≥ 95% of shot-clock-violation turnovers land at
+   ≥ 23.0 s elapsed (≥ 13.0 s after an offensive-rebound reset).
+4. Transition share by team vs pbpstats (same definition): r ≥ 0.85.
+
+**Iteration rule.** As §21: diagnosed (data vs handling vs modeling) and
+logged before any change; at most three logged iterations; bars never move.
+
+**Shipping rule.** All four pass on 2024-25 → possession anatomy and crash
+or retreat render for every season the walk covers, labelled descriptive,
+with the placement tests run on 2024-25. Any fail → neither renders.
+
+**Expected.** Start-class agreement 93–97% (the dead-ball/timeout boundary
+and and-one sequences are the risk), PPP r ≈ 0.97, shot-clock gate the
+hardest. ESPN rows have clock resolution of a second or less, so the bar
+leaves 1 s of room.
