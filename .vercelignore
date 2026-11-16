@@ -1,0 +1,4 @@
+# CLI deploys ignore .gitignore; ship only the app (data comes from R2 at runtime).
+/*
+!/web
+web/.env*
