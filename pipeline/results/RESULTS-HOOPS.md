@@ -1608,3 +1608,23 @@ threes per 36, assist points and assisted threes per 36 (B); rim assists per
 and eFG, bad-pass and lost-ball turnovers per 36. Box: Game Score,
 30/40-point games, double- and triple-doubles. Zone FG% stats carry attempt
 floors (rim 100, mid 60, c3 40, ab3 100, pull-up 100; the live season scales them).
+
+## §0h-c — turnover ratio from free-throw trips, held-out season (pre-registered 2026-11-15, before any 2025-26 comparison)
+
+**Why.** §0h-b failed `to_ratio` (0.788) with a data diagnosis: NBA.com counts
+free-throw trips where §0h used 0.44·FTA. Working on the already-read
+2024-25 rows only (now the exploration sample), the trip rule that fits is:
+a trip = one ESPN PBP row whose type is `Free Throw - 1 of 2` or
+`Free Throw - 1 of 3`, credited to `p1`. And-ones (`1 of 1`), technicals,
+flagrant and clear-path free throws are not trips. On 2024-25 that rule
+matches 0.9995 of 25,127 rows (0.44·FTA: 0.794; every `1 of N`: 0.858).
+Because the rule was chosen on 2024-25, 2024-25 cannot test it.
+
+**Test (held out).** Site 2026 = balldontlie season 2025, regular season,
+full-game rows (`period == 0`), joined as §0h-b (date, ESPN abbr, normalized
+name). Per (game, player) with minutes > 0:
+ours = 100·TOV / (FGA + trips + AST + TOV), 0 when the denominator is 0, vs
+`turnover_ratio`. Match = |diff| ≤ 0.15 (the §0h-b bar); pass = match rate ≥
+0.95 over ≥ 10,000 rows. Pass → `to_ratio` renders live (lower is better),
+computed season-level as Σ/Σ with the same trip count. Fail → stays off,
+with a diagnosis. The bar does not move after the read.
