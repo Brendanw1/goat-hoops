@@ -2498,3 +2498,53 @@ counted in §0f's game totals (2024-25 coverage read 1,231 of 1,230). They are
 now excluded (2024-25: 1,228 games, 2025-26: 1,183; all three seasons PASS).
 Chicago has play-by-play for only 39 of its 2025-26 games, a mart gap noted for
 the mart owner.
+
+## §22-b — a substitution walk that recovers missed entries (pre-registered 2026-11-16, before any walk change)
+
+**Why.** §22 failed on minutes alone. Game minutes were within 1.0 of the box in
+90.7% of player-games (bar 95%), and season minutes within 1% for 79.2% of
+players (bar 95%). The diagnosis was ESPN substitution rows that are missing or
+unusable, so a player's entry or exit is found late or never. pbpstats'
+official-log intervals clear both bars on the same box (98.7% / 99.2%), so the
+bars are reachable.
+
+**Split (fixed now).** 2024-25 regular season, NBA-vs-NBA games
+(`rotations.load_games`). *Development*: games before 2025-02-01 (712). Every
+diagnostic and every candidate change is read only on these. *Test*: games
+on or after 2025-02-01 (519). It is read once, for the final candidate, and
+never used to choose between candidates. The §22 iteration reads used the full
+season; nothing from them is tuned on here.
+
+**Candidates.** Handling and modeling changes to `derive_stints`, developed on
+the development half. Each change and its development numbers are logged here
+before the next change; at most three logged iterations. Starting hypotheses,
+to be confirmed or dropped on development data:
+- (a) period starters from evidence: the five who act in a period before any
+  substitution names them, instead of carrying over the previous period's
+  last five;
+- (b) a substitution whose outgoing player is not on the floor still brings the
+  incoming player on (now the whole row is skipped);
+- (c) a better eviction rule than "least recently evidenced".
+
+**Gates on the test half (all must pass).**
+1. Game minutes: our minutes within 1.0 of box minutes in ≥ 95% of
+   player-games (box minutes > 0).
+2. Season minutes: within 1% of box for ≥ 95% of players with ≥ 500 box
+   minutes in the test half.
+3. §22 placement: per-minute share r ≥ 0.95 and MAD ≤ 0.03; interval Jaccard
+   median ≥ 0.95; shares sum to 5.00 ± 0.01 (population: ≥ 500 minutes in
+   the test half).
+4. No regression, full season: §21 possessions ≥ 95% within ±2 of pbpstats
+   with MAE < 1.5; minutes median |Δ| ≤ 0.5; §0f minutes ≥ 0.95, possessions in
+   band ≥ 0.95, score exact ≥ 0.99.
+
+**Shipping rule.** All pass → the new walk becomes the default, /lineups and
+on/off rebuild on it, and §22's visuals ship. §22 gates 1–5 are then re-read
+on the full season and logged, but that read cannot block, since half of it
+is development data. Any fail → no walk change ships, and the result is logged
+as the ceiling of the ESPN substitution log.
+
+**Expected.** Game minutes 93–96%; (a) carries most of the gain if missed
+period-start lineups are the main source. Risk: errors from the evidence rule
+cannot be fixed by recovering entries, because a player who never records an
+event during a missed stint leaves no trace.
