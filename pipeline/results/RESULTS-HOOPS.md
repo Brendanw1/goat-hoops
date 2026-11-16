@@ -1534,3 +1534,43 @@ change (see COLLABORATION).
 
 **Live set (§0h + §0h-b):** usg_pct, ast_pct, orb_pct, drb_pct, reb_pct,
 ts_pct, efg_pct, ast_to; descriptive and ungated: ftr, tpar, stl_pct, blk_pct.
+
+## §0i — shot creation, zones and playmaking from ESPN PBP (pre-registered 2026-11-15, before any computation)
+
+**What.** Catalog Batch 2 (A2/A3/A8): per player-season shot zones, assisted vs
+self-created makes, shot-type mix, assists by the receiver's zone, turnover
+type split, and box milestones — all from the §0-gated ESPN mart
+(`shots` ⋈ `pbp` on `play_id`: 519,573/519,573 joined, shooter = `p1` 100%).
+Two parts have an independent reference and are gated here; the rest is
+descriptive.
+
+**Fixed rules.** Regular season, non-free-throw shots. The rim sits at
+(25, 1) in the mart's attacking-half frame (fit to the play-text distances
+before this registration: median |err| 0.29 ft, bias 0.02). Zones, NBA.com
+definitions in that frame: `rim` = 2PA within 4 ft of (25, 1); `paint` =
+other 2PA with |x − 25| ≤ 8 and y ≤ 14.75; `mid` = other 2PA; `c3` = 3PA with
+y ≤ 9.75 (14 ft from the baseline); `ab3` = other 3PA (3PA identified by
+`points_attempted == 3`, never by position). A made shot is assisted when
+its PBP row carries `p2`; `p2` on a miss is the blocker and is ignored.
+
+**Gate A — zones (site 2025 = BDL 2024 `shooting_by_zone`, regular season).**
+Players ≥ 500 ESPN regular-season minutes present in both; per zone (rim =
+restricted_area, paint = in_the_paint_(non-ra), mid = mid-range, c3 = left +
+right corner 3, ab3 = above_the_break_3), FGA per game ours vs theirs:
+Pearson r ≥ 0.95, AND league share of FGA within 2.0 percentage points, AND
+league FG% within 2.0 points (theirs gp-weighted from per-game rows).
+Integer-foot coordinates blur the 4-ft arc and the 14-ft corner line, hence
+0.95 rather than the box-ratio bars.
+
+**Gate B — assisted share (game-level, BDL 2024 full-game rows,
+`period == 0`, regular season, joined as §0h-b).** Per (game, player) with
+FGM > 0: ours = assisted FGM / FGM vs `pct_assisted_fgm`. Match = |diff| ≤
+0.0015; pass = match rate ≥ 0.95 over ≥ 10,000 rows (assist attribution is a
+scorer judgment; §0 measured 322/324 exact).
+
+**Status of each output.** Zone shares/FG% → Gate A. Assisted/unassisted →
+Gate B. Assists by receiver zone → both A and B. Shot types (ESPN's own
+taxonomy), turnover split, Game Score and milestones → descriptive (no
+external counterpart; box counts already §0-gated). A failed gate keeps its
+stats off the site; the miss gets the data/handling/modeling diagnosis.
+Thresholds do not move after the read.
