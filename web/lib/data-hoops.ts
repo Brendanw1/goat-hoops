@@ -371,6 +371,8 @@ export type HoopsRatesDoc = {
   stats: string[];
   /** per stat: "gated (§0h)" | "gated (§0i)" | "box score" | "descriptive" */
   status?: Record<string, string>;
+  /** §17: stat -> shrinkage constant k in minutes; rows carry "{stat}|reg" */
+  shrink_k?: Record<string, number>;
   gate_0h: { stats?: Record<string, { pass: boolean; pass_0hb?: boolean }> };
   note: string;
 };

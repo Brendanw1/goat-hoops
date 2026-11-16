@@ -8,6 +8,14 @@ Read before any work: `docs/hoops-spec.md` (the owner's requirements),
 `~/Projects/vt_baseball/hoops_mart/README.md` (the data layer: ESPN feed,
 LUMA validation gate, mart tables).
 
+## Stats-catalog models (live; each gated in `pipeline/results/RESULTS-HOOPS.md`)
+
+- Player rates rebuild — §0h / §0h-b / §0h-c (`pipeline/rates.py`)
+- Shot creation, zones, playmaking — §0i (`pipeline/creation.py`)
+- Offensive Load — §0j (`pipeline/rates.py`)
+- Box Plus/Minus 2.0 + VORP — §16 (`pipeline/bpm.py`)
+- Regressed values — §17 (`pipeline/shrink.py`)
+
 ## Clean-room rules (hard)
 
 1. Everything shipped derives from public sources only: ESPN's public API

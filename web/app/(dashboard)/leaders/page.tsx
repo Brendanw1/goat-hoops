@@ -14,6 +14,8 @@ const DEFS: Def[] = [
   { key: "ast", label: "Assists", group: "Per game", dp: 1, what: "assists per game" },
   { key: "stl", label: "Steals", group: "Per game", dp: 1, what: "steals per game" },
   { key: "blk", label: "Blocks", group: "Per game", dp: 1, what: "blocks per game" },
+  { key: "bpm", label: "BPM", group: "Impact", dp: 1, what: "Box Plus/Minus 2.0 (Myers): points per 100 possessions above an average player, estimated from the box score" },
+  { key: "vorp", label: "VORP", group: "Impact", dp: 1, what: "value over a replacement player (BPM −2.0), scaled by share of team minutes and games" },
   { key: "ts_pct", label: "TS%", group: "Shooting", pct: true, dp: 1, what: "true shooting: PTS / 2(FGA + 0.44·FTA)" },
   { key: "efg_pct", label: "eFG%", group: "Shooting", pct: true, dp: 1, what: "effective FG%: (FGM + 0.5·3PM) / FGA" },
   { key: "ftr", label: "FT rate", group: "Shooting", pct: true, dp: 1, what: "free-throw attempts per field-goal attempt" },
@@ -77,6 +79,7 @@ export default async function LeadersPage({ searchParams }: {
   const status = BOX.has(def.key) ? "box score" : rates.status?.[def.key]
     ?? (gate && (gate.pass || gate.pass_0hb) ? "gated (§0h)" : "descriptive");
   const floor = lg[`${def.key}|floor`] as number | undefined;
+  const kReg = rates.shrink_k?.[def.key];
 
   const boardRows = new Map((board?.seasons[String(season)] ?? []).map((r) => [r.id, r]));
   const qualified = Object.entries(rates.seasons[String(season)]?.players ?? {})
@@ -87,8 +90,9 @@ export default async function LeadersPage({ searchParams }: {
       if (typeof raw !== "number" || !b) return [];
       const pc = p[`${def.key}|pct`] as HoopsRatesPct | undefined;
       const baked = pool === "all" ? pc?.all : pc?.pos;
+      const reg = p[`${def.key}|reg`];
       return [{ id, name: b.name, team: b.team, pos: p.pos, gp: b.gp, mpg: b.min, v: raw,
-                pct: baked != null ? baked / 100 : null }];
+                reg: typeof reg === "number" ? reg : null, pct: baked != null ? baked / 100 : null }];
     });
   // box stats carry no baked percentile — rank within the same qualified pool
   if (BOX.has(def.key)) {
@@ -146,6 +150,8 @@ export default async function LeadersPage({ searchParams }: {
         {pool === "all" ? " players" : ""}). Percentiles rank within this pool.
         {" "}<span className={status === "descriptive" ? "text-flag" : ""}>Status: {status}</span>
         {status === "descriptive" && " — no external reference to check it against yet."}
+        {kReg != null && <> · Regressed = pulled toward the league mean as if the player had {Math.round(kReg)} more
+          minutes of league-average play, the amount measured reliability calls for (§17).</>}
       </p>
 
       <StatStrip points={points} shown={new Set(top.map((r) => r.id))} fmt={fmt} label={def.label} lower={lower} />
@@ -156,7 +162,9 @@ export default async function LeadersPage({ searchParams }: {
             <tr className="border-b border-border-subtle">
               <th className="py-1.5 pr-2 w-8">#</th><th className="pr-2">Player</th><th className="pr-2">Team</th>
               <th className="pr-2">Pos</th><th className="pr-2 text-right">GP</th><th className="pr-2 text-right">MPG</th>
-              <th className="pr-3 text-right">{def.label}</th><th className="w-48">Percentile</th>
+              <th className="pr-3 text-right">{def.label}</th>
+              {kReg != null && <th className="pr-3 text-right" title="regressed toward the league mean (§17)">Regressed</th>}
+              <th className="w-48">Percentile</th>
             </tr>
           </thead>
           <tbody>
@@ -169,6 +177,7 @@ export default async function LeadersPage({ searchParams }: {
                 <td className="pr-2 text-right text-text-secondary">{r.gp}</td>
                 <td className="pr-2 text-right text-text-secondary">{r.mpg.toFixed(1)}</td>
                 <td className={`pr-3 text-right ${pctTone(r.pct)}`}>{fmt(r.v)}</td>
+                {kReg != null && <td className="pr-3 text-right text-text-secondary">{r.reg != null ? fmt(r.reg) : "—"}</td>}
                 <td>
                   {r.pct != null && (
                     <div className="flex items-center gap-2">
@@ -189,8 +198,9 @@ export default async function LeadersPage({ searchParams }: {
       <p className="text-[10px] text-text-dim/70">
         Regular season, computed from ESPN box scores with NBA.com definitions (on-court team totals
         estimated by minutes share); shot zones, self-creation and playmaking from ESPN play-by-play.
-        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j checks against an independent source; see Methods.
+        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j/§16 checks against an independent source; see Methods.
         {def.key === "off_load" && " Offensive Load is benchmarked against LUMA Basketball Research's load channel (Lens), which is not shown here."}
+        {(def.key === "bpm" || def.key === "vorp") && " BPM is benchmarked against LUMA Basketball Research's xPTS-RAPM, which is not shown here."}
         Descriptive, not a forecast.
       </p>
     </div>

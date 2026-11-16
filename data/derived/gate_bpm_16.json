@@ -1,0 +1,17 @@
+{
+ "benchmark": {
+  "n": 382,
+  "luma_rows": 396,
+  "r": 0.6728,
+  "r_gmsc36": 0.4697,
+  "pass": true
+ },
+ "stability": {
+  "n": 182,
+  "r_yoy": 0.7922,
+  "pass": true
+ },
+ "pass": true,
+ "credit": "LUMA Basketball Research (xPTS-RAPM net_rapm) \u2014 validation reference only",
+ "ran": "2026-11-15"
+}

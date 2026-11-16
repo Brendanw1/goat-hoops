@@ -76,9 +76,8 @@ def pbp_flags(g: pd.DataFrame) -> pd.DataFrame:
     return p
 
 
-def turnovers(g: pd.DataFrame) -> pd.DataFrame:
-    return pbp_flags(g).groupby(["season_year", "athlete_id"])[["badpass", "lostball", "trips"]] \
-        .sum().reset_index()
+def turnovers(t: pd.DataFrame) -> pd.DataFrame:
+    return t.groupby(["season_year", "athlete_id"])[["badpass", "lostball", "trips"]].sum().reset_index()
 
 
 def gmsc(pg: pd.DataFrame) -> pd.Series:
@@ -99,8 +98,8 @@ def milestones(pg: pd.DataFrame, g: pd.DataFrame) -> pd.DataFrame:
     return a.reset_index()
 
 
-def counts(s: pd.DataFrame) -> pd.DataFrame:
-    """Shooter-side and assister-side counts per (season, athlete)."""
+def counts(s: pd.DataFrame, sa: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Shooter-side counts from `s`, assister-side from `sa` (default `s`)."""
     k = ["season_year", "shooter_id"]
     s = s.assign(ast=s.made & s.assister.notna(), tp=s.made & (s.points_attempted == 3))
     out = []
@@ -115,17 +114,26 @@ def counts(s: pd.DataFrame) -> pd.DataFrame:
     a = pd.concat(out, axis=1).fillna(0).astype(int)
     a.index = a.index.set_names(["season_year", "athlete_id"])
     # assister side: who they found, where, for how much
-    m = s[s.assister.notna()]
+    m = (s if sa is None else sa)
+    m = m[m.assister.notna()]
     by = m.assign(r3=m.points_made == 3, rrim=m.zone == "rim").groupby(["season_year", "assister"]).agg(
         a_n=("made", "size"), a_3=("r3", "sum"), a_rim=("rrim", "sum"))
     by.index = by.index.set_names(["season_year", "athlete_id"])
     return a.join(by, how="outer").fillna(0).astype(int).reset_index()
 
 
-def features(pg: pd.DataFrame, g: pd.DataFrame) -> pd.DataFrame:
-    """Counts + derived §0i stats per (season_year, athlete_id), regular season."""
-    s = load_shots(g)
-    c = counts(s).merge(turnovers(g), on=["season_year", "athlete_id"], how="outer")
+def features(pg: pd.DataFrame, g: pd.DataFrame, keep: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Counts + derived §0i stats per (season_year, athlete_id), regular season.
+    `keep` (game_id, athlete_id) restricts every side to those player-games (§17 splits)."""
+    s, t = load_shots(g), pbp_flags(g)
+    sa = s
+    if keep is not None:
+        k = keep[["game_id", "athlete_id"]].astype(str).drop_duplicates()
+        sa = s.merge(k.rename(columns={"athlete_id": "assister"}), on=["game_id", "assister"])
+        s = s.merge(k.rename(columns={"athlete_id": "shooter_id"}), on=["game_id", "shooter_id"])
+        t = t.merge(k, on=["game_id", "athlete_id"])
+        pg = pg.astype({"game_id": str, "athlete_id": str}).merge(k, on=["game_id", "athlete_id"])
+    c = counts(s, sa).merge(turnovers(t), on=["season_year", "athlete_id"], how="outer")
     c = c.merge(milestones(pg, g), on=["season_year", "athlete_id"], how="outer")
     reg = g.loc[g.season_type == 2, ["game_id", "season_year"]].astype({"game_id": str})
     mins = pg.astype({"game_id": str, "athlete_id": str}).merge(reg, on="game_id") \

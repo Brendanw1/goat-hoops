@@ -1784,3 +1784,53 @@ second half). A stat passes when the regressed MSE is lower. **Overall pass:
 Overall pass → the regressed value renders beside raw on `/leaders` for the
 stats that passed individually; stats that failed show raw only. Overall
 fail → nothing renders. Bars do not move.
+
+### §16 read (2026-11-15): PASS — BPM and VORP render
+
+Run: `python pipeline/bpm.py --gate` → `data/derived/gate_bpm_16.json`. The
+implementation reproduces Myers' worked example (2017 LeBron raw BPM 15.6)
+in its self-check; league minutes-weighted mean BPM 0.00 in both seasons;
+median team adjustment −9.5 / −9.3 (Myers: "generally around −8").
+
+| gate | n | result | bar | verdict |
+|---|---|---|---|---|
+| Benchmark: r vs LUMA `xpts_rapm` 2026 `net_rapm` (BPM pooled 2025 + 2026) | 382 of 396 LUMA rows | **0.673** | ≥ 0.60 | PASS |
+| … Game Score per 36, same players | 382 | 0.470 | BPM must lead by ≥ 0.03 | PASS (+0.20) |
+| Stability: BPM 2025 → 2026, ≥ 1,000 min both | 182 | **0.792** | ≥ 0.60 | PASS |
+
+The LUMA pull is complete (396 rows, matching LUMA's own count). A
+box-only rating reaches 0.673 against a three-season RAPM; our own
+stint RAPM reached 0.676 in §5. Credit: LUMA Basketball Research
+(xPTS-RAPM), validation reference only.
+
+### §17 read (2026-11-15): PASS — regressed values render beside raw
+
+Run: `python pipeline/shrink.py --gate` → `data/derived/shrink_17.json`.
+Fit (site 2025, odd/even games by date): 375 players ≥ 500 min, median
+half 716.5 min. Test (site 2026, split at 2026-01-15): 286 players with
+≥ 300 min in each half.
+
+**32 of 32 stats pass (bar 80%); median MSE reduction 9.4% (bar 5%).**
+
+| stat | k (min) | split-half r | held-out MSE reduction |
+|---|---|---|---|
+| 3PA rate | 20 | 0.973 | 3.8% |
+| USG% | 24 | 0.967 | 4.1% |
+| Offensive Load | 21 | 0.972 | 5.0% |
+| REB% | 37 | 0.951 | 2.9% |
+| self-created % | 81 | 0.899 | 11.8% |
+| BPM | 154 | 0.823 | 17.1% |
+| TS% | 613 | 0.539 | 18.6% |
+| TO ratio | 568 | 0.558 | 35.8% |
+| rim FG% | 1,697 | 0.297 | 28.9% |
+| corner 3P% | 2,352 | 0.234 | 35.5% |
+| pull-up eFG% | 3,135 | 0.186 | 65.7% |
+| mid FG% | 7,344 | 0.089 | 42.9% |
+
+(Full table in the JSON.) The smallest gains are the most reliable stats
+(pull-up rate 0.9%, mid rate 1.8%): they barely need regressing and get
+little. Caveat: shrinkage toward the mean reduces squared error whenever
+samples are noisy, so this gate mainly shows that k is not over-shrinking;
+the k values are the substantive result. Exposure is minutes for every stat
+(the registered simplification), which under-shrinks low-volume shooters on
+the FG% stats.

@@ -38,6 +38,8 @@ point differential (colored pos/neg at ±0 — wins do that job).
 | TO ratio | 100·TOV / (FGA + FT trips + AST + TOV); a trip = a PBP `Free Throw - 1 of 2` or `1 of 3` (and-ones, technicals, flagrants, clear paths excluded); lower is better — §0h-c gated (held out, 0.9997) | /leaders |
 | Offensive Load | Ben Taylor: 0.75·(AST − 0.38·BoxCreation) + FGA + 0.44·FTA + BoxCreation + TOV, per 100 player possessions (minutes share × average team possessions) — §0j gated vs LUMA `load` (r 0.986), level with a plain plays-per-100 sum; volume, not quality | /leaders, player page |
 | Box Creation | Taylor 2017 formula — **not rendered**: §0j FAIL (plain AST/100 tracks LUMA `lcreation` at 0.98 vs 0.86); computed only inside Offensive Load | — |
+| BPM | Myers' BPM 2.0, published coefficients, season level per team stint (`pipeline/bpm.py`): box per 100 player possessions, estimated position and offensive role (team-constrained to 3.0), points adjusted for team shooting (1.00 pts/TSA baseline, reconstructed), team adjustment to the team's net rating (no SOS / lead correction) — §16 gated: r 0.673 vs LUMA xPTS-RAPM, Game Score/36 0.470; year-to-year 0.79 | /leaders, player page |
+| VORP | (BPM + 2.0) · share of team minutes · team games / 82, summed over stints | /leaders |
 | ORtg / DRtg / NET | BDL ratings (minutes-weighted roll-up) + est. variants | advanced table, /stats |
 | PIE | BDL pie, BDL seasons only — **not rebuilt**: §0h-b showed BDL's PIE is not the published formula | advanced table, /stats |
 | Pace / est. pace | BDL | doc only (context, not rendered as grade) |
@@ -69,6 +71,14 @@ pool: all qualified, or a position pool (G/F/C) when ≥ 40 qualify. Box stats
 rank live in the page; rates carry baked percentiles. Every board states its
 n and its status (box score / gated / descriptive). Stabilization-derived
 floors replace these defaults once measured (catalog C3).
+
+**Regressed values (§17, `pipeline/shrink.py`).** Beside the raw value,
+each rate shows (min·x + k·μ) / (min + k): μ = the qualified pool's
+minutes-weighted mean that season, k (minutes) from odd/even split-half
+reliability on 2024-25 (k = m·(1 − r)/r). Held out on 2025-26 first half →
+second half, it cut prediction error on all 32 stats (median 9.4%). k ranges
+from ~20 min (3PA rate, USG%) to ~7,300 (mid-range FG%). Ranks and
+percentiles stay on the raw value.
 
 Attempt-based stats add an attempt floor on top (full season; scaled for
 the live season): rim FG% 100 rim FGA, mid FG% 60, corner 3P% 40,

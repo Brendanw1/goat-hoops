@@ -790,6 +790,29 @@ export default async function HoopsPlayerPage({ params }: {
           <div className="text-[10px] text-text-dim/70">ESPN-derived coordinates — internal research</div>
         </div>
       )}
+      {crP && typeof crP.bpm === "number" && (() => {
+        const pc = (k: string) => (crP[`${k}|pct`] as { all?: number } | undefined)?.all;
+        const reg = crP["bpm|reg"];
+        const sgn = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}`;
+        return (
+          <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
+            <h2 className="text-sm font-medium text-text-primary mb-1.5">
+              Box Plus/Minus <span className="text-text-dim font-normal text-[10px]">· {seasonLabel(crSeason!)} · {crP.min} min</span>
+            </h2>
+            <div className="grid grid-cols-3 gap-1.5">
+              <RateChip label="BPM (per 100 vs average)" cls={pctTone(pc("bpm") != null ? pc("bpm")! / 100 : null)}
+                value={<>{sgn(crP.bpm as number)}{pc("bpm") != null && <span className="text-text-dim font-normal text-[10px]"> · {pc("bpm")}th</span>}</>} />
+              <RateChip label="Regressed BPM" value={typeof reg === "number" ? sgn(reg) : "—"} />
+              <RateChip label="VORP" value={typeof crP.vorp === "number" ? (crP.vorp as number).toFixed(1) : "—"} />
+            </div>
+            <PanelNote>
+              Myers&apos; BPM 2.0 from the ESPN box; benchmarked against LUMA Basketball Research&apos;s xPTS-RAPM
+              (r 0.67, §16). Regressed = pulled toward the league mean by measured reliability (§17). A box-score
+              estimate of impact — weak on defense — not a forecast.
+            </PanelNote>
+          </div>
+        );
+      })()}
       {crP?.zones && crP.types && (() => {
         const chip = (k: string, label: string, f: (v: number) => string) => {
           const v = crP[k], pc = (crP[`${k}|pct`] as { all?: number } | undefined)?.all;

@@ -42,14 +42,14 @@ STATS = {"ts_pct": (3, (0.995, 0.005)), "efg_pct": (3, (0.995, 0.005)),
          "tpar": (3, None)}
 # §0i (creation.py): stat -> round digits, and which gate it rides
 # ("a" zones, "b" assisted share, "ab" both, None descriptive, "box" §0-gated box counts;
-#  "c" / "l" = §0j Box Creation / Offensive Load vs LUMA)
+#  "c" / "l" = §0j Box Creation / Offensive Load vs LUMA; "p" = §16 BPM / VORP)
 CREATION = {"rim_rate": (3, "a"), "mid_rate": (3, "a"), "c3_rate": (3, "a"),
             "rim_fg": (3, "a"), "mid_fg": (3, "a"), "c3_fg": (3, "a"), "ab3_fg": (3, "a"),
             "pct_unast": (3, "b"), "unast36": (2, "b"), "unast3_36": (2, "b"),
             "ast_pts36": (1, "b"), "ast3_36": (2, "b"), "ast_rim36": (2, "ab"),
             "pullup_rate": (3, None), "pullup_efg": (3, None),
             "badpass36": (2, None), "lostball36": (2, None),
-            "box_creation": (1, "c"), "off_load": (1, "l"),
+            "box_creation": (1, "c"), "off_load": (1, "l"), "bpm": (1, "p"), "vorp": (1, "p"),
             "gmsc": (1, "box"), "g30": (0, "box"), "g40": (0, "box"), "dd": (0, "box"), "td": (0, "box")}
 # attempt floors on top of the minutes floor (full season; the live season scales them)
 FLOOR = {"rim_fg": ("rim_fga", 100), "mid_fg": ("mid_fga", 60), "c3_fg": ("c3_fga", 40),
@@ -282,35 +282,38 @@ def gate_c(pg, g) -> dict:
             "pass": bool(len(diffs) >= 10_000 and rate >= 0.95)}
 
 
-def luma_load_channels() -> pd.DataFrame:
-    """LUMA `load` / `lcreation`, window 1, seasons 2025-26, gp >= 40 — paged
-    through the hoops_mart client (50-row cap) and cached outside the repo."""
-    if LUMA_CACHE.exists():
-        return pd.read_parquet(LUMA_CACHE)
+def luma_rows(select: str, cols: list[str], cache: Path) -> pd.DataFrame:
+    """Page a LUMA SELECT (must ORDER BY a unique key) through the hoops_mart
+    client's 50-row cap; cached outside the repo — validation only, never shipped."""
+    if cache.exists():
+        return pd.read_parquet(cache)
     sys.path.insert(0, str(MART.parents[1]))
     from luma_games_pull import rpc, sql
     sid, _ = rpc(1, "initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
                                    "clientInfo": {"name": "goat-hoops", "version": "0.1"}})
     rpc(None, "notifications/initialized", session=sid)
-    rows = []
-    for season in (2025, 2026):
-        for ch in ("load", "lcreation"):
-            off = 0
-            while True:
-                page = sql(sid, f"SELECT c.season AS season, c.pid AS pid, p.name AS name, c.channel AS channel, "
-                                f"c.value AS value, c.gp AS gp FROM channels c JOIN players p ON p.pid = c.pid "
-                                f"WHERE c.channel = '{ch}' AND c.\"window\" = 1 AND c.season = {season} "
-                                f"AND c.gp >= 40 ORDER BY c.pid LIMIT 50 OFFSET {off}")
-                rows += page
-                if len(page) < 50:
-                    break
-                off += 50
-                time.sleep(2)
-    df = pd.DataFrame(rows, columns=["season", "pid", "name", "channel", "value", "gp"])
-    df = df.astype({"season": int, "pid": int, "value": float, "gp": float})
-    LUMA_CACHE.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(LUMA_CACHE)
+    rows, off = [], 0
+    while True:
+        page = sql(sid, f"{select} LIMIT 50 OFFSET {off}")
+        rows += page
+        if len(page) < 50:
+            break
+        off += 50
+        time.sleep(2)
+    df = pd.DataFrame(rows, columns=cols)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(cache)
     return df
+
+
+def luma_load_channels() -> pd.DataFrame:
+    """LUMA `load` / `lcreation`, window 1, seasons 2025-26, gp >= 40."""
+    df = luma_rows("SELECT c.season AS season, c.pid AS pid, p.name AS name, c.channel AS channel, "
+                   "c.value AS value, c.gp AS gp FROM channels c JOIN players p ON p.pid = c.pid "
+                   "WHERE c.channel IN ('load', 'lcreation') AND c.\"window\" = 1 "
+                   "AND c.season IN (2025, 2026) AND c.gp >= 40 ORDER BY c.season, c.channel, c.pid",
+                   ["season", "pid", "name", "channel", "value", "gp"], LUMA_CACHE)
+    return df.astype({"season": int, "pid": int, "value": float, "gp": float})
 
 
 def gate_j(pg, tg, g) -> dict:
@@ -347,6 +350,27 @@ def gate_j(pg, tg, g) -> dict:
     return out
 
 
+def season_table(pg, tg, g, keep: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Every site stat per (season_year, athlete_id): §0h rates, §0i features,
+    §0h-c TO ratio, §16 BPM. `keep` (game_id, athlete_id) restricts the player
+    side to those player-games; team context stays whole-season (§17 splits)."""
+    from bpm import bpm_table
+    from creation import features
+    tgo = team_games(tg, pg, g)
+    sub = pg if keep is None else pg.astype({"game_id": str, "athlete_id": str}).merge(
+        keep[["game_id", "athlete_id"]].astype(str), on=["game_id", "athlete_id"])
+    a = player_rates(sub, tgo)
+    a["athlete_id"] = a.athlete_id.astype(str)
+    f = features(pg, g, keep)
+    f["pu_fga"] = f.t_pullup_fga + f.t_stepback_fga
+    a = a.merge(f.drop(columns=["mins"]), on=["season_year", "athlete_id"], how="left")
+    # §0h-c: NBA.com counts free-throw trips; the §0h record keeps 0.44·FTA
+    den = a.fga + a.trips.fillna(0) + a.ast + a.tov
+    a["to_ratio"] = (100 * a.tov / den).where(den > 0)
+    b = bpm_table(sub, tgo)[["season_year", "athlete_id", "bpm", "vorp", "pos_est", "role_est"]]
+    return a.merge(b, on=["season_year", "athlete_id"], how="left")
+
+
 def build(pg, tg, g, adv_path: Path) -> dict:
     a = player_rates(pg, team_games(tg, pg, g))
     gt = gate(a, adv_path)
@@ -366,25 +390,26 @@ def build(pg, tg, g, adv_path: Path) -> dict:
     status = {k: ("gated (§0h-c)" if gt["stats"][k].get("pass_0hc") and not gt["stats"][k]["pass"]
                   else "gated (§0h)") if k in gt.get("stats", {}) else "descriptive" for k in shown}
     digits = {k: v[0] for k, v in STATS.items()}
-    from creation import GATE as GATE_0I, ZONES, TYPES, features
+    from creation import GATE as GATE_0I, ZONES, TYPES
     g0i = json.loads(GATE_0I.read_text()) if GATE_0I.exists() else {}  # offline; fail closed
     gpass = {"a": g0i.get("a", {}).get("pass", False), "b": g0i.get("b", {}).get("pass", False)}
     g0j = json.loads(GATE_J.read_text()) if GATE_J.exists() else {}  # offline; fail closed
     gpass |= {"c": g0j.get("box_creation", {}).get("pass", False),
               "l": g0j.get("off_load", {}).get("pass", False)}
+    from bpm import GATE as GATE_16
+    g16 = json.loads(GATE_16.read_text()) if GATE_16.exists() else {}
+    gpass["p"] = g16.get("pass", False)
     for k, (dp, gk) in CREATION.items():
         if gk in (None, "box") or all(gpass[c] for c in gk):
             shown.append(k)
             digits[k] = dp
             status[k] = {None: "descriptive", "box": "box score", "c": "gated (§0j)",
-                         "l": "gated (§0j)"}.get(gk, "gated (§0i)")
-    f = features(pg, g)
-    f["pu_fga"] = f.t_pullup_fga + f.t_stepback_fga
-    a["athlete_id"] = a.athlete_id.astype(str)
-    a = a.merge(f.drop(columns=["mins"]), on=["season_year", "athlete_id"], how="left")
-    # §0h-c: NBA.com counts free-throw trips; the §0h record above keeps 0.44·FTA
-    den = a.fga + a.trips.fillna(0) + a.ast + a.tov
-    a["to_ratio"] = (100 * a.tov / den).where(den > 0)
+                         "l": "gated (§0j)", "p": "gated (§16)"}.get(gk, "gated (§0i)")
+    a = season_table(pg, tg, g)
+    from shrink import SHRINK, regress, wmean
+    sk = json.loads(SHRINK.read_text()) if SHRINK.exists() else {}  # §17, offline; fail closed
+    kmap = {k: v["k"] for k, v in sk.get("k", {}).items()
+            if sk.get("gate", {}).get("pass") and sk["gate"]["stats"].get(k, {}).get("pass")}
     types = [t for t, _ in TYPES] + ["other"]
     team_gp = g[g.season_type == 2].groupby("season_year").size() * 2 / 30  # games per team
     seasons, league = {}, {}
@@ -415,6 +440,7 @@ def build(pg, tg, g, adv_path: Path) -> dict:
                     for e, pc in zip(qp.loc[vp.index, "athlete_id"], pctile(vp, hb)):
                         pct[k].setdefault(e, {})["pos"] = int(pc)
         lg["pools"] = {p: int(n) for p, n in q.pos.value_counts().items()}
+        mus = {k: wmean(q[k], q["min"]) for k in shown if k in kmap and q[k].notna().any()}
         players = {}
         for r in ss.itertuples():
             row = {"gp": int(r.gp), "min": int(r.min), "pos": r.pos,
@@ -426,6 +452,8 @@ def build(pg, tg, g, adv_path: Path) -> dict:
                     row[f"{k}|pct"] = pct[k][r.athlete_id]
                 if k in qk:
                     row[f"{k}|q"] = bool(qk[k].at[r.Index])
+                if k in mus and row[k] is not None:  # §17: regressed toward the qualified mean
+                    row[f"{k}|reg"] = round(float(regress(v, r.min, kmap[k], mus[k])), digits[k])
             # shot-diet panel: [fga, fgm, assisted fgm] by zone, [fga, fgm, 3pm] by type
             if gpass["a"] and gpass["b"] and getattr(r, "fga_sh", 0) > 0:
                 row["zones"] = {z: [int(getattr(r, f"{z}_fga")), int(getattr(r, f"{z}_fgm")),
@@ -436,7 +464,8 @@ def build(pg, tg, g, adv_path: Path) -> dict:
         seasons[int(season)] = {"players": players}
         league[int(season)] = lg
     return {"seasons": seasons, "league": league, "lower_better": list(LOWER_BETTER),
-            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i, "gate_0j": g0j,
+            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i, "gate_0j": g0j, "gate_16": g16,
+            "shrink_k": kmap, "gate_17": {x: y for x, y in sk.get("gate", {}).items() if x != "stats"},
             "note": "§0h — NBA.com-definition rates rebuilt from the ESPN box; on-floor "
                     "team totals approximated by minutes share. Descriptive, not a forecast."}
 

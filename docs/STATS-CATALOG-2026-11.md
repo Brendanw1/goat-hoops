@@ -135,4 +135,7 @@ last-10/30 rolling sparklines. The figure repos stay reference-only
    held out, PASS), Offensive Load (§0j PASS vs LUMA `load`); Box Creation
    (§0j FAIL) and assisted-teammate eFG (not recoverable) moved to B.
 3. **Batch 3 — C1 (BPM-style) and C3 (regressed percentiles)**, pre-registered.
+   **Shipped 2026-11-15**: BPM 2.0 + VORP (§16 PASS, r 0.673 vs LUMA
+   xPTS-RAPM, stability 0.79) and regressed values on 32 rates (§17 PASS,
+   32/32, median −9.4% held-out error).
 4. A4/A5/A7 fill in as they touch the same bake.

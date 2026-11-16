@@ -39,7 +39,10 @@ play-by-play in `pipeline/creation.py` (§0i; gates run offline with
 `python pipeline/creation.py --gate`) and feed the same boards plus the
 player page's shot creation panel. TO ratio counts free-throw trips from the
 play-by-play (§0h-c); Offensive Load (Ben Taylor's formula) is benchmarked
-against LUMA's `load` channel (§0j, `--gate-j`).
+against LUMA's `load` channel (§0j, `--gate-j`). Box Plus/Minus 2.0 + VORP
+(`pipeline/bpm.py`, §16, benchmarked against LUMA xPTS-RAPM) and regressed
+values beside every rate (`pipeline/shrink.py`, §17) render on `/leaders`
+and player pages.
 
 The LUMA cross-check gate (2026-10-29): 688/688 game scores 2024-25 exact,
 52/52 current season, 324 player-game boxes with every stat exact except
