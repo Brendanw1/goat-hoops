@@ -14,7 +14,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hoops_export import MART  # noqa: E402
-from creation import clock_seconds  # noqa: E402
+from creation import clock_seconds, ordered  # noqa: E402
 
 
 def clutch_events(p: pd.DataFrame) -> pd.Series:
@@ -31,11 +31,12 @@ def team_clutch(g: pd.DataFrame) -> dict:
         "game_id", "seq", "period", "clock_sec", "type_text", "team_id", "home_score", "away_score",
         "is_shooting", "points_attempted", "p1", "clock_display"]).astype({"game_id": str})
     p["clock_sec"] = clock_seconds(p)
-    p = p[p.game_id.isin(reg.game_id)].sort_values(["game_id", "seq"]).reset_index(drop=True)
+    p = ordered(p[p.game_id.isin(reg.game_id)]).reset_index(drop=True)
     p["clutch"] = clutch_events(p)
     prev = p.groupby("game_id")[["home_score", "away_score", "clock_sec"]].shift(1)
-    p["d_home"] = (p.home_score - prev.home_score.fillna(0)).clip(lower=0)
-    p["d_away"] = (p.away_score - prev.away_score.fillna(0)).clip(lower=0)
+    # signed: a scorer's correction (a three changed to a two) takes the point back
+    p["d_home"] = p.home_score - prev.home_score.fillna(0)
+    p["d_away"] = p.away_score - prev.away_score.fillna(0)
     p["dt"] = (prev.clock_sec - p.clock_sec).where(prev.clock_sec >= p.clock_sec, 0).fillna(0)
     c = p[p.clutch].merge(reg[["game_id", "season_year", "home_team_id", "home_abbr", "away_abbr",
                                "home_score", "away_score"]].rename(

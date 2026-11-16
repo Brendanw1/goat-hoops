@@ -39,6 +39,7 @@ point differential (colored pos/neg at ±0 — wins do that job).
 | Offensive Load | Ben Taylor: 0.75·(AST − 0.38·BoxCreation) + FGA + 0.44·FTA + BoxCreation + TOV, per 100 player possessions (minutes share × average team possessions) — §0j gated vs LUMA `load` (r 0.986), level with a plain plays-per-100 sum; volume, not quality | /leaders, player page |
 | Box Creation | Taylor 2017 formula — **not rendered**: §0j FAIL (plain AST/100 tracks LUMA `lcreation` at 0.98 vs 0.86); computed only inside Offensive Load | — |
 | BPM | Myers' BPM 2.0, published coefficients, season level per team stint (`pipeline/bpm.py`): box per 100 player possessions, estimated position and offensive role (team-constrained to 3.0), points adjusted for team shooting (1.00 pts/TSA baseline, reconstructed), team adjustment to the team's net rating (no SOS / lead correction) — §16 gated: r 0.673 vs LUMA xPTS-RAPM, Game Score/36 0.470; year-to-year 0.79 | /leaders, player page |
+| OBPM / DBPM | OBPM: Myers' published offensive coefficients and constant on the same inputs, team-adjusted so a team's minutes-weighted OBPM equals its ORtg − league ORtg; DBPM = BPM − OBPM, so the halves always add to BPM — §16-b gated: OBPM r 0.711 vs LUMA xPTS-RAPM offense (points/36 0.521), DBPM r 0.615 vs LUMA defense ((STL+BLK)/36 0.426) | /leaders, player page |
 | VORP | (BPM + 2.0) · share of team minutes · team games / 82, summed over stints | /leaders |
 | ORtg / DRtg / NET | BDL ratings (minutes-weighted roll-up) + est. variants | advanced table, /stats |
 | PIE | BDL pie, BDL seasons only — **not rebuilt**: §0h-b showed BDL's PIE is not the published formula | advanced table, /stats |
@@ -77,8 +78,18 @@ each rate shows (min·x + k·μ) / (min + k): μ = the qualified pool's
 minutes-weighted mean that season, k (minutes) from odd/even split-half
 reliability on 2024-25 (k = m·(1 − r)/r). Held out on 2025-26 first half →
 second half, it cut prediction error on all 32 stats (median 9.4%). k ranges
-from ~20 min (3PA rate, USG%) to ~7,300 (mid-range FG%). Ranks and
-percentiles stay on the raw value.
+from ~20 min (3PA rate, USG%) to ~7,300 (mid-range FG%). Percentiles stay on
+the raw value; the board ranks by raw by default and by the regressed value
+with **Rank by: Regressed** (`?rank=reg`), which discounts hot small samples.
+
+**Attempt exposure (§17-b).** Where it predicted the second half better,
+exposure is attempts rather than minutes (μ then attempt-weighted): 3PA rate
+(FGA), corner-3 and pull-up rate (shot FGA), self-created % (shot FGM),
+putback rate (offensive rebounds), xeFG and shot-making (shot FGA). Shooting
+percentages keep minutes: skill and volume are correlated, so an
+attempt-weighted mean sits above what low-volume shooters make and would
+inflate them. FT fouls drawn/36, and-ones/36, OBPM and DBPM regress on
+minutes. The board names the exposure it used.
 
 Attempt-based stats add an attempt floor on top (full season; scaled for
 the live season): rim FG% 100 rim FGA, mid FG% 60, corner 3P% 40,
@@ -136,14 +147,40 @@ played (and net + SOS); clutch = last 5:00 of Q4/OT with the margin ≤ 5
 before the play, W-L, points and net per 100 possessions estimated from the
 box over clutch events (`pipeline/clutch.py` → `team_clutch.json`).
 
+**Player on/off (player page, §0f, descriptive).** Team net rating per 100
+possessions with the player on vs off the floor, on-court ORtg/DRtg, where
+the swing ranks among teammates past the same floor, and the player's
+most-used five-man units, all from the §0f stint walk of ESPN play-by-play.
+Floors: 1,500 on-court and 500 off-court possessions; under ~2,500 on-court is
+flagged small; units under 500 possessions are labelled anecdotes. Raw, not
+adjusted for teammates or opponents (RAPM, which would, has not passed its
+gate).
+
+**Rookie race (`/rookies`, descriptive, `pipeline/rookies.py`).** Rookies =
+drafted the summer before the season (BDL draft bio) plus undrafted players
+whose first ESPN-spine game is that season. Weekly cumulative Game Score as a
+bump chart (rank each week, lead changes ringed); a scatter of regressed BPM
+vs minutes; a standings table. Game Score is a volume measure: it rewards
+minutes, which is why the scatter sits beside it.
+
 Rules: splits render only from the game-log grain (never aggregated-then-cut);
 any split cell under 10 games gets the `flag` color; a split never colors a
 grade until its persistence is tested (the explorations lesson).
 
+## 4b. Sources
+
+Every stat family's feed call, method, code path, gate and reference live in
+`pipeline/sources.py`, baked to `sources.json` (rendered at /methods#sources)
+and written to `docs/SOURCES.md` at each bake.
+
 ## 5. What we deliberately do NOT render
 
-- **Win probability / WPA** (§19 FAIL, 2026-11-16): the model beat score-and-time
-  on Brier by 10.5% but missed the 0.02 calibration bar (0.035); see the read.
+- **Win probability / WPA** (§19 FAIL, then §19-b FAIL, 2026-11-16): after
+  fixing the play-order defect it beats score-and-time on Brier by 8.5% but
+  misses the calibration bar (ECE 0.0168 vs 0.015). Diagnosis: home-win rate
+  drift between the two seasons and an overconfident pre-game strength
+  slope. Next step is more seasons (ESPN PBP backfill 2019-20 → 2023-24) and a
+  §19-c; no third test on the same two seasons.
 
 - Zone-rebound "skill" (conversion is context — explorations §4).
 - Cohort aging curves as trajectories (survivorship — explorations §5).

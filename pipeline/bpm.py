@@ -21,6 +21,11 @@ COEF = {"pts_adj": (0.860, 0.860), "tpm": (0.389, 0.389), "ast": (0.580, 1.034),
         "tov": (-0.964, -0.964), "oreb": (0.613, 0.181), "dreb": (0.116, 0.181),
         "stl": (1.369, 1.008), "blk": (1.327, 0.703), "pf": (-0.367, -0.367)}
 ROLE_COEF = {"fga": (-0.560, -0.780), "fta": (-0.246, -0.343)}
+# §16-b OBPM 2.0 (same source, "The Offense/Defense Split"); DBPM = BPM − OBPM
+OCOEF = {"pts_adj": (0.605, 0.605), "tpm": (0.477, 0.477), "ast": (0.476, 0.476),
+         "tov": (-0.579, -0.882), "oreb": (0.606, 0.422), "dreb": (-0.112, 0.103),
+         "stl": (0.177, 0.294), "blk": (0.725, 0.097), "pf": (-0.439, -0.439)}
+ROLE_OCOEF = {"fga": (-0.330, -0.472), "fta": (-0.145, -0.208)}
 PTS_PER_TSA_BASE = 1.00  # reconstructed from Myers' 2017 LeBron example (§16)
 
 
@@ -39,13 +44,14 @@ def team_constrain(v: pd.Series, w: pd.Series, team: pd.Series) -> pd.Series:
     return out
 
 
-def raw_bpm(x: pd.DataFrame) -> pd.Series:
-    """Raw BPM from per-100 stats, position `pos`, offensive role `role`."""
+def raw_bpm(x: pd.DataFrame, off: bool = False) -> pd.Series:
+    """Raw BPM (or OBPM) from per-100 stats, position `pos`, offensive role `role`."""
+    coef, rcoef, pc, rc = (OCOEF, ROLE_OCOEF, -1.698, -0.860) if off else (COEF, ROLE_COEF, -0.818, -2.774)
     t, tr = (x.pos - 1) / 4, (x.role - 1) / 4
-    raw = sum((a + (b - a) * t) * x[k] for k, (a, b) in COEF.items())
-    raw += sum((a + (b - a) * tr) * x[k] for k, (a, b) in ROLE_COEF.items())
-    raw += np.where(x.pos < 3, (3 - x.pos) * (-0.818 / 2), 0.0)
-    return raw + (3 - x.role) * (-2.774 / 2)
+    raw = sum((a + (b - a) * t) * x[k] for k, (a, b) in coef.items())
+    raw += sum((a + (b - a) * tr) * x[k] for k, (a, b) in rcoef.items())
+    raw += np.where(x.pos < 3, (3 - x.pos) * (pc / 2), 0.0)
+    return raw + (3 - x.role) * (rc / 2)
 
 
 def bpm_table(pg: pd.DataFrame, tgo: pd.DataFrame) -> pd.DataFrame:
@@ -67,6 +73,7 @@ def bpm_table(pg: pd.DataFrame, tgo: pd.DataFrame) -> pd.DataFrame:
         t_gp=("game_id", "nunique")).reset_index()
     tm["ptsa"] = tm.t_pts / (tm.t_fga + 0.44 * tm.t_fta)
     tm["net"] = 100 * (tm.t_pts - tm.o_pts) / (0.5 * (tm.t_poss + tm.o_poss))
+    tm["ortg"] = 100 * tm.t_pts / (0.5 * (tm.t_poss + tm.o_poss))
     st = st.merge(tm, on=["season_year", "team_id"])
     st["tkey"] = st.season_year.astype(str) + "|" + st.team_id
     sh = lambda n, d: (n / d).where(d > 0, 0.0)  # noqa: E731
@@ -82,18 +89,28 @@ def bpm_table(pg: pd.DataFrame, tgo: pd.DataFrame) -> pd.DataFrame:
                                                "blk", "pf"]})
     x["pts_adj"] = (st.pts + tsa * (PTS_PER_TSA_BASE - st.ptsa)) * per
     st["raw"] = raw_bpm(x).fillna(0)
+    st["oraw"] = raw_bpm(x, off=True).fillna(0)
     st["w"] = st["min"] / (st.t_min / 5)
     adj = (st.groupby("tkey").apply(lambda d: (d.net.iat[0] - (d.raw * d.w).sum()) / d.w.sum(),
                                     include_groups=False).rename("team_adj"))
-    st = st.join(adj, on="tkey")
+    # §16-b: OBPM sums to the team's ORtg minus the league ORtg (same possession estimate)
+    lg = tm.groupby("season_year").apply(lambda d: 100 * d.t_pts.sum() / (0.5 * (d.t_poss + d.o_poss)).sum(),
+                                         include_groups=False)
+    st["orel"] = st.ortg - st.season_year.map(lg)
+    oadj = (st.groupby("tkey").apply(lambda d: (d.orel.iat[0] - (d.oraw * d.w).sum()) / d.w.sum(),
+                                     include_groups=False).rename("team_oadj"))
+    st = st.join(adj, on="tkey").join(oadj, on="tkey")
     st["bpm"] = st.raw + st.team_adj
+    st["obpm"] = st.oraw + st.team_oadj
     st["vorp"] = (st.bpm + 2.0) * st.w * st.t_gp / 82
-    out = st.assign(bm=st.bpm * st["min"], pm=st.pos * st["min"], rm=st.role * st["min"]).groupby(
-        ["season_year", "athlete_id"]).agg(min=("min", "sum"), bm=("bm", "sum"), pm=("pm", "sum"),
+    out = st.assign(bm=st.bpm * st["min"], om=st.obpm * st["min"], pm=st.pos * st["min"],
+                    rm=st.role * st["min"]).groupby(
+        ["season_year", "athlete_id"]).agg(min=("min", "sum"), bm=("bm", "sum"), om=("om", "sum"), pm=("pm", "sum"),
                                            rm=("rm", "sum"), vorp=("vorp", "sum"),
                                            team_adj=("team_adj", "mean")).reset_index()
-    return out.assign(bpm=out.bm / out["min"], pos_est=out.pm / out["min"], role_est=out.rm / out["min"]) \
-        .drop(columns=["bm", "pm", "rm"])
+    out = out.assign(bpm=out.bm / out["min"], obpm=out.om / out["min"], pos_est=out.pm / out["min"],
+                     role_est=out.rm / out["min"])
+    return out.assign(dbpm=out.bpm - out.obpm).drop(columns=["bm", "om", "pm", "rm"])
 
 
 def _selfcheck() -> None:
@@ -148,9 +165,63 @@ def gate(pg: pd.DataFrame, tg: pd.DataFrame, g: pd.DataFrame) -> dict:
             "credit": "LUMA Basketball Research (xPTS-RAPM net_rapm) — validation reference only"}
 
 
+GATE_B = GATE.with_name("gate_bpm_16b.json")
+
+
+def gate_b(pg: pd.DataFrame, tg: pd.DataFrame, g: pd.DataFrame) -> dict:
+    """§16-b: OBPM vs LUMA offense (xpts_off + conv_off), DBPM vs defense, + baselines and stability."""
+    from hoops_export import norm_name
+    from rates import luma_rows, team_games
+    b = bpm_table(pg, team_games(tg, pg, g))
+    reg = g.loc[g.season_type == 2, ["game_id", "season_year"]].astype({"game_id": str})
+    p = pg[pg.pts.notna() & (pg["min"] > 0)].astype({"game_id": str, "athlete_id": str}).merge(reg)
+    box = p.groupby(["season_year", "athlete_id"])[["pts", "stl", "blk"]].sum().reset_index()
+    two = b[b.season_year.isin([2025, 2026])].merge(box, on=["season_year", "athlete_id"], how="left")
+    two = two.assign(om=two.obpm * two["min"], dm=two.dbpm * two["min"])
+    pool = two.groupby("athlete_id").agg(min=("min", "sum"), om=("om", "sum"), dm=("dm", "sum"),
+                                         pts=("pts", "sum"), stl=("stl", "sum"), blk=("blk", "sum"))
+    pool = pool[pool["min"] >= 1000]
+    pool = pool.assign(obpm=pool.om / pool["min"], dbpm=pool.dm / pool["min"], pts36=36 * pool.pts / pool["min"],
+                       stk36=36 * (pool.stl + pool.blk) / pool["min"])
+    names = pg.astype({"athlete_id": str}).groupby("athlete_id").name.last()
+    pool["nm"] = pool.index.map(names).map(norm_name)
+    pool = pool[~pool.nm.duplicated(keep=False)]
+    lu = luma_rows("SELECT x.pid AS pid, p.name AS name, x.xpts_off AS xo, x.conv_off AS co, x.xpts_def AS xd, "
+                   "x.conv_def AS cd, x.net_rapm AS net, x.poss AS poss FROM xpts_rapm x JOIN players p "
+                   "ON p.pid = x.pid WHERE x.season = 2026 AND x.poss >= 2500 ORDER BY x.pid",
+                   ["pid", "name", "xo", "co", "xd", "cd", "net", "poss"],
+                   MART.parent / "luma" / "xpts_rapm_2026_od.parquet")
+    lu = lu.astype({c: float for c in ["xo", "co", "xd", "cd", "net", "poss"]})
+    lu = lu.assign(off=lu.xo + lu.co, deff=lu.xd + lu.cd, nm=lu.name.map(norm_name))
+    lu = lu[~lu.nm.duplicated(keep=False)]
+    j = pool.merge(lu[["nm", "off", "deff", "net"]], on="nm")
+    r = lambda a, c: float(np.corrcoef(j[a], j[c])[0, 1])  # noqa: E731
+    y = b[b["min"] >= 1000].pivot_table(index="athlete_id", columns="season_year", values=["obpm", "dbpm"])
+    yo, yd = y["obpm"][[2025, 2026]].dropna(), y["dbpm"][[2025, 2026]].dropna()
+    ro, rd = float(np.corrcoef(yo[2025], yo[2026])[0, 1]), float(np.corrcoef(yd[2025], yd[2026])[0, 1])
+    o = {"r": round(r("obpm", "off"), 4), "r_pts36": round(r("pts36", "off"), 4), "r_yoy": round(ro, 4), "n_yoy": len(yo)}
+    d = {"r": round(r("dbpm", "deff"), 4), "r_stocks36": round(r("stk36", "deff"), 4), "r_yoy": round(rd, 4),
+         "n_yoy": len(yd)}
+    o["pass"] = bool(o["r"] >= 0.55 and o["r"] >= o["r_pts36"] + 0.03 and ro >= 0.50)
+    d["pass"] = bool(d["r"] >= 0.25 and d["r"] >= d["r_stocks36"] + 0.03 and rd >= 0.50)
+    chk = b.assign(om=b.obpm * b["min"]).groupby("season_year").apply(
+        lambda q: q.om.sum() / q["min"].sum(), include_groups=False).round(3).to_dict()
+    return {"n": int(len(j)), "luma_rows": int(len(lu)), "luma_off_plus_def_vs_net_r": round(
+        float(np.corrcoef(j.off + j.deff, j.net)[0, 1]), 4), "obpm": o, "dbpm": d,
+        "league_mean_obpm": chk, "pass": bool(o["pass"] or d["pass"]),
+        "credit": "LUMA Basketball Research (xPTS-RAPM off/def) — validation reference only"}
+
+
 if __name__ == "__main__":
     _selfcheck()
-    if "--gate" in sys.argv:
+    if "--gate-b" in sys.argv:
+        gm = pd.read_parquet(MART / "games.parquet")
+        res = gate_b(pd.read_parquet(MART / "player_game.parquet"), pd.read_parquet(MART / "team_game.parquet"),
+                     gm[gm.completed])
+        res["ran"] = pd.Timestamp.now().strftime("%Y-%m-%d")
+        GATE_B.write_text(json.dumps(res, indent=1))
+        print(json.dumps(res, indent=1))
+    elif "--gate" in sys.argv:
         gm = pd.read_parquet(MART / "games.parquet")
         res = gate(pd.read_parquet(MART / "player_game.parquet"), pd.read_parquet(MART / "team_game.parquet"),
                    gm[gm.completed])

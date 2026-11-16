@@ -148,3 +148,12 @@ last-10/30 rolling sparklines. The figure repos stay reference-only
    win probability / WPA **not shipped** (§19 FAIL: Brier −10.5% vs
    score-and-time, but calibration 0.035 vs a 0.02 bar; §19-b re-test outlined
    in the read).
+6. **Batch 6 — splits, exposure, rookies, sources.** 2026-11-16: OBPM/DBPM
+   **shipped** (§16-b PASS: OBPM r 0.711, DBPM r 0.615 vs LUMA xPTS-RAPM
+   halves); attempt-based shrinkage exposure adopted for 4 of 14 rates plus
+   the 7 new rates (§17-b) and a rank-by-regressed toggle on `/leaders`;
+   player on/off panel (§0f, descriptive); `/rookies` race, scatter and
+   standings (descriptive); source registry (`pipeline/sources.py` →
+   `/methods#sources`, `docs/SOURCES.md`). Win probability still **not
+   shipped**: §19-b FAIL (Brier −8.5%, ECE 0.0168 vs 0.015) after the play-order
+   fix; next is a multi-season ESPN PBP backfill and §19-c.

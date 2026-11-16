@@ -5,7 +5,7 @@ import { ShotHeatMap } from "@/components/ui/shot-heatmap";
 import {
   getHoopsAdvAgg, getHoopsCareers, getHoopsClutch, getHoopsContracts, getHoopsMeta, getHoopsPlayer,
   getHoopsPlayerShots, getHoopsProjections, getHoopsRates, getHoopsRebound, getHoopsSeasAvgs,
-  getHoopsSimilar, getHoopsSurplus,
+  getHoopsSimilar, getHoopsSurplus, getHoopsLineups,
 } from "@/lib/data-hoops";
 import type { HoopsContractDeal, HoopsSSCat } from "@/lib/data-hoops";
 import { teamColor } from "@/lib/team-colors";
@@ -14,6 +14,7 @@ import { PercentileRadar } from "@/components/ui/percentile-radar";
 import { ShotQuadrant } from "@/components/ui/shot-quadrant";
 import { ShotCreation } from "@/components/ui/shot-creation";
 import { Sparkline } from "@/components/ui/sparkline";
+import { OnOffPanel, type OnOffSeason } from "@/components/ui/on-off";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -144,12 +145,19 @@ export default async function HoopsPlayerPage({ params }: {
   if (!doc || !Object.keys(doc.seasons).length) notFound();
   const seasons = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
   const [cdoc, advDoc, careers, meta, ss26, ss25, ps27, ps25,
-         similarDoc, surplusDoc, clutchDoc, reboundDoc, projDoc, ratesDoc] = [
+         similarDoc, surplusDoc, clutchDoc, reboundDoc, projDoc, ratesDoc, lineupsDoc] = [
     await getHoopsContracts(), await getHoopsAdvAgg(), await getHoopsCareers(), await getHoopsMeta(),
     await getHoopsSeasAvgs(2026), await getHoopsSeasAvgs(2025),
     await getHoopsPlayerShots(2027), await getHoopsPlayerShots(2025),
     await getHoopsSimilar(), await getHoopsSurplus(), await getHoopsClutch(),
-    await getHoopsRebound(), await getHoopsProjections(), await getHoopsRates()];
+    await getHoopsRebound(), await getHoopsProjections(), await getHoopsRates(), await getHoopsLineups()];
+  // §0f raw on/off: every season where the player cleared the on-court floor
+  const onoff: OnOffSeason[] = Object.entries(lineupsDoc?.seasons ?? {})
+    .sort(([a], [b]) => Number(b) - Number(a))
+    .flatMap(([season, sd]) => Object.entries(sd.teams).flatMap(([team, t]) => {
+      const row = t.onoff.find((r) => r.pid === id);
+      return row ? [{ season, label: seasonLabel(season), team, row, mates: t.onoff, units: t.units }] : [];
+    }));
   const ssDoc = ss26 ?? ss25;
   // §0i shot creation: latest season with at least 50 attempts
   const crSeason = Object.keys(ratesDoc?.seasons ?? {}).sort((a, b) => Number(b) - Number(a))
@@ -828,20 +836,43 @@ export default async function HoopsPlayerPage({ params }: {
             <h2 className="text-sm font-medium text-text-primary mb-1.5">
               Box Plus/Minus <span className="text-text-dim font-normal text-[10px]">· {seasonLabel(crSeason!)} · {crP.min} min</span>
             </h2>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
               <RateChip label="BPM (per 100 vs average)" cls={pctTone(pc("bpm") != null ? pc("bpm")! / 100 : null)}
                 value={<>{sgn(crP.bpm as number)}{pc("bpm") != null && <span className="text-text-dim font-normal text-[10px]"> · {ordinal(pc("bpm")!)}</span>}</>} />
               <RateChip label="Regressed BPM" value={typeof reg === "number" ? sgn(reg) : "—"} />
+              {(["obpm", "dbpm"] as const).map((k) => typeof crP[k] === "number" && (
+                <RateChip key={k} label={k === "obpm" ? "Offense (OBPM)" : "Defense (DBPM)"}
+                  cls={pctTone(pc(k) != null ? pc(k)! / 100 : null)}
+                  value={<>{sgn(crP[k] as number)}{pc(k) != null && <span className="text-text-dim font-normal text-[10px]"> · {ordinal(pc(k)!)}</span>}
+                    {typeof crP[`${k}|reg`] === "number" && <span className="text-text-dim font-normal text-[10px]"> · reg {sgn(crP[`${k}|reg`] as number)}</span>}</>} />
+              ))}
               <RateChip label="VORP" value={typeof crP.vorp === "number" ? (crP.vorp as number).toFixed(1) : "—"} />
             </div>
             <PanelNote>
               Myers&apos; BPM 2.0 from the ESPN box; benchmarked against LUMA Basketball Research&apos;s xPTS-RAPM
-              (r 0.67, §16). Regressed = pulled toward the league mean by measured reliability (§17). A box-score
-              estimate of impact — weak on defense — not a forecast.
+              (r 0.67, §16). OBPM uses Myers&apos; published offensive coefficients; DBPM = BPM − OBPM, so the halves
+              add to the whole (§16-b: OBPM r 0.71 and DBPM r 0.62 against LUMA&apos;s offense and defense halves).
+              Regressed = pulled toward the league mean by measured reliability (§17). A box-score estimate of
+              impact — weak on defense — not a forecast.
             </PanelNote>
           </div>
         );
       })()}
+      {onoff.length > 0 && (
+        <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
+          <h2 className="text-sm font-medium text-text-primary mb-1.5">
+            On/off <span className="text-text-dim font-normal text-[10px]">· raw, regular season</span>
+          </h2>
+          <OnOffPanel rows={onoff} id={id} />
+          <PanelNote>
+            From our stint walk of ESPN play-by-play (§0f: substitutions reconciled to the box score, 99.9% of games score
+            exactly). Raw on/off is not adjusted for who the player shares the floor with or who they face, so a bench
+            player behind a strong starter can look worse than they are; read it beside BPM. Shown only past 1,500
+            on-court and 500 off-court possessions; lineups under 500 possessions are anecdotes. <Link
+            href="/lineups" className="underline">Team lineups</Link>.
+          </PanelNote>
+        </div>
+      )}
       {crP?.zones && crP.types && (() => {
         const chip = (k: string, label: string, f: (v: number) => string) => {
           const v = crP[k], pc = (crP[`${k}|pct`] as { all?: number } | undefined)?.all;

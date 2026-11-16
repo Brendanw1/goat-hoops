@@ -312,6 +312,14 @@ export type HoopsDraftDoc = {
   players: Record<string, { dy?: number; dr?: number; dn?: number }>;
   note: string;
 };
+/** descriptive: per season, every rookie's cumulative Game Score at each week's end */
+export type HoopsRookieRace = Record<string, {
+  start: string; weeks: number;
+  players: Record<string, { name: string; team_id: string; gp: number; gs_total: number; cum: number[]; dn?: number }>;
+}>;
+export const getHoopsRookieRace = cache(async (): Promise<HoopsRookieRace | null> =>
+  (await fetchFromR2<HoopsRookieRace>("rookie_race.json").catch(() => null)) ?? null);
+
 export const getHoopsDraft = cache(async (): Promise<HoopsDraftDoc | null> =>
   (await fetchFromR2<HoopsDraftDoc>("draft.json").catch(() => null)) ?? null);
 
@@ -380,6 +388,7 @@ export type HoopsRatesDoc = {
   status?: Record<string, string>;
   /** §17: stat -> shrinkage constant k in minutes; rows carry "{stat}|reg" */
   shrink_k?: Record<string, number>;
+  shrink_expo?: Record<string, string>;
   gate_0h: { stats?: Record<string, { pass: boolean; pass_0hb?: boolean }> };
   note: string;
 };
@@ -417,3 +426,17 @@ export async function hoopsSeasons(): Promise<number[]> {
   const meta = await getHoopsMeta();
   return Object.keys(meta?.seasons ?? {}).map(Number).sort((a, b) => b - a);
 }
+
+/** pipeline/sources.py: per stat family, the feed call, method, code path, gate and reference */
+export type HoopsSourcesDoc = {
+  feeds: Record<string, { name: string; call: string; gives: string; terms: string; store: string; caveat?: string }>;
+  families: {
+    family: string; keys: string[]; feeds: string[]; method: string; code: string; gate: string | null;
+    gates: Record<string, { credit?: string; ran?: string }>;
+    descriptive?: string[];
+    refs: { title: string; url: string; kb: string }[];
+  }[];
+  note: string;
+};
+export const getHoopsSources = cache(async (): Promise<HoopsSourcesDoc | null> =>
+  (await fetchFromR2<HoopsSourcesDoc>("sources.json").catch(() => null)) ?? null);

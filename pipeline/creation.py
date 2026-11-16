@@ -70,6 +70,15 @@ def clock_seconds(p: pd.DataFrame) -> pd.Series:
     return p.clock_sec.fillna(sub)
 
 
+def ordered(p: pd.DataFrame) -> pd.DataFrame:
+    """Canonical play order: period, game clock descending, total score, seq.
+    ESPN appends late corrections with a higher `seq` but an earlier game
+    time, so `seq` alone puts stale scores mid-stream (§19-b diagnosis)."""
+    k = p.assign(_c=p.clock_sec.fillna(-1), _t=p.home_score + p.away_score)
+    return k.sort_values(["game_id", "period", "_c", "_t", "seq"],
+                         ascending=[True, True, False, True, True]).drop(columns=["_c", "_t"])
+
+
 FOUL_TRIP = r"^Free Throw - (?:Flagrant |Clear Path )?1 of ([123])$"  # §18: a trip started = a foul drawn
 
 
@@ -79,10 +88,10 @@ def pbp_flags(g: pd.DataFrame) -> pd.DataFrame:
     reg = g.loc[g.season_type == 2, ["game_id", "season_year"]].astype({"game_id": str})
     p = pd.read_parquet(MART / "pbp.parquet", columns=["game_id", "seq", "period", "clock_sec", "clock_display",
                                                        "type_text", "p1", "is_shooting", "is_scoring",
-                                                       "points_attempted"])
+                                                       "points_attempted", "home_score", "away_score"])
     p = p.astype({"game_id": str}).merge(reg, on="game_id")
     p["clock_sec"] = clock_seconds(p)
-    p = p[p.p1.notna()].sort_values(["game_id", "seq"])
+    p = ordered(p[p.p1.notna()])
     p["athlete_id"] = p.p1.astype("Int64").astype(str)
     p["badpass"] = p.type_text.str.contains("Bad Pass", na=False)
     p["lostball"] = p.type_text.str.contains("Lost Ball", na=False)
@@ -317,6 +326,9 @@ def _selfcheck() -> None:
                     "Free Throw - Flagrant 1 of 2", "Free Throw - Technical", "Free Throw - 2 of 2"])
     c = clock_seconds(pd.DataFrame({"clock_sec": [65.0, None, None], "clock_display": ["1:05", "0.0", "12.4"]}))
     assert list(c) == [65.0, 0.0, 12.4], c
+    o = ordered(pd.DataFrame({"game_id": ["g"] * 3, "period": [4] * 3, "clock_sec": [0.0, 113.0, 113.0],
+                              "home_score": [110, 108, 106], "away_score": [122, 115, 115], "seq": [830, 832, 801]}))
+    assert list(o.seq) == [801, 832, 830], o  # the late-appended 1:53 rows go back in time
     assert list(ft.str.match(TRIP)) == [True, False, True, False, False, False]
     assert list(ft.str.extract(FOUL_TRIP, expand=False).fillna("-")) == ["2", "1", "3", "2", "-", "-"]
 

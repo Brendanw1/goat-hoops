@@ -13,10 +13,17 @@ LUMA validation gate, mart tables).
 - Player rates rebuild — §0h / §0h-b / §0h-c (`pipeline/rates.py`)
 - Shot creation, zones, playmaking — §0i (`pipeline/creation.py`)
 - Offensive Load — §0j (`pipeline/rates.py`)
-- Box Plus/Minus 2.0 + VORP — §16 (`pipeline/bpm.py`)
-- Regressed values — §17 (`pipeline/shrink.py`)
+- Box Plus/Minus 2.0 + VORP — §16; OBPM/DBPM — §16-b (`pipeline/bpm.py`)
+- Regressed values — §17; attempt exposure — §17-b (`pipeline/shrink.py`)
 - Fouls drawn (free-throw) and and-ones — §18 (`pipeline/creation.py`)
 - Per-shot expected eFG and shot-making — §20 (`pipeline/xefg.py`)
+- Not live: win probability (§19, §19-b FAIL; `pipeline/wp.py`)
+- Descriptive (no gate): rookie race (`pipeline/rookies.py`), team clutch
+  (`pipeline/clutch.py`)
+
+Every stat's feed, method, code path, gate and reference live in
+`pipeline/sources.py` (→ `sources.json`, `docs/SOURCES.md`). A new stat adds
+its row there in the same commit.
 
 ## Clean-room rules (hard)
 

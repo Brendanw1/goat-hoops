@@ -1,0 +1,27 @@
+{
+ "n": 382,
+ "luma_rows": 396,
+ "luma_off_plus_def_vs_net_r": 1.0,
+ "obpm": {
+  "r": 0.7107,
+  "r_pts36": 0.5206,
+  "r_yoy": 0.797,
+  "n_yoy": 182,
+  "pass": true
+ },
+ "dbpm": {
+  "r": 0.615,
+  "r_stocks36": 0.4262,
+  "r_yoy": 0.7005,
+  "n_yoy": 182,
+  "pass": true
+ },
+ "league_mean_obpm": {
+  "2025": -0.001,
+  "2026": 0.004,
+  "2027": 0.001
+ },
+ "pass": true,
+ "credit": "LUMA Basketball Research (xPTS-RAPM off/def) \u2014 validation reference only",
+ "ran": "2026-11-16"
+}

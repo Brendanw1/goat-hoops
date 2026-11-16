@@ -47,8 +47,17 @@ and player pages. Free-throw fouls drawn and and-ones (§18, `creation.py
 add last 10/30 and monthly splits with sparklines; team pages add four-factor
 bars, strength of schedule and clutch (`pipeline/clutch.py`, descriptive).
 Expected eFG and shot-making from a per-shot make model (`pipeline/xefg.py`,
-§20) rank on `/leaders` and show on player pages. Win probability
-(`pipeline/wp.py`, §19) failed its calibration bar and does not render.
+§20) rank on `/leaders` and show on player pages. BPM splits into OBPM and
+DBPM (§16-b, `bpm.py --gate-b`); regression uses attempts as exposure where
+it predicts better (§17-b, `shrink.py --gate-b`) and `/leaders` can rank by
+the regressed value. Player pages carry raw on/off from the §0f stint walk;
+`/rookies` has the weekly rookie race, production vs minutes and standings
+(`pipeline/rookies.py`, descriptive). Win probability (`pipeline/wp.py`,
+§19, §19-b) failed its calibration bar twice and does not render.
+
+Every stat's feed call, method, code path, gate and reference is in
+`pipeline/sources.py`, baked to `sources.json` (rendered at
+`/methods#sources`) and written to `docs/SOURCES.md` on each bake.
 
 The LUMA cross-check gate (2026-10-29): 688/688 game scores 2024-25 exact,
 52/52 current season, 324 player-game boxes with every stat exact except

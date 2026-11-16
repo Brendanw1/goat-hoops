@@ -82,19 +82,27 @@ def gate(g: pd.DataFrame) -> dict:
             "calib_base": round(calib(pb, y), 4), "pass": ok}
 
 
-def player_xefg(g: pd.DataFrame) -> pd.DataFrame:
-    """Production: refit on every completed season (same spec), score every shot;
-    per (season_year, athlete_id): xefg, smk (eFG − xEFG), sq_fga."""
+def shot_values(g: pd.DataFrame) -> pd.DataFrame:
+    """Production: refit on every completed season (same spec), score every shot:
+    game_id, athlete_id, season_year, xv (p·1.5 for threes), av (made·1.5 for threes)."""
     from creation import load_shots
     s = load_shots(g)
     m = fit(s[s.season_year < s.season_year.max()])  # completed seasons; the live one is scored only
-    s = s.assign(p=m.predict_proba(design(s)[COLS])[:, 1])
+    p = m.predict_proba(design(s)[COLS])[:, 1]
     w = np.where(s.points_attempted == 3, 1.5, 1.0)
-    s = s.assign(xv=s.p * w, av=s.made * w)
-    a = s.groupby(["season_year", "shooter_id"]).agg(xefg=("xv", "mean"), efg_sh=("av", "mean"),
-                                                     sq_fga=("xv", "size")).reset_index()
-    return a.rename(columns={"shooter_id": "athlete_id"}).assign(smk=lambda d: d.efg_sh - d.xefg) \
-        .drop(columns="efg_sh")
+    return pd.DataFrame({"game_id": s.game_id, "athlete_id": s.shooter_id, "season_year": s.season_year,
+                         "xv": p * w, "av": s.made.to_numpy() * w})
+
+
+def player_xefg(g: pd.DataFrame | None = None, sv: pd.DataFrame | None = None,
+                keep: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Per (season_year, athlete_id): xefg, smk (eFG − xeFG), sq_fga; `keep` restricts player-games."""
+    sv = shot_values(g) if sv is None else sv
+    if keep is not None:
+        sv = sv.merge(keep[["game_id", "athlete_id"]].astype(str).drop_duplicates(), on=["game_id", "athlete_id"])
+    a = sv.groupby(["season_year", "athlete_id"]).agg(xefg=("xv", "mean"), e=("av", "mean"),
+                                                       sq_fga=("xv", "size")).reset_index()
+    return a.assign(smk=a.e - a.xefg).drop(columns="e")
 
 
 def _selfcheck() -> None:

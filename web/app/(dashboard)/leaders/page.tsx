@@ -15,6 +15,8 @@ const DEFS: Def[] = [
   { key: "stl", label: "Steals", group: "Per game", dp: 1, what: "steals per game" },
   { key: "blk", label: "Blocks", group: "Per game", dp: 1, what: "blocks per game" },
   { key: "bpm", label: "BPM", group: "Impact", dp: 1, what: "Box Plus/Minus 2.0 (Myers): points per 100 possessions above an average player, estimated from the box score" },
+  { key: "obpm", label: "OBPM", group: "Impact", dp: 1, what: "the offensive half of BPM: Myers' published offensive coefficients, team-adjusted so a team's OBPM sums to its offensive rating above league average (§16-b)" },
+  { key: "dbpm", label: "DBPM", group: "Impact", dp: 1, what: "the defensive half of BPM: BPM minus OBPM, so the two halves always add to the whole (§16-b)" },
   { key: "vorp", label: "VORP", group: "Impact", dp: 1, what: "value over a replacement player (BPM −2.0), scaled by share of team minutes and games" },
   { key: "ts_pct", label: "TS%", group: "Shooting", pct: true, dp: 1, what: "true shooting: PTS / 2(FGA + 0.44·FTA)" },
   { key: "efg_pct", label: "eFG%", group: "Shooting", pct: true, dp: 1, what: "effective FG%: (FGM + 0.5·3PM) / FGA" },
@@ -62,10 +64,13 @@ const DEFS: Def[] = [
 const BOX = new Set(["pts", "reb", "ast", "stl", "blk"]);
 const POOLS: Record<string, string> = { all: "All", G: "Guards", F: "Forwards", C: "Centers" };
 
+const EXPO_LABEL: Record<string, string> = { min: "minutes", fga: "field-goal attempts", tsa: "shooting attempts",
+  fga_sh: "field-goal attempts", sq_fga: "shots", oreb_ev: "offensive rebounds", fgm_sh: "made shots" };
+
 const label = (s: number) => `${s - 1}-${String(s).slice(2)}`;
 
 export default async function LeadersPage({ searchParams }: {
-  searchParams: Promise<{ season?: string; stat?: string; pool?: string; n?: string }>;
+  searchParams: Promise<{ season?: string; stat?: string; pool?: string; n?: string; rank?: string }>;
 }) {
   const sp = await searchParams;
   const [rates, board] = await Promise.all([getHoopsRates(), getHoopsPlayers()]);
@@ -86,6 +91,8 @@ export default async function LeadersPage({ searchParams }: {
     ?? (gate && (gate.pass || gate.pass_0hb) ? "gated (§0h)" : "descriptive");
   const floor = lg[`${def.key}|floor`] as number | undefined;
   const kReg = rates.shrink_k?.[def.key];
+  const byReg = kReg != null && sp.rank === "reg";
+  const expo = rates.shrink_expo?.[def.key];
 
   const boardRows = new Map((board?.seasons[String(season)] ?? []).map((r) => [r.id, r]));
   const qualified = Object.entries(rates.seasons[String(season)]?.players ?? {})
@@ -108,12 +115,13 @@ export default async function LeadersPage({ searchParams }: {
       r.pct = (below + eq / 2) / vs.length;
     }
   }
-  qualified.sort((a, b) => (lower ? a.v - b.v : b.v - a.v));
+  const key = (r: { v: number; reg: number | null }) => (byReg ? r.reg ?? r.v : r.v);
+  qualified.sort((a, b) => (lower ? key(a) - key(b) : key(b) - key(a)));
   const top = qualified.slice(0, n);
   const fmt = (v: number) => def.pct ? `${(v * 100).toFixed(def.dp)}%` : v.toFixed(def.dp);
   const points: StripPoint[] = qualified.map((r) => ({ id: r.id, name: r.name, v: r.v, pct: r.pct }));
   const qs = (o: Record<string, string | number>) => {
-    const u = new URLSearchParams({ season: String(season), stat: def.key, pool, n: String(n) });
+    const u = new URLSearchParams({ season: String(season), stat: def.key, pool, n: String(n), rank: byReg ? "reg" : "raw" });
     for (const [k, v] of Object.entries(o)) u.set(k, String(v));
     return `/leaders?${u}`;
   };
@@ -147,6 +155,11 @@ export default async function LeadersPage({ searchParams }: {
           ))}
           <span className="ml-3 text-text-dim">Show</span>
           {[25, 50, 100].map((k) => <Link key={k} href={qs({ n: k })} className={chip(k === n)}>{k}</Link>)}
+          {kReg != null && <>
+            <span className="ml-3 text-text-dim">Rank by</span>
+            <Link href={qs({ rank: "raw" })} className={chip(!byReg)}>Raw</Link>
+            <Link href={qs({ rank: "reg" })} className={chip(byReg)}>Regressed</Link>
+          </>}
         </div>
       </div>
 
@@ -157,7 +170,9 @@ export default async function LeadersPage({ searchParams }: {
         {" "}<span className={status === "descriptive" ? "text-flag" : ""}>Status: {status}</span>
         {status === "descriptive" && " — no external reference to check it against yet."}
         {kReg != null && <> · Regressed = pulled toward the league mean as if the player had {Math.round(kReg)} more
-          minutes of league-average play, the amount measured reliability calls for (§17).</>}
+          {" "}{EXPO_LABEL[expo ?? "min"] ?? "minutes"} of league-average play, the amount measured reliability calls for
+          (§17{expo && expo !== "min" ? "-b: weighted by attempts, not minutes" : ""}).
+          {byReg && " Ranked by the regressed value, which discounts hot small samples."}</>}
       </p>
 
       <StatStrip points={points} shown={new Set(top.map((r) => r.id))} fmt={fmt} label={def.label} lower={lower} />
@@ -168,8 +183,8 @@ export default async function LeadersPage({ searchParams }: {
             <tr className="border-b border-border-subtle">
               <th className="py-1.5 pr-2 w-8">#</th><th className="pr-2">Player</th><th className="pr-2">Team</th>
               <th className="pr-2">Pos</th><th className="pr-2 text-right">GP</th><th className="pr-2 text-right">MPG</th>
-              <th className="pr-3 text-right">{def.label}</th>
-              {kReg != null && <th className="pr-3 text-right" title="regressed toward the league mean (§17)">Regressed</th>}
+              <th className={`pr-3 text-right ${byReg ? "" : "text-text-secondary"}`}>{def.label}</th>
+              {kReg != null && <th className={`pr-3 text-right ${byReg ? "text-text-secondary" : ""}`} title="regressed toward the league mean (§17)">Regressed</th>}
               <th className="w-48">Percentile</th>
             </tr>
           </thead>
@@ -204,9 +219,10 @@ export default async function LeadersPage({ searchParams }: {
       <p className="text-[10px] text-text-dim/70">
         Regular season, computed from ESPN box scores with NBA.com definitions (on-court team totals
         estimated by minutes share); shot zones, self-creation and playmaking from ESPN play-by-play.
-        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j/§16/§18/§20 checks against an independent source; see Methods.
+        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j/§16/§16-b/§18/§20 checks against an independent source; see Methods.
         {def.key === "off_load" && " Offensive Load is benchmarked against LUMA Basketball Research's load channel (Lens), which is not shown here."}
-        {(def.key === "bpm" || def.key === "vorp") && " BPM is benchmarked against LUMA Basketball Research's xPTS-RAPM, which is not shown here."}
+        {["bpm", "vorp", "obpm", "dbpm"].includes(def.key) && " BPM and its offense/defense halves are benchmarked against LUMA Basketball Research's xPTS-RAPM (net, offense, defense), which is not shown here."}
+        {" "}Every stat's feed, formula and code path: <Link href="/methods#sources" className="underline">Sources</Link>.
         Descriptive, not a forecast.
       </p>
     </div>

@@ -2087,3 +2087,84 @@ race (cumulative Game Score by week, rookies = 2026 draftees per the BDL
 draft bio plus any player with no game in the 2022-23 → 2025-26 spine), and
 a player on/off panel from the §0f-gated stint walk (on- vs off-court net,
 on-court ORtg/DRtg vs the team, possessions shown, small samples flagged).
+
+### §19-b read (2026-11-16): FAIL — narrowly; still no WP line
+
+Run: `python pipeline/wp.py --gate-b` → `data/derived/gate_wp_19b.json`. 22
+games dropped by the final-score rule; ordering fixed as registered.
+
+| step | result | rule | verdict |
+|---|---|---|---|
+| CV on 2026 (Brier / ECE / max gap) | C0 0.1442 / 0.012 / 0.021 · C1 0.1443 / 0.012 / 0.021 · C2 (monotone GBM) 0.1472 / 0.023 / 0.041 | lowest Brier with max gap ≤ 0.02, else lowest ECE | none ≤ 0.02 → **C0** (lowest ECE) |
+| Test 2025: Brier vs score-and-time | **0.1493 vs 0.1631 (−8.5%)**, CI [−0.0177, −0.0091] | lower, CI < 0 | PASS |
+| Test 2025: weighted ECE | **0.0168** | ≤ 0.015 | **FAIL** |
+| Test 2025: every decile's CI overlaps ±0.02 | yes (worst decile +0.048, CI [0.012, 0.083]) | all overlap | PASS |
+| Forward 2026-27 (180 games, report only) | Brier 0.1448, ECE 0.027, max gap 0.067 | — | — |
+
+Diagnosis (after the gate, on the test season):
+- *Data, fixed:* the `seq` ordering defect was real and is gone (the §19
+  states carried stale scores in most games). It accounts for part of §19's
+  miss, not all of it.
+- *Data, unfixable with two seasons:* the home team won 55.3% in the training
+  season and 54.5% in the test season. The model over-predicts home by about
+  1 point in every quarter (Q1 0.554 vs 0.545 … last 4 min 0.546 vs 0.541).
+- *Modeling:* the pre-game strength slope does not transfer. Early in games
+  (τ > 0.75), strong home favourites (s > +5) get 0.833 and win 0.780; big
+  underdogs (s < −5) get 0.249 and win 0.276. Season-to-date net rating
+  shrunk with 10 games is too noisy a prior; fit on one season, its slope is
+  overconfident.
+
+Senior read: both remaining misses are things one training season can't
+average out. The fix is more seasons, not more tuning of the same two:
+backfill the public ESPN play-by-play for 2019-20 → 2023-24 in `hoops_mart`
+(same feed and endpoint, five more seasons), then a §19-c that trains on
+several seasons, shrinks the strength prior by measured reliability (the §17
+method), and tests on a season none of them saw. No third attempt runs on
+these two seasons: repeating the test until it passes would make the bar
+meaningless.
+
+### §16-b read (2026-11-16): PASS, both components — OBPM and DBPM render
+
+Run: `python pipeline/bpm.py --gate-b` → `data/derived/gate_bpm_16b.json`.
+382 of 396 LUMA rows joined (same pool as §16). Check on the reference:
+LUMA off + def reproduces its `net_rapm` exactly (r 1.000). League
+minutes-weighted OBPM: −0.001 / +0.004 / +0.001 (2025 / 2026 / 2027).
+
+| component | r vs LUMA | baseline (same players) | year-to-year (n 182) | verdict |
+|---|---|---|---|---|
+| OBPM vs `xpts_off + conv_off` | **0.711** | points/36 0.521 (+0.19) | 0.797 | PASS |
+| DBPM vs `xpts_def + conv_def` | **0.615** | (STL+BLK)/36 0.426 (+0.19) | 0.701 | PASS |
+
+Read: OBPM tracks offensive impact well; DBPM does better here than box
+defense usually does, so we treat this as agreement with one reference
+season, not proof that the box measures defense. The page keeps the "weak on
+defense" caveat. The team offensive adjustment (OBPM sums to team ORtg −
+league ORtg) is our reading of the source's total-BPM rule, as registered.
+
+### §17-b read (2026-11-16): attempts win 4 of 14; all 7 new rates regress
+
+Run: `python pipeline/shrink.py --gate-b` → `data/derived/shrink_17b.json`.
+Held-out 2026 halves, 286 players (≥ 300 min each half).
+
+| stat | exposure | k | held-out MSE vs §17 minutes (or vs raw for new) | decision |
+|---|---|---|---|---|
+| 3PA rate | FGA | 6.9 | −0.4% | attempts |
+| corner-3 rate | shot FGA | 19.0 | −1.8% | attempts |
+| pull-up rate | shot FGA | 10.0 | −1.5% | attempts |
+| self-created % | shot FGM | 12.5 | −2.3% | attempts |
+| TS%, eFG%, FT rate, rim/mid rate, rim/mid/c3/ab3 FG%, pull-up eFG | attempts | — | worse than minutes by 0.4–9.2% | keep minutes |
+| FT fouls drawn/36 | min | 62 | −5.3% vs raw | regress |
+| and-ones/36 | min | 298 | −20.1% vs raw | regress |
+| OBPM / DBPM | min | 177 / 67 | −19.8% / −6.9% vs raw | regress |
+| putback rate | OREB | 21 | −14.9% vs raw | regress |
+| xeFG / shot-making | shot FGA | 13 / 276 | −2.8% / −27.9% vs raw | regress |
+
+Read: the textbook expectation (attempts beat minutes for shooting
+percentages) fails here, and the reason is a handling one, not noise.
+Shooting skill and volume are correlated: the attempt-weighted league mean
+sits above what low-volume shooters actually make, so shrinking a 40-attempt
+player toward it inflates them. Minutes exposure, with its minutes-weighted
+mean, is the less biased target. The fix the literature uses is a volume-aware
+target (shrink toward the mean of players with similar volume), a candidate
+for a later §17-c. Shot-*mix* rates (3PA rate, corner-3 and pull-up shares,
+self-created share) don't carry that volume bias, and attempts win there.

@@ -15,7 +15,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hoops_export import MART  # noqa: E402
-from creation import clock_seconds  # noqa: E402
+from creation import clock_seconds, ordered  # noqa: E402
 
 GATE = Path(__file__).resolve().parents[1] / "data" / "derived" / "gate_wp_19.json"
 BASE, FULL = ["m_t", "sq"], ["m_t", "sq", "s_t", "b_t"]
@@ -43,9 +43,9 @@ def states(g: pd.DataFrame) -> pd.DataFrame:
         "is_shooting", "points_attempted", "p1", "clock_display"]).astype({"game_id": str})
     p["clock_sec"] = clock_seconds(p)
     p = p[p.clock_sec.notna()]  # one 2025-26 game ships an "H:MM:SS" display (9 rows)
-    p = p.merge(reg[["game_id", "season_year", "home_team_id", "away_team_id", "home_score", "away_score"]]
-                .rename(columns={"home_score": "fh", "away_score": "fa"}), on="game_id")
-    p = p.sort_values(["game_id", "seq"]).reset_index(drop=True)
+    p = p.merge(reg[["game_id", "season_year", "home_team_id", "away_team_id", "home_score", "away_score",
+                     "neutral"]].rename(columns={"home_score": "fh", "away_score": "fa"}), on="game_id")
+    p = ordered(p).reset_index(drop=True)
     p["team"] = p.team_id.astype("Int64").astype(str)
     side = np.where(p.team == p.home_team_id, 1.0, np.where(p.team == p.away_team_id, -1.0, np.nan))
     tt = p.type_text.fillna("")
@@ -66,13 +66,53 @@ def states(g: pd.DataFrame) -> pd.DataFrame:
     p["s"] = p.sh.fillna(0) - p.sa.fillna(0)
     p["side"] = side
     p["y"] = (p.fh > p.fa).astype(int)
+    # §19-b: a game whose last ordered state disagrees with the box final is dropped (26)
+    last = p.groupby("game_id")[["home_score", "away_score", "fh", "fa"]].last()
+    bad = last.index[(last.home_score != last.fh) | (last.away_score != last.fa)]
+    p = p[~p.game_id.isin(bad)].copy()
+    p["neutral"] = p.neutral.fillna(False).astype(int)
     p["w"] = 1 / p.groupby("game_id").seq.transform("size")
     return add_x(p)
 
 
 def add_x(p: pd.DataFrame) -> pd.DataFrame:
     r = np.sqrt(p.tau)
-    return p.assign(m_t=p.m / r, sq=r, s_t=p.s * r, b_t=p.b / r)
+    h = 1 - p.neutral if "neutral" in p else 1
+    return p.assign(m_t=p.m / r, sq=r, s_t=p.s * r, b_t=p.b / r, h=h, sq_h=r * h)
+
+
+# §19-b candidates: (features, kind); C1/C2 zero the home-court terms at neutral sites
+C1 = ["m_t", "sq_h", "h", "s_t", "b_t"]
+C2 = ["m", "tau", "m_t", "s", "s_t", "b", "b_t", "neutral"]
+C2_MONO = [1, 0, 1, 1, 1, 1, 1, 0]
+
+
+def fit_spec(p: pd.DataFrame, spec: str):
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.linear_model import LogisticRegression
+    if spec == "C0":
+        return LogisticRegression(C=1e6, max_iter=1000).fit(p[FULL], p.y, sample_weight=p.w), FULL
+    if spec == "C1":
+        return LogisticRegression(C=1e6, max_iter=1000, fit_intercept=False).fit(
+            p[C1], p.y, sample_weight=p.w), C1
+    if spec == "B":
+        return LogisticRegression(C=1e6, max_iter=1000).fit(p[BASE], p.y, sample_weight=p.w), BASE
+    m = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.05, random_state=0, monotonic_cst=C2_MONO)
+    return m.fit(p[C2], p.y, sample_weight=p.w), C2
+
+
+def deciles(pr, w, bins=10):
+    o = np.argsort(pr, kind="stable")
+    q = np.empty(len(pr), int)
+    q[o] = np.minimum(((np.cumsum(w[o]) - w[o]) / w.sum() * bins).astype(int), bins - 1)
+    return q
+
+
+def cal_stats(pr, y, w, q):
+    """(ECE, per-decile gaps) with fixed decile assignment q, equal-weight deciles."""
+    d = pd.DataFrame({"p": pr * w, "y": y * w, "w": w, "q": q}).groupby("q").sum()
+    gap = (d.p - d.y) / d.w
+    return float((gap.abs() * d.w).sum() / d.w.sum()), gap.to_numpy()
 
 
 def fit(p: pd.DataFrame, cols):
@@ -109,6 +149,60 @@ def gate(g: pd.DataFrame) -> dict:
             "pass": bool(brier_m < brier_b and hi < 0 and cal <= 0.02)}
 
 
+def gate_b(g: pd.DataFrame) -> dict:
+    """§19-b: select by 5-fold game-grouped CV on site 2026, test on site 2025, forward-check 2027."""
+    from sklearn.model_selection import GroupKFold
+    p = states(g)
+    tr, te, fw = p[p.season_year == 2026], p[p.season_year == 2025], p[p.season_year == 2027]
+    cv = {}
+    for spec in ("C0", "C1", "C2"):
+        oof = np.zeros(len(tr))
+        for a, b in GroupKFold(5).split(tr, groups=tr.game_id):
+            m, cols = fit_spec(tr.iloc[a], spec)
+            oof[b] = m.predict_proba(tr.iloc[b][cols])[:, 1]
+        y, w = tr.y.to_numpy(), tr.w.to_numpy()
+        ece, gap = cal_stats(oof, y, w, deciles(oof, w))
+        cv[spec] = {"brier": round(float(((oof - y) ** 2 * w).sum() / w.sum()), 5), "ece": round(ece, 4),
+                    "max_gap": round(float(np.abs(gap).max()), 4)}
+    ok = [k for k, v in cv.items() if v["max_gap"] <= 0.02]
+    pick = min(ok, key=lambda k: cv[k]["brier"]) if ok else min(cv, key=lambda k: cv[k]["ece"])
+    m, cols = fit_spec(tr, pick)
+    mb, bcols = fit_spec(tr, "B")
+    pm, pb = m.predict_proba(te[cols])[:, 1], mb.predict_proba(te[bcols])[:, 1]
+    y, w, gid = te.y.to_numpy(), te.w.to_numpy(), te.game_id.to_numpy()
+    q = deciles(pm, w)
+    ece, gap = cal_stats(pm, y, w, q)
+    per = pd.DataFrame({"g": gid, "d": ((pm - y) ** 2 - (pb - y) ** 2) * w}).groupby("g").d.sum()
+    games = pd.Series(np.arange(len(te))).groupby(gid).apply(np.asarray)
+    rng = np.random.default_rng(0)
+    bd, bg = [], []
+    for _ in range(200):
+        pick_g = rng.integers(0, len(games), len(games))
+        bd.append(per.iloc[pick_g].mean())
+        ix = np.concatenate(games.iloc[pick_g].to_numpy())
+        bg.append(cal_stats(pm[ix], y[ix], w[ix], q[ix])[1])
+    lo, hi = np.percentile(bd, [2.5, 97.5])
+    glo, ghi = np.percentile(np.vstack(bg), [2.5, 97.5], axis=0)
+    overlap = bool(((ghi >= -0.02) & (glo <= 0.02)).all())
+    brier_m = float(((pm - y) ** 2 * w).sum() / w.sum())
+    brier_b = float(((pb - y) ** 2 * w).sum() / w.sum())
+    # forward check (not gated): fit 2025 + 2026, score the live season
+    both = p[p.season_year.isin([2025, 2026])]
+    mf, fcols = fit_spec(both, pick)
+    pf, yf, wf = mf.predict_proba(fw[fcols])[:, 1], fw.y.to_numpy(), fw.w.to_numpy()
+    fece, fgap = cal_stats(pf, yf, wf, deciles(pf, wf))
+    return {"dropped_games": int(g[g.season_type == 2].shape[0] - p.game_id.nunique()), "cv_2026": cv, "pick": pick,
+            "test_2025": {"games": int(te.game_id.nunique()), "brier_model": round(brier_m, 5),
+                          "brier_base": round(brier_b, 5), "ci95_diff": [round(float(lo), 5), round(float(hi), 5)],
+                          "ece": round(ece, 4), "decile_gaps": np.round(gap, 4).tolist(),
+                          "decile_ci_lo": np.round(glo, 4).tolist(), "decile_ci_hi": np.round(ghi, 4).tolist(),
+                          "all_deciles_overlap_2pt": overlap},
+            "forward_2027": {"games": int(fw.game_id.nunique()),
+                             "brier": round(float(((pf - yf) ** 2 * wf).sum() / wf.sum()), 5),
+                             "ece": round(fece, 4), "max_gap": round(float(np.abs(fgap).max()), 4)},
+            "pass": bool(brier_m < brier_b and hi < 0 and ece <= 0.015 and overlap)}
+
+
 def production(g: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """Refit M on completed seasons; return (player WPA per season, {game_id: [[elapsed, wp‰], ...]})."""
     p = states(g)
@@ -135,7 +229,13 @@ def _selfcheck() -> None:
 
 if __name__ == "__main__":
     _selfcheck()
-    if "--gate" in sys.argv:
+    if "--gate-b" in sys.argv:
+        gm = pd.read_parquet(MART / "games.parquet")
+        res = gate_b(gm[gm.completed])
+        res["ran"] = pd.Timestamp.now().strftime("%Y-%m-%d")
+        GATE.with_name("gate_wp_19b.json").write_text(json.dumps(res, indent=1))
+        print(json.dumps(res, indent=1))
+    elif "--gate" in sys.argv:
         gm = pd.read_parquet(MART / "games.parquet")
         res = gate(gm[gm.completed])
         res["ran"] = pd.Timestamp.now().strftime("%Y-%m-%d")

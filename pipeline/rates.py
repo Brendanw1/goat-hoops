@@ -52,7 +52,7 @@ CREATION = {"rim_rate": (3, "a"), "mid_rate": (3, "a"), "c3_rate": (3, "a"),
             "badpass36": (2, None), "lostball36": (2, None),
             "xefg": (3, "x"), "smk": (3, "x"),
             "fdrawn36": (2, "f"), "andone36": (2, "f"), "andones": (0, "f"), "putback_rate": (3, None),
-            "box_creation": (1, "c"), "off_load": (1, "l"), "bpm": (1, "p"), "vorp": (1, "p"),
+            "box_creation": (1, "c"), "off_load": (1, "l"), "bpm": (1, "p"), "vorp": (1, "p"), "obpm": (1, "o"), "dbpm": (1, "d"),
             "gmsc": (1, "box"), "g30": (0, "box"), "g40": (0, "box"), "dd": (0, "box"), "td": (0, "box")}
 # attempt floors on top of the minutes floor (full season; the live season scales them)
 FLOOR = {"rim_fg": ("rim_fga", 100), "mid_fg": ("mid_fga", 60), "c3_fg": ("c3_fga", 40),
@@ -371,7 +371,7 @@ def season_table(pg, tg, g, keep: pd.DataFrame | None = None) -> pd.DataFrame:
     # §0h-c: NBA.com counts free-throw trips; the §0h record keeps 0.44·FTA
     den = a.fga + a.trips.fillna(0) + a.ast + a.tov
     a["to_ratio"] = (100 * a.tov / den).where(den > 0)
-    b = bpm_table(sub, tgo)[["season_year", "athlete_id", "bpm", "vorp", "pos_est", "role_est"]]
+    b = bpm_table(sub, tgo)[["season_year", "athlete_id", "bpm", "obpm", "dbpm", "vorp", "pos_est", "role_est"]]
     return a.merge(b, on=["season_year", "athlete_id"], how="left")
 
 
@@ -403,6 +403,10 @@ def build(pg, tg, g, adv_path: Path) -> dict:
     from bpm import GATE as GATE_16
     g16 = json.loads(GATE_16.read_text()) if GATE_16.exists() else {}
     gpass["p"] = g16.get("pass", False)
+    from bpm import GATE_B as GATE_16B
+    g16b = json.loads(GATE_16B.read_text()) if GATE_16B.exists() else {}
+    gpass["o"] = gpass["p"] and g16b.get("obpm", {}).get("pass", False)
+    gpass["d"] = gpass["o"] and g16b.get("dbpm", {}).get("pass", False)  # DBPM = BPM − OBPM
     from creation import GATE_F
     g18 = json.loads(GATE_F.read_text()) if GATE_F.exists() else {}
     gpass["f"] = g18.get("pass", False)
@@ -415,7 +419,7 @@ def build(pg, tg, g, adv_path: Path) -> dict:
             digits[k] = dp
             status[k] = {None: "descriptive", "box": "box score", "c": "gated (§0j)",
                          "l": "gated (§0j)", "p": "gated (§16)", "f": "gated (§18)",
-                         "x": "gated (§20)"}.get(gk, "gated (§0i)")
+                         "x": "gated (§20)", "o": "gated (§16-b)", "d": "gated (§16-b)"}.get(gk, "gated (§0i)")
     a = season_table(pg, tg, g)
     if gpass["x"]:  # §20: production refit on completed seasons, every shot scored
         a = a.merge(player_xefg(g), on=["season_year", "athlete_id"], how="left")
@@ -423,6 +427,13 @@ def build(pg, tg, g, adv_path: Path) -> dict:
     sk = json.loads(SHRINK.read_text()) if SHRINK.exists() else {}  # §17, offline; fail closed
     kmap = {k: v["k"] for k, v in sk.get("k", {}).items()
             if sk.get("gate", {}).get("pass") and sk["gate"]["stats"].get(k, {}).get("pass")}
+    from shrink import SHRINK_B, add_expo
+    sb = json.loads(SHRINK_B.read_text()) if SHRINK_B.exists() else {}  # §17-b, offline; fail closed
+    expo = {k: "min" for k in kmap}
+    for k, v in sb.get("gate", {}).get("stats", {}).items():
+        if v.get("adopt") and sb["k"][k]["k"]:  # attempt exposure won, or a new rate beat raw
+            kmap[k], expo[k] = sb["k"][k]["k"], sb["k"][k]["expo"]
+    a = add_expo(a)
     types = [t for t, _ in TYPES] + ["other"]
     team_gp = g[g.season_type == 2].groupby("season_year").size() * 2 / 30  # games per team
     seasons, league = {}, {}
@@ -453,7 +464,7 @@ def build(pg, tg, g, adv_path: Path) -> dict:
                     for e, pc in zip(qp.loc[vp.index, "athlete_id"], pctile(vp, hb)):
                         pct[k].setdefault(e, {})["pos"] = int(pc)
         lg["pools"] = {p: int(n) for p, n in q.pos.value_counts().items()}
-        mus = {k: wmean(q[k], q["min"]) for k in shown if k in kmap and q[k].notna().any()}
+        mus = {k: wmean(q[k], q[expo[k]]) for k in shown if k in kmap and q[k].notna().any()}
         players = {}
         for r in ss.itertuples():
             row = {"gp": int(r.gp), "min": int(r.min), "pos": r.pos,
@@ -465,8 +476,8 @@ def build(pg, tg, g, adv_path: Path) -> dict:
                     row[f"{k}|pct"] = pct[k][r.athlete_id]
                 if k in qk:
                     row[f"{k}|q"] = bool(qk[k].at[r.Index])
-                if k in mus and row[k] is not None:  # §17: regressed toward the qualified mean
-                    row[f"{k}|reg"] = round(float(regress(v, r.min, kmap[k], mus[k])), digits[k])
+                if k in mus and row[k] is not None and pd.notna(getattr(r, expo[k])):  # §17/§17-b
+                    row[f"{k}|reg"] = round(float(regress(v, getattr(r, expo[k]), kmap[k], mus[k])), digits[k])
             # shot-diet panel: [fga, fgm, assisted fgm] by zone, [fga, fgm, 3pm] by type
             if gpass["a"] and gpass["b"] and getattr(r, "fga_sh", 0) > 0:
                 row["zones"] = {z: [int(getattr(r, f"{z}_fga")), int(getattr(r, f"{z}_fgm")),
@@ -477,8 +488,8 @@ def build(pg, tg, g, adv_path: Path) -> dict:
         seasons[int(season)] = {"players": players}
         league[int(season)] = lg
     return {"seasons": seasons, "league": league, "lower_better": list(LOWER_BETTER),
-            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i, "gate_0j": g0j, "gate_16": g16, "gate_18": g18, "gate_20": g20,
-            "shrink_k": kmap, "gate_17": {x: y for x, y in sk.get("gate", {}).items() if x != "stats"},
+            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i, "gate_0j": g0j, "gate_16": g16, "gate_16b": g16b, "gate_18": g18, "gate_20": g20,
+            "shrink_k": kmap, "shrink_expo": {k: e for k, e in expo.items() if e != "min"}, "gate_17": {x: y for x, y in sk.get("gate", {}).items() if x != "stats"},
             "note": "§0h — NBA.com-definition rates rebuilt from the ESPN box; on-floor "
                     "team totals approximated by minutes share. Descriptive, not a forecast."}
 
@@ -489,11 +500,12 @@ def gates_meta() -> dict:
     from bpm import GATE as G16
     from creation import GATE as G0I, GATE_F as G18
     from wp import GATE as G19
+    from bpm import GATE_B as G16B
     from xefg import GATE as G20
     from shrink import SHRINK
     bdl, luma = "balldontlie (reference)", None
     spec = {"0h-b": (GATE_B, bdl), "0h-c": (GATE_C, "ESPN box, held out"), "0i": (G0I, bdl),
-            "0j": (GATE_J, luma), "16": (G16, luma), "17": (SHRINK, "ESPN box, held out"),
+            "0j": (GATE_J, luma), "16": (G16, luma), "16-b": (G16B, luma), "19-b": (G19.with_name("gate_wp_19b.json"), "ESPN play-by-play, held out"), "17": (SHRINK, "ESPN box, held out"),
             "18": (G18, bdl), "19": (G19, "ESPN play-by-play, held out"),
             "20": (G20, "ESPN shots, held out")}
     out = {}
@@ -520,6 +532,9 @@ def rates_phase(out: Path, counts: dict) -> None:
     counts["rates_gate_0h"] = doc["gate_0h"].get("verdict")
     from clutch import team_clutch  # §18 descriptive block: team clutch per season
     jwrite(out / "team_clutch.json", team_clutch(g[g.completed]))
+    from rookies import race  # descriptive: weekly cumulative Game Score per rookie
+    draft = json.loads((out / "draft.json").read_text())["players"] if (out / "draft.json").exists() else {}
+    jwrite(out / "rookie_race.json", race(pg, g[g.completed], draft))
 
 
 def _selfcheck() -> None:

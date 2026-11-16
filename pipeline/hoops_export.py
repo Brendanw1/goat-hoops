@@ -1718,6 +1718,12 @@ def load():
     tg = pd.read_parquet(MART / "team_game.parquet")
     pg = pd.read_parquet(MART / "player_game.parquet")
     pb = pd.read_parquet(MART / "pbp.parquet")
+    # play order by game clock and sub-minute clocks filled (RESULTS-HOOPS §19-b):
+    # ESPN appends late corrections with a higher seq, and "SS.T" clocks parse to null
+    from creation import clock_seconds, ordered
+    pb["clock_sec"] = clock_seconds(pb)
+    pb["period_elapsed"] = pb.period_elapsed.fillna((pb.period <= 4) * 420 + 300 - pb.clock_sec)
+    pb = ordered(pb)
     sh = pd.read_parquet(MART / "shots.parquet")
     g = g[g.completed].copy()
     id2abbr = {}
@@ -2274,7 +2280,7 @@ def bake(out_dir: Path | None = None) -> dict:
         plays = [{"p": iv(r.period), "t": fv(r.period_elapsed), "ty": r.type_text, "tx": r.text,
                   "a": id2abbr.get(str(int(r.team_id))) if pd.notna(r.team_id) else None,
                   "hs": iv(r.home_score), "as": iv(r.away_score)}
-                 for r in gss.sort_values("seq").itertuples()]
+                 for r in gss.itertuples()]  # already in game-clock order (load)
         teams_out = []
         for r in tg_by.get(gid, pd.DataFrame()).itertuples():
             teams_out.append({"abbr": id2abbr.get(str(int(r.team_id))), "side": r.home_away,
@@ -2315,6 +2321,10 @@ def bake(out_dir: Path | None = None) -> dict:
         validation["team_gate_0d"] = team_pkg["gate"]
     from rates import gates_meta  # stats-catalog gates: verdict, run date, credit
     validation["gates"] = gates_meta()
+    from sources import build as sources_doc, markdown as sources_md, rate_status  # feed, method, code, gate, refs
+    src = sources_doc(validation["gates"], rate_status(out))
+    jwrite(out / "sources.json", src)
+    (ROOT / "docs" / "SOURCES.md").write_text(sources_md(src))
     jwrite(out / "meta.json", {
         "seasons": seasons_meta, "validation": validation, "starters": starters_info,
         "note": "descriptive Phase 1: raw box values, averages and per-36 only; "
@@ -2327,7 +2337,8 @@ def bake(out_dir: Path | None = None) -> dict:
 # exploration-lane outputs (pipeline/explore.py) live beside the bake but are
 # not rebuilt by it — excluded from the no-op drift gate
 EXPLORE_KEYS = {"similar.json.gz", "surplus.json.gz", "clutch.json.gz",
-                "rebound.json.gz", "aging.json.gz"}
+                "rebound.json.gz", "aging.json.gz",
+                "lineups.json.gz"}  # written by pipeline/lineups_build.py, not the bake
 
 
 def check() -> int:
