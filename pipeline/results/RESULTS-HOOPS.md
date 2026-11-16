@@ -1834,3 +1834,41 @@ samples are noisy, so this gate mainly shows that k is not over-shrinking;
 the k values are the substantive result. Exposure is minutes for every stat
 (the registered simplification), which under-shrinks low-volume shooters on
 the FG% stats.
+
+## §18 — Fouls drawn and and-ones from ESPN PBP (pre-registered 2026-11-16, before any computation)
+
+**What.** Catalog A4. ESPN's foul events name only the fouler, so the drawer
+is inferred: **a foul drawn is a free-throw trip the player starts**, i.e. a
+free throw matching `^Free Throw - (Flagrant |Clear Path )?1 of [123]$`
+(technical free throws are excluded: they're not drawn by the shooter). An
+**and-one** is a `Free Throw - 1 of 1` whose shooter made a field goal in the
+same game, period and game-clock second. **Simplification, stated on the
+page:** fouls that don't send anyone to the line (non-bonus personal fouls,
+offensive fouls, charges) leave no trace in the feed, so this counts
+*free-throw fouls drawn*, not NBA.com's PFD.
+
+**Gate (site 2026, regular season; both parts must pass).**
+- *(a) FTA accounting:* each trip implies its free throws (N from "1 of N";
+  and-ones 1) plus the player's technical free throws. For players with ≥ 100
+  box FTA, implied FTA must be within 2% of the ESPN box FTA for **≥ 95% of
+  players**. A miss means trips are missing or duplicated in the feed.
+- *(b) External reference:* free-throw fouls drawn per 36 vs balldontlie's
+  NBA.com `pfd` per 36 (`seasavgs_2025_general_base`, BDL season 2025 = site
+  2026, joined on normalized name, unique names only), players with ≥ 1,000
+  minutes in both: **Pearson r ≥ 0.85, and r no worse than 0.01 below the
+  naive baseline FTA/2 per 36** (if the trip count can't match halving FTA,
+  the attribution adds nothing).
+
+Pass → fouls drawn per 36 and and-ones (count and per 36) render on
+`/leaders` as gated (§18); fail → neither renders, with a data / handling /
+modeling diagnosis. Bars do not move.
+
+**Descriptive in the same batch (no gate; labelled "descriptive, not a
+forecast"):** putback rate = the player's FGA within 3 s of game clock after
+his own offensive rebound (same period, next shot event) / his offensive
+rebounds; schedule splits (last 10 / last 30 / by month); team strength of
+schedule (games-weighted mean opponent net rating) and clutch (last 5:00 of
+the 4th or OT with the margin ≤ 5 before the play; clutch net = points
+differential per 100 clutch possessions, possessions by the Oliver box
+estimate FGA − OREB + TOV + 0.44·FTA over clutch events, a box estimate, not
+a possession segmentation).
