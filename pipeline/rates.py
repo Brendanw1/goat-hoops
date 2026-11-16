@@ -470,6 +470,29 @@ def build(pg, tg, g, adv_path: Path) -> dict:
                     "team totals approximated by minutes share. Descriptive, not a forecast."}
 
 
+def gates_meta() -> dict:
+    """Per-gate verdict, run date and credit for meta.json (AGENTS: the bake carries
+    the credit and the gate date). Reads the offline gate files; missing = absent."""
+    from bpm import GATE as G16
+    from creation import GATE as G0I
+    from shrink import SHRINK
+    bdl, luma = "balldontlie (reference)", None
+    spec = {"0h-b": (GATE_B, bdl), "0h-c": (GATE_C, "ESPN box, held out"), "0i": (G0I, bdl),
+            "0j": (GATE_J, luma), "16": (G16, luma), "17": (SHRINK, "ESPN box, held out")}
+    out = {}
+    for sec, (f, credit) in spec.items():
+        if not f.exists():
+            continue
+        d = json.loads(f.read_text())
+        ok = d.get("pass", d.get("gate", {}).get("pass"))
+        if ok is None:  # multi-part gates: §0h-b per stat, §0i parts a/b, §0j per model
+            parts = d.get("stats") or {k: v for k, v in d.items() if isinstance(v, dict) and "pass" in v}
+            ok = {k: bool(v["pass"]) for k, v in parts.items()}
+        ran = d.get("ran") or pd.Timestamp.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d")
+        out[f"§{sec}"] = {"pass": ok, "ran": ran, "credit": d.get("credit") or credit}
+    return out
+
+
 def rates_phase(out: Path, counts: dict) -> None:
     pg = pd.read_parquet(MART / "player_game.parquet")
     tg = pd.read_parquet(MART / "team_game.parquet")

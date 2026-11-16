@@ -2312,6 +2312,8 @@ def bake(out_dir: Path | None = None) -> dict:
         validation["bdl"] = bdl_check_info
     if team_pkg.get("gate"):
         validation["team_gate_0d"] = team_pkg["gate"]
+    from rates import gates_meta  # stats-catalog gates: verdict, run date, credit
+    validation["gates"] = gates_meta()
     jwrite(out / "meta.json", {
         "seasons": seasons_meta, "validation": validation, "starters": starters_info,
         "note": "descriptive Phase 1: raw box values, averages and per-36 only; "

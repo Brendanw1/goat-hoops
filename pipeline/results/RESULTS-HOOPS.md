@@ -1865,7 +1865,7 @@ modeling diagnosis. Bars do not move.
 
 **Descriptive in the same batch (no gate; labelled "descriptive, not a
 forecast"):** putback rate = the player's FGA within 3 s of game clock after
-his own offensive rebound (same period, next shot event) / his offensive
+their own offensive rebound (same period, next shot event) / their offensive
 rebounds; schedule splits (last 10 / last 30 / by month); team strength of
 schedule (games-weighted mean opponent net rating) and clutch (last 5:00 of
 the 4th or OT with the margin ≤ 5 before the play; clutch net = points
