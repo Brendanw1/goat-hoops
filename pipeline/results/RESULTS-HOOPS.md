@@ -1628,3 +1628,50 @@ ours = 100·TOV / (FGA + trips + AST + TOV), 0 when the denominator is 0, vs
 0.95 over ≥ 10,000 rows. Pass → `to_ratio` renders live (lower is better),
 computed season-level as Σ/Σ with the same trip count. Fail → stays off,
 with a diagnosis. The bar does not move after the read.
+
+### §0h-c read (2026-11-15): PASS — turnover ratio renders live
+
+Run: `python pipeline/rates.py --gate-c` → `data/derived/gate_rates_0hc.json`.
+Held-out site 2026: 14,042 (game, player) rows joined of 25,736 ESPN rows
+(balldontlie's 2025-26 full-game rows stop at the trial's coverage), match
+rate **0.9997** (bar 0.95), median |diff| 0.0. `to_ratio` now uses the trip
+count season-level; the §0h record in `rates.json.gz` keeps its original
+0.44·FTA computation so that read stays reproducible.
+
+## §0j — Box Creation and Offensive Load vs LUMA's load channels (pre-registered 2026-11-15, before any LUMA channel value is pulled)
+
+**What.** Ben Taylor's published box-score estimates (catalog A3), from the
+§0-gated ESPN box, regular season, per (season, athlete):
+
+- inputs per 100 player possessions; player possessions = Σ over games of
+  minutes share × the average of both teams' possessions (the §0h STL%
+  denominator); 3P% = 3PM / 3PA (0 with no attempts);
+- 3pt proficiency = (2 / (1 + e^(−3PA per 100)) − 1) · 3P%;
+- **Box Creation** = 0.1843·AST + 0.0969·(PTS + TOV) − 2.3021·prof +
+  0.0582·(AST·(PTS + TOV)·prof) − 1.1942, floored at 0 (a negative count of
+  created shots has no meaning; Closing 5 floors it too). Source: Taylor,
+  "Measuring creation with the box score", Nylon Calculus, 2017-08-11;
+- **Offensive Load** = 0.75·(AST − 0.38·Box Creation) + FGA + 0.44·FTA +
+  Box Creation + TOV (Taylor, "Beyond Assists", Thinking Basketball;
+  formula as transcribed by SAL NBA — no primary text found, so the
+  transcription is part of what this gate tests).
+
+**Reference.** LUMA Basketball Research `channels`, `"window" = 1`, seasons
+2025 and 2026: `lcreation` ("possessions ended by a pass that creates a
+teammate shot", per 100) for Box Creation; `load` ("possessions a player ends
+by a shot taken or a shot created for a teammate", per 100) for Offensive
+Load. Same construct, different construction, so the test is agreement in
+ranking (Pearson r), not equal values. Players with LUMA gp ≥ 40 and ≥ 500
+ESPN minutes, bridged by (season, normalized name), ambiguous names dropped.
+
+**Gates (each season separately; both seasons must pass).**
+- Box Creation: r(BC, lcreation) ≥ 0.85, AND not worse than plain assists:
+  r(BC, lcreation) ≥ r(AST per 100, lcreation) − 0.02.
+- Offensive Load: r(OL, load) ≥ 0.90, AND r(OL, load) ≥ r(FGA + 0.44·FTA +
+  TOV + AST per 100, load) − 0.02.
+
+A metric that matches its bar but loses to its naive baseline adds nothing
+the site doesn't already show and stays off. Pass → it renders on `/leaders`
+and the player page, labelled "an estimate of creation volume, not pass
+quality". LUMA values are used for this gate only and never shipped. The
+bars do not move after the read.
