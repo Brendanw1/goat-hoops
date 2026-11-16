@@ -34,10 +34,12 @@ def off(period: int) -> int:
     return (period - 1) * 720 if period <= 4 else 2880 + (period - 5) * 300
 
 
-def load(season: int):
-    g = pd.read_parquet(MART / "games.parquet")
+def load(season: int, label: str = "", since: str | None = None):
     gs = load_games(season)
-    st = pd.read_parquet(DERIVED / f"stints_{season}.parquet")
+    if since:
+        gs = gs[gs.date_et >= since]
+    st = pd.read_parquet(DERIVED / f"stints_{season}{'_' + label if label else ''}.parquet")
+    st = st[st.game_id.isin(gs.game_id)]
     pb = pd.read_parquet(MART / "pbp.parquet",
                          columns=["game_id", "period", "seq", "is_scoring", "score_value", "team_id",
                                   "clock_display", "clock_sec", "period_elapsed",
@@ -129,9 +131,9 @@ def closing_five(ps: pd.DataFrame, pb: pd.DataFrame, gs: pd.DataFrame) -> dict:
     return out
 
 
-def build(season: int):
+def build(season: int, label: str = "", since: str | None = None):
     """-> (teams: {abbr: rotation doc}, games: {gid: {abbr: [[name, [[g0, g1, pm], ...]]]}}, ps)."""
-    gs, st, pb, pg = load(season)
+    gs, st, pb, pg = load(season, label, since)
     ps = player_stints(gs, st, pb)
     names = pg.drop_duplicates("athlete_id", keep="last").set_index("athlete_id").name.to_dict()
     bins = bin_seconds(ps)
@@ -196,13 +198,15 @@ def jaccard(a: list, b: list) -> float:
     return inter / (la + lb - inter) if la + lb - inter > 0 else 1.0
 
 
-def gate(season: int = 2025) -> int:
+def gate(season: int = 2025, label: str = "", since: str | None = None, ref_all: bool = False) -> int:
     """§22 read: gates 1-2 vs pbpstats playing-time intervals, plus 3-5."""
     from model_rows import PT, spans_for
     from stints_from_pt import XWALK, norm
-    teams, games, ps, bins, n_games, pg = build(season)
+    teams, games, ps, bins, n_games, pg = build(season, label, since)
     res = structural(ps, bins, n_games, pg)
     gs = load_games(season)
+    if since:
+        gs = gs[gs.date_et >= since]
     sstr = f"{season - 1}-{str(season)[2:]}"
     gs["home_x"] = gs.home_abbr.map(lambda x: XWALK.get(x, x))
     pbs = pd.read_parquet(PT / "games.parquet")
@@ -226,6 +230,16 @@ def gate(season: int = 2025) -> int:
     # population: (player, team) with >= 500 box minutes for that team in joined games
     abbr_of = dict(zip(zip(ps.game_id, ps.pid), ps.abbr))
     pg["abbr"] = [abbr_of.get((g, p)) for g, p in zip(pg.game_id, pg.athlete_id)]
+    # §22-b measurement fix: the pbpstats pull lacks some player-games (wrong ids
+    # in pt_ids for e.g. Jaren Jackson Jr. / Gary Trent Jr. / Tim Hardaway Jr.;
+    # coverage thins after January). Compare only player-games both sources hold;
+    # a missing reference game is not zero minutes. ref_all=True reproduces the
+    # registered §22 measurement.
+    played = pg["min"] > 0
+    pg_all = pg
+    pg["has_ref"] = [(p, g) in ref for p, g in zip(pg.athlete_id, pg.game_id)]
+    if not ref_all:
+        pg = pg[~played | pg.has_ref]
     pop = pg.groupby(["athlete_id", "abbr"])["min"].sum()
     pop = pop[pop >= 500].index
     team_games = {a: len(set(ps[(ps.abbr == a) & ps.game_id.isin(joined)].game_id)) for a in n_games.index}
@@ -238,6 +252,7 @@ def gate(season: int = 2025) -> int:
             v += np.clip(np.minimum(min(b, 2880), edges[1:]) - np.maximum(a, edges[:-1]), 0, None)
         return v
 
+    pg0 = pg_all
     xs, ys, jac = [], [], []
     for pid, abbr in pop:
         gids = pg[(pg.athlete_id == pid) & (pg.abbr == abbr)].game_id
@@ -249,7 +264,9 @@ def gate(season: int = 2025) -> int:
             la, lb = sum(y - x for x, y in a), sum(y - x for x, y in b)
             if max(la, lb) >= 300:
                 jac.append(jaccard(a, b))
-        n = 60.0 * team_games[abbr]
+        skipped = 0 if ref_all else int(
+            ((pg0.athlete_id == pid) & (pg0.abbr == abbr) & (pg0["min"] > 0) & ~pg0.has_ref).sum())
+        n = 60.0 * (team_games[abbr] - skipped)
         xs.extend(o / n)
         ys.extend(r / n)
     xs, ys = np.array(xs), np.array(ys)
@@ -260,7 +277,10 @@ def gate(season: int = 2025) -> int:
                 "g2_jaccard_median": round(jm, 4), "g2_n": len(jac), "g2_pass": jm >= 0.95,
                 "jaccard_p10": round(float(np.percentile(jac, 10)), 4)})
     res["pass"] = all(res[k] for k in ("g1_pass", "g2_pass", "g3_pass", "g4_pass", "g5_pass"))
-    (DERIVED / f"gate_rotations_{season}.json").write_text(json.dumps(res, indent=1))
+    res.update({"label": label or None, "since": since, "ref_all": ref_all})
+    tag = (f"_{label}" if label else "") + ("_since" + since.replace("-", "") if since else "") \
+        + ("_refall" if ref_all else "")
+    (DERIVED / f"gate_rotations_{season}{tag}.json").write_text(json.dumps(res, indent=1))
     print(json.dumps(res, indent=1))
     return 0 if res["pass"] else 1
 
@@ -280,9 +300,13 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2025)
     ap.add_argument("--gate", action="store_true", help="§22 external read (2024-25 only)")
+    ap.add_argument("--label", default="", help="read stints_{season}_{label}")
+    ap.add_argument("--since", default=None, help="only games on/after this date (§22-b test half)")
+    ap.add_argument("--ref-all", action="store_true",
+                    help="registered §22 measurement: count reference-less player-games as zero")
     a = ap.parse_args()
     if a.gate:
-        sys.exit(gate(a.season))
+        sys.exit(gate(a.season, a.label, a.since, a.ref_all))
     _, _, ps, bins, n_games, pg = build(a.season)
     r = structural(ps, bins, n_games, pg)
     print(json.dumps(r, indent=1))

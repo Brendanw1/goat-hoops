@@ -2548,3 +2548,107 @@ as the ceiling of the ESPN substitution log.
 period-start lineups are the main source. Risk: errors from the evidence rule
 cannot be fixed by recovering entries, because a player who never records an
 event during a missed stint leaves no trace.
+
+### §22-b development log (development half only: 712 games before 2025-02-01)
+
+**Baseline (current walk).** Game minutes within 1.0: 90.3% (15,306
+player-games); season minutes within 1%: 73.2% (295 players at ≥ 500
+development minutes); interval Jaccard median 0.985. Only 14.5% of the
+interval disagreement with pbpstats falls in the first 60 s of a period
+(8.3% of game time). The walk adds 3,705 players on evidence, about 5 per game.
+Classified:
+- 62.6% were subbed in this period, then evicted by the walk (cascade from a
+  wrong five);
+- 35.0% have no substitution row in the period (period > 1). They started the
+  period on the floor through a lineup change ESPN didn't log, and the walk
+  carried the previous period's five;
+- 2.3% were subbed out earlier in the period with no re-entry row. Samples
+  are mostly technical fouls and ejections by players already on the bench
+  ("Kyle Anderson enters the game for Draymond Green" → "Draymond Green
+  technical foul").
+
+**Iteration 1 change.** (a) Period starters from evidence for periods after
+the first, as pbpstats does: per team, players who act or are subbed out
+before any substitution brings them in started the period. Spots left over
+are filled from the previous period's final five. (d) Technical fouls and
+ejections are not on-floor evidence.
+
+**Iteration 1 read (development).** Game minutes 90.9% (+0.6), season 75.3%
+(+2.1), Jaccard 0.985. Evidence adds 3,705 → 3,479. Small: period-start
+lineups are not the main error. Where the misses are now (1,397 player-games,
+677 over / 720 under, median miss 2.45 min; pbpstats is within 1.0 of the box
+on 98% of them, so the misses are ours): players the walk never corrects
+miss 2.4% of the time; players it **evicts** miss 30–34% and hold 63% of
+all misses. The main error is choosing the wrong player to evict.
+
+**Iteration 2 change.** (c) Look-ahead eviction. The walk runs offline, so
+when a sixth player is evidenced it reads the rest of the period. It
+evicts first a player whose next mention is a substitution bringing him in
+(he was already off), never one whose next mention is a substitution taking him
+out (he must be on), and otherwise the one whose next action is furthest away.
+Ties fall back to least recently evidenced, then id.
+
+**Iteration 2 read (development).** Game minutes **95.3%** (bar 95%), season
+minutes 87.1% (bar 95%), Jaccard 0.987. Misses halved: 1,397 → 715. Season
+error is now centered (mean −0.02%, sd 0.66%). The 38 players outside 1%
+fail on a few large single-game misses, not drift. Those misses sit with
+corrected players: added without eviction 35%, evicted 30%, untouched 26%
+(untouched players miss 1.6% of games).
+
+**Iteration 3 change (the last allowed).** Backdate the swap. When A is
+evidenced and B is evicted, the swap is moved from the last stint boundary to
+the first substitution stoppage after B's last evidence. A stoppage where A's
+team made a substitution is preferred, else any team's. Every stint from
+there to A's evidence shows A in place of B, and the stint closed by the
+correction is kept, not dropped as poisoned, because it now holds the
+corrected five. If no stoppage falls between B's last evidence and A's, the
+swap stays where it is.
+
+**Iteration 3 read (development).** Game minutes **97.6%**, season minutes
+**95.9%**, Jaccard 0.987. Evidence adds 3,705 → 2,140, of which 2,057 swaps
+were backdated. Final candidate: `possessions.py --walk b22` (evidence period
+starters, no technical/ejection evidence, look-ahead eviction, backdated
+swaps).
+
+### §22-b read, test half (2026-11-16): the minutes are fixed; placement fails only under a broken reference
+
+Test half: 519 games, 2025-02-01 → 2025-04-13; the walk is unchanged from the
+development candidate.
+
+| Gate | Bar | New walk (test) | Old walk, same games |
+|---|---|---|---|
+| 1 game minutes within 1.0 | ≥ 95% | **98.4%** PASS (10,919 player-games) | 91.1% |
+| 2 season minutes within 1% | ≥ 95% | **97.9%** PASS (239 players) | 74.9% |
+| 3a placement r / MAD, registered measurement | ≥ 0.95 / ≤ 0.03 | 0.922 / 0.022 **FAIL** | 0.920 / 0.025 |
+| 3b interval Jaccard median | ≥ 0.95 | **0.988** PASS | 0.987 |
+| 3c shares sum to 5 | ± 0.01 | **0.000** PASS | 0.000 |
+| 4 no regression, full season | §21 / §0f bars | possessions 96.7% ±2, MAE 0.84; minutes median 0.27 (was 0.35); §0f 1.000 / 0.979 / 0.9992 — **PASS** | — |
+
+**Diagnosis of 3a: data, in the reference.** The old walk fails 3a by the
+same amount on the same games (0.920), so the failure doesn't come from the
+new walk. The pbpstats pull behind the reference is incomplete:
+- `pt_ids_2024-25.json` maps some players to ids whose files hold no
+  intervals all season (Jaren Jackson Jr. → 1114, Gary Trent Jr. → 718,
+  Tim Hardaway Jr. → 896);
+- coverage of our player-games (≥ 5 min) thins every month after January:
+  98% through January, 96.2% in February, 94.5% in March, 92.8% in April.
+
+The registered share measure counts a missing reference game as zero minutes,
+which penalizes any walk, and more so in the half with more missing games.
+The interval Jaccard was never exposed to this, because it uses its median
+across player-games. Restricting the share comparison to player-games both
+sources hold (`rotations.py`, default now; `--ref-all` reproduces the
+registered measure):
+
+| Read (games both sources hold) | r | MAD |
+|---|---|---|
+| New walk, test half | **0.999** | **0.005** |
+| Old walk, test half | 0.998 | 0.009 |
+| New walk, full season | 1.000 | 0.004 |
+| Old walk, full season (the §22 read) | 0.999 | 0.006 |
+
+The §22 placement reads (r 0.958) were deflated by the same defect.
+**Verdict.** Gates 1, 2, 3b, 3c and 4 pass as registered. Gate 3a fails as
+registered and passes once the reference defect is removed. That correction
+was made after the read, so per the house rules the decision to ship on it
+is the owner's and is recorded here when made.

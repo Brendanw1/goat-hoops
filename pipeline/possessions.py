@@ -118,8 +118,91 @@ def derive_possessions(periods, types, tids, is_scoring, pts_att, score_val, str
     return poss
 
 
+def not_floor_evidence(type_text) -> bool:
+    """§22-b (d): bench players draw technicals and ejections."""
+    t = str(type_text).lower()
+    return "technical" in t or "eject" in t
+
+
+def backdate_swap(stints, i, a, b, team, last_ev, types, tids, home_tid, periods) -> bool:
+    """§22-b iteration 3: A (evidenced at play i) replaced B (evicted) at the
+    first substitution stoppage after B's last evidence — A's team's own
+    stoppage preferred — not at the last stint boundary. Patches every stint
+    of this period starting at or after that point. False if no stoppage fits."""
+    lo = last_ev.get(b, -1)
+    period = periods[i]
+    subs = [j for j in range(max(lo + 1, 0), i) if types[j] == "Substitution" and periods[j] == period]
+    if not subs:
+        return False
+    own = [j for j in subs if str(tids[j]) == team]
+    at = (own or subs)[0]
+    side = "home" if team == home_tid else "away"
+    hit = False
+    for s in stints:
+        if s["period"] == period and s["start_i"] >= at and b in s[side]:
+            s[side] = sorted((set(s[side]) - {b}) | {a})
+            hit = True
+    return hit
+
+
+def lookahead_rank(p, i, periods, types, p1s, p2s, is_scoring, tech_evidence):
+    """§22-b (c): lower = evict first. Next mention after play i in this period:
+    subbed IN -> he was off (0); subbed OUT -> he is on (never evict, 3);
+    acts -> rank by distance (1 + 1/(distance), farther = lower); unseen -> 1."""
+    period = periods[i]
+    j = i + 1
+    while j < len(types) and periods[j] == period:
+        a = str(p1s[j]) if p1s[j] is not None and pd.notna(p1s[j]) else None
+        b = str(p2s[j]) if p2s[j] is not None and pd.notna(p2s[j]) else None
+        if types[j] == "Substitution":
+            if a == p:
+                return 0.0
+            if b == p:
+                return 3.0
+        elif (tech_evidence or not not_floor_evidence(types[j])) and (
+                a == p or (b == p and bool(is_scoring[j]))):
+            return 1.0 + 1.0 / (j - i)
+        j += 1
+    return 1.0
+
+
+def evidence_starters(i0, periods, types, tids, p1s, p2s, is_scoring, prev, tech_evidence):
+    """§22-b (a): a period's starting five per team = players who act, or are
+    subbed out, before any substitution brings them in (pbpstats' rule); spots
+    left over are filled from the previous period's final five."""
+    period = periods[i0]
+    found = {t: [] for t in prev}
+    entered = set()
+    i = i0
+    while i < len(types) and periods[i] == period and any(len(v) < 5 for v in found.values()):
+        tid = str(tids[i]) if tids[i] is not None and pd.notna(tids[i]) else None
+        p1 = str(p1s[i]) if p1s[i] is not None and pd.notna(p1s[i]) else None
+        p2 = str(p2s[i]) if p2s[i] is not None and pd.notna(p2s[i]) else None
+        if types[i] == "Substitution":
+            if p2 and p2 not in entered and tid in found and p2 not in found[tid] and len(found[tid]) < 5:
+                found[tid].append(p2)  # left the floor before entering: he started
+            if p1:
+                entered.add(p1)
+        elif tid in found and (tech_evidence or not not_floor_evidence(types[i])):
+            for p in ([p1] + ([p2] if bool(is_scoring[i]) else [])):
+                if p and p not in entered and p not in found[tid] and len(found[tid]) < 5:
+                    found[tid].append(p)
+        i += 1
+    out = {}
+    for t, lst in found.items():
+        five = set(lst)
+        for p in sorted(prev[t]):  # fill from the previous period's final five
+            if len(five) >= 5:
+                break
+            if p not in entered:
+                five.add(p)
+        out[t] = five
+    return out
+
+
 def derive_stints(periods, types, tids, p1s, p2s, is_scoring, starters,
-                  home_tid, away_tid):
+                  home_tid, away_tid, log=None, period_starters="carry", tech_evidence=True,
+                  evict_rule="recent", backdate=False):
     """Play arrays + starters -> (kept stints, diag, every stint incl. poisoned)
     with evidence-based drift correction."""
     n = len(types)
@@ -149,6 +232,9 @@ def derive_stints(periods, types, tids, p1s, p2s, is_scoring, starters,
             # period's final set (substitutions carry across quarters).
             src = starters if (oncourt is None or period == 1) else oncourt
             oncourt = {tid: set(v) for tid, v in src.items()}
+            if period_starters == "evidence" and period != 1:
+                oncourt = evidence_starters(i, periods, types, tids, p1s, p2s, is_scoring,
+                                            oncourt, tech_evidence)
             new_stint(i, period)
             continue
         if tt == "Substitution":
@@ -175,26 +261,42 @@ def derive_stints(periods, types, tids, p1s, p2s, is_scoring, starters,
         tid = tids[i] if tids[i] is not None else None
         if tid is None:
             continue
+        if not tech_evidence and not_floor_evidence(tt):
+            continue
         evs = []
         if p1s[i] is not None and pd.notna(p1s[i]):
             evs.append((str(p1s[i]), str(tid)))
         if bool(is_scoring[i]) and p2s[i] is not None and pd.notna(p2s[i]):
             evs.append((str(p2s[i]), str(tid)))  # assister: same team
         changed = False
+        swapped = False
         for a, team in evs:
             last_ev[a] = i
             if team in oncourt and a not in oncourt[team]:
                 oncourt[team].add(a)
                 diag["evidence_adds"] += 1
+                if log is not None:
+                    log.append(("add", i, a, team))
                 changed = True
                 if len(oncourt[team]) > 5:
                     # ties (never-evidenced players at -1) break by id: set order is hash-seeded
                     # per process, so min() alone made reruns differ (§22)
-                    evict = min(oncourt[team], key=lambda x: (last_ev.get(x, -1), x))
+                    if evict_rule == "lookahead":
+                        evict = min(oncourt[team] - {a}, key=lambda x: (
+                            lookahead_rank(x, i, periods, types, p1s, p2s, is_scoring, tech_evidence),
+                            last_ev.get(x, -1), x))
+                    else:
+                        evict = min(oncourt[team], key=lambda x: (last_ev.get(x, -1), x))
                     oncourt[team].discard(evict)
                     diag["evictions"] += 1
+                    if backdate and backdate_swap(stints, i, a, evict, team, last_ev, types, tids,
+                                                  home_tid, periods):
+                        diag["backdated"] = diag.get("backdated", 0) + 1
+                        swapped = True
+                    if log is not None:
+                        log.append(("evict", i, evict, team))
         if changed:
-            close(i, poisoned=True)
+            close(i, poisoned=not swapped)
             diag["poisoned_stints"] += 1
             new_stint(i, period)
     close(n)
@@ -219,12 +321,33 @@ def stint_times(stints, elapsed, periods) -> None:
         s["t1"] = nxt["t0"] if nxt is not None and nxt["period"] == s["period"] else (720.0 if s["period"] <= 4 else 300.0)
 
 
+WALKS = {"v1": {},
+         "b22": {"period_starters": "evidence", "tech_evidence": False,
+                 "evict_rule": "lookahead", "backdate": True}}
+
+
+def retile(stints) -> None:
+    """§22: only kept stints are saved; a dropped stint's time goes to the kept
+    stint after it (as its plays do in lineups_build's (previous end_i, end_i]
+    windows), and a period's last kept stint runs to the period's end, so the
+    saved file tiles every period. Mutates the kept stint dicts."""
+    for k, s in enumerate(stints):
+        prev = stints[k - 1] if k else None
+        nxt = stints[k + 1] if k + 1 < len(stints) else None
+        s["t0"] = prev["t1"] if prev is not None and prev["period"] == s["period"] else 0.0
+        if nxt is None or nxt["period"] != s["period"]:
+            s["t1"] = 720.0 if s["period"] <= 4 else 300.0
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2025)
     ap.add_argument("--order", choices=("seq", "clock"), default="clock",
                     help="clock = §21 (creation.clock_frame order + interval stint minutes); "
                          "seq = the §1 walk (kept for reproducing old reads)")
+    ap.add_argument("--walk", choices=("v1", "b22"), default="v1",
+                    help="b22 = §22-b walk: evidence period starters, no technical/ejection "
+                         "evidence, look-ahead eviction, backdated swaps")
     ap.add_argument("--label", default="",
                     help="suffix every output (stints_{season}_{label}.parquet, gate_*) — "
                          "control/bisect runs must never overwrite the validated production files")
@@ -267,7 +390,7 @@ def main() -> None:
         stints, diag, all_st = derive_stints(one.period.tolist(), one.type_text.tolist(),
                                      one.team_id.tolist(), one.p1.tolist(),
                                      one.p2.tolist(), one.is_scoring.tolist(),
-                                     starters, home_tid, away_tid)
+                                     starters, home_tid, away_tid, **WALKS[a.walk])
         for k, v in diag.items():
             diag_tot[k] = diag_tot.get(k, 0) + v
         if clock:
@@ -277,16 +400,7 @@ def main() -> None:
                     if len(s[side]) == 5:
                         interval_rows += [{"athlete_id": pid, "game_id": gid, "secs": s["t1"] - s["t0"]}
                                           for pid in s[side]]
-            # §22 iteration 1: only kept stints are saved; a dropped stint's time
-            # goes to the kept stint after it (as its plays do in lineups_build's
-            # (previous end_i, end_i] windows), the period's last kept stint runs
-            # to the period's end — the saved file tiles every period
-            for k, s in enumerate(stints):
-                prev = stints[k - 1] if k else None
-                nxt = stints[k + 1] if k + 1 < len(stints) else None
-                s["t0"] = prev["t1"] if prev is not None and prev["period"] == s["period"] else 0.0
-                if nxt is None or nxt["period"] != s["period"]:
-                    s["t1"] = 720.0 if s["period"] <= 4 else 300.0
+            retile(stints)
         for p in poss:
             rows_poss.append({"game_id": gid, "team": p["team"],
                               "home": p["team"] == home_tid,
