@@ -11,3 +11,11 @@ data/milb/
 cache/
 *.tsbuildinfo
 .vercel
+
+# bulk model intermediates and third-party text: never public (gate results stay as JSON)
+data/derived/*.parquet
+data/derived/*.csv
+data/derived/_backup*/
+pipeline/results/*.parquet
+data/news/
+*luma*.parquet
