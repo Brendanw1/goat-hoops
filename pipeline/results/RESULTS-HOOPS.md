@@ -1951,3 +1951,52 @@ M is calibrated: ten equal-count bins, max |mean predicted − observed| ≤
 for the live season) and the player page as gated (§20). Fail → §9 stays as
 is; diagnosis recorded. Production refits on every completed season with the
 same spec. Bars do not move.
+
+### §20 read (2026-11-16): PASS — xeFG and shot-making render
+
+Run: `python pipeline/xefg.py --gate` → `data/derived/gate_xefg_20.json`.
+Fit on 219,873 site-2025 FGA, scored on 211,810 site-2026 FGA.
+
+| gate | result | bar | verdict |
+|---|---|---|---|
+| log loss, model vs §9 zone baseline | **0.6390 vs 0.6577 (−2.86%)** | ≤ −1.0% | PASS |
+| 95% game-bootstrap CI of the difference | [−0.0197, −0.0180] | entirely < 0 | PASS |
+| calibration, max decile gap | **0.015** (baseline 0.008) | ≤ 0.02 | PASS |
+
+Read: distance and the outcome-neutral shot families carry real information
+beyond the five zones, and the label guard held (no family behaves like a
+make flag). The model is a little less calibrated than the zone table (which
+is calibrated by construction) but inside the bar. Production refits on every
+completed season and scores all shots; the live season is scored only.
+
+### §19 read (2026-11-16): FAIL — no WP line, no WPA
+
+Run: `python pipeline/wp.py --gate` → `data/derived/gate_wp_19.json`.
+Fit on 1,234 site-2025 games, scored on 577,382 states in 1,192 site-2026
+games, each game weighted equally.
+
+| gate | result | bar | verdict |
+|---|---|---|---|
+| Brier, model vs score-and-time baseline | **0.1435 vs 0.1604 (−10.5%)** | lower | PASS |
+| 95% game-bootstrap CI of the difference | [−0.0216, −0.0127] | entirely < 0 | PASS |
+| calibration, max decile gap | **0.0354** (baseline 0.0331) | ≤ 0.02 | **FAIL** |
+
+Diagnosis. *Data:* the home team won 55.4% of 2025-26 games against 54.4%
+in the training season, and nine of ten bins under-predict, by about that
+amount. *Modeling:* the worst bin is the near-even one (predicted 0.510,
+observed 0.546): mid-game states near a tie, where a home edge that is linear
+in √τ on the logit scale is too small. The score-and-time baseline misses
+the same way (0.033), so this is the shared functional form, not the added
+features. *Handling (test design):* outcomes are clustered by game, and with
+~1,200 games the standard error of one bin's observed rate is roughly 0.02,
+so a fixed 0.02 bar sits near the noise. The bar does not move: nothing
+renders. A §19-b re-test would need its own pre-registration, e.g. a more
+flexible form (monotone gradient boosting on m, τ, s, b, or a home term
+that doesn't vanish with τ), a calibration criterion that accounts for game
+clustering (bootstrap interval per bin), and a held-out season with enough
+games (2026-27 once ~600 games exist).
+
+The fix that rode along: ESPN's sub-minute clock ("SS.T") parses to null in
+the mart's `clock_sec` (11.5% of rows). `creation.clock_seconds` fills it
+from the display for every reader in this repo (§18 putbacks/and-ones,
+clutch, §19); one 2025-26 game ships an "H:MM:SS" display and its 9 rows drop.

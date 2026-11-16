@@ -16,6 +16,7 @@ LUMA validation gate, mart tables).
 - Box Plus/Minus 2.0 + VORP — §16 (`pipeline/bpm.py`)
 - Regressed values — §17 (`pipeline/shrink.py`)
 - Fouls drawn (free-throw) and and-ones — §18 (`pipeline/creation.py`)
+- Per-shot expected eFG and shot-making — §20 (`pipeline/xefg.py`)
 
 ## Clean-room rules (hard)
 

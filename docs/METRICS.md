@@ -103,6 +103,8 @@ heaves excluded (the box stopped counting them as FGA in 2025-26).
 | 30/40-pt games, double/triple-doubles | counts; doubles over PTS/REB/AST/STL/BLK | box |
 | FT fouls drawn/36 | free-throw trips the player starts (`Free Throw - [Flagrant / Clear Path] 1 of N`, technicals excluded) per 36: ESPN names only the fouler, so the drawer is the next FT shooter. Counts only fouls that reach the line (no offensive or non-bonus fouls) | gated §18 (r 0.958 vs NBA.com PFD; implied FTA exact) |
 | And-ones (count, /36) | a `Free Throw - 1 of 1` by a player who made a FG at the same game clock | gated §18 |
+| Expected eFG (xeFG) | per-shot make probability from distance, |angle|, zone, 3PA flag and outcome-neutral ESPN shot families (finish: dunk/layup/hook/tip/jumper; ten action flags; "bank"/"reverse"/"finger roll" dropped as after-the-fact descriptors), gradient boosting, no shooter identity (`pipeline/xefg.py`); xeFG = mean of p·(1.5 for threes) over the player's FGA; FGA floor 200 | gated §20 (held-out log loss −2.9% vs the §9 zone table) |
+| Shot-making | eFG − xeFG on the same (heave-excluded) shots | gated §20 |
 | Putback rate | share of the player's offensive rebounds whose next shot event is their own FGA, same period, within 3 s of game clock | descriptive |
 
 Shot types are exclusive, first match wins: putback/tip > alley-oop >
@@ -139,6 +141,9 @@ any split cell under 10 games gets the `flag` color; a split never colors a
 grade until its persistence is tested (the explorations lesson).
 
 ## 5. What we deliberately do NOT render
+
+- **Win probability / WPA** (§19 FAIL, 2026-11-16): the model beat score-and-time
+  on Brier by 10.5% but missed the 0.02 calibration bar (0.035); see the read.
 
 - Zone-rebound "skill" (conversion is context — explorations §4).
 - Cohort aging curves as trajectories (survivorship — explorations §5).

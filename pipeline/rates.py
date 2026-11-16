@@ -43,20 +43,21 @@ STATS = {"ts_pct": (3, (0.995, 0.005)), "efg_pct": (3, (0.995, 0.005)),
 # §0i (creation.py): stat -> round digits, and which gate it rides
 # ("a" zones, "b" assisted share, "ab" both, None descriptive, "box" §0-gated box counts;
 #  "c" / "l" = §0j Box Creation / Offensive Load vs LUMA; "p" = §16 BPM / VORP;
-#  "f" = §18 fouls drawn / and-ones)
+#  "f" = §18 fouls drawn / and-ones; "x" = §20 per-shot xeFG)
 CREATION = {"rim_rate": (3, "a"), "mid_rate": (3, "a"), "c3_rate": (3, "a"),
             "rim_fg": (3, "a"), "mid_fg": (3, "a"), "c3_fg": (3, "a"), "ab3_fg": (3, "a"),
             "pct_unast": (3, "b"), "unast36": (2, "b"), "unast3_36": (2, "b"),
             "ast_pts36": (1, "b"), "ast3_36": (2, "b"), "ast_rim36": (2, "ab"),
             "pullup_rate": (3, None), "pullup_efg": (3, None),
             "badpass36": (2, None), "lostball36": (2, None),
+            "xefg": (3, "x"), "smk": (3, "x"),
             "fdrawn36": (2, "f"), "andone36": (2, "f"), "andones": (0, "f"), "putback_rate": (3, None),
             "box_creation": (1, "c"), "off_load": (1, "l"), "bpm": (1, "p"), "vorp": (1, "p"),
             "gmsc": (1, "box"), "g30": (0, "box"), "g40": (0, "box"), "dd": (0, "box"), "td": (0, "box")}
 # attempt floors on top of the minutes floor (full season; the live season scales them)
 FLOOR = {"rim_fg": ("rim_fga", 100), "mid_fg": ("mid_fga", 60), "c3_fg": ("c3_fga", 40),
          "ab3_fg": ("ab3_fga", 100), "pullup_efg": ("pu_fga", 100),
-         "putback_rate": ("oreb_ev", 75)}
+         "putback_rate": ("oreb_ev", 75), "xefg": ("sq_fga", 200), "smk": ("sq_fga", 200)}
 LOWER_BETTER = ("to_ratio", "badpass36", "lostball36")
 POS = {"G": "G", "PG": "G", "SG": "G", "F": "F", "SF": "F", "PF": "F", "C": "C"}
 FULL_QUAL_MIN = 500  # completed-season minutes floor; the live season scales it
@@ -405,13 +406,19 @@ def build(pg, tg, g, adv_path: Path) -> dict:
     from creation import GATE_F
     g18 = json.loads(GATE_F.read_text()) if GATE_F.exists() else {}
     gpass["f"] = g18.get("pass", False)
+    from xefg import GATE as GATE_20, player_xefg
+    g20 = json.loads(GATE_20.read_text()) if GATE_20.exists() else {}
+    gpass["x"] = g20.get("pass", False)
     for k, (dp, gk) in CREATION.items():
         if gk in (None, "box") or all(gpass[c] for c in gk):
             shown.append(k)
             digits[k] = dp
             status[k] = {None: "descriptive", "box": "box score", "c": "gated (§0j)",
-                         "l": "gated (§0j)", "p": "gated (§16)", "f": "gated (§18)"}.get(gk, "gated (§0i)")
+                         "l": "gated (§0j)", "p": "gated (§16)", "f": "gated (§18)",
+                         "x": "gated (§20)"}.get(gk, "gated (§0i)")
     a = season_table(pg, tg, g)
+    if gpass["x"]:  # §20: production refit on completed seasons, every shot scored
+        a = a.merge(player_xefg(g), on=["season_year", "athlete_id"], how="left")
     from shrink import SHRINK, regress, wmean
     sk = json.loads(SHRINK.read_text()) if SHRINK.exists() else {}  # §17, offline; fail closed
     kmap = {k: v["k"] for k, v in sk.get("k", {}).items()
@@ -470,7 +477,7 @@ def build(pg, tg, g, adv_path: Path) -> dict:
         seasons[int(season)] = {"players": players}
         league[int(season)] = lg
     return {"seasons": seasons, "league": league, "lower_better": list(LOWER_BETTER),
-            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i, "gate_0j": g0j, "gate_16": g16, "gate_18": g18,
+            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i, "gate_0j": g0j, "gate_16": g16, "gate_18": g18, "gate_20": g20,
             "shrink_k": kmap, "gate_17": {x: y for x, y in sk.get("gate", {}).items() if x != "stats"},
             "note": "§0h — NBA.com-definition rates rebuilt from the ESPN box; on-floor "
                     "team totals approximated by minutes share. Descriptive, not a forecast."}
@@ -481,11 +488,14 @@ def gates_meta() -> dict:
     the credit and the gate date). Reads the offline gate files; missing = absent."""
     from bpm import GATE as G16
     from creation import GATE as G0I, GATE_F as G18
+    from wp import GATE as G19
+    from xefg import GATE as G20
     from shrink import SHRINK
     bdl, luma = "balldontlie (reference)", None
     spec = {"0h-b": (GATE_B, bdl), "0h-c": (GATE_C, "ESPN box, held out"), "0i": (G0I, bdl),
             "0j": (GATE_J, luma), "16": (G16, luma), "17": (SHRINK, "ESPN box, held out"),
-            "18": (G18, bdl)}
+            "18": (G18, bdl), "19": (G19, "ESPN play-by-play, held out"),
+            "20": (G20, "ESPN shots, held out")}
     out = {}
     for sec, (f, credit) in spec.items():
         if not f.exists():

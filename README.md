@@ -46,6 +46,9 @@ and player pages. Free-throw fouls drawn and and-ones (§18, `creation.py
 --gate-f`, vs NBA.com PFD) and putback rate rank on `/leaders`; player pages
 add last 10/30 and monthly splits with sparklines; team pages add four-factor
 bars, strength of schedule and clutch (`pipeline/clutch.py`, descriptive).
+Expected eFG and shot-making from a per-shot make model (`pipeline/xefg.py`,
+§20) rank on `/leaders` and show on player pages. Win probability
+(`pipeline/wp.py`, §19) failed its calibration bar and does not render.
 
 The LUMA cross-check gate (2026-10-29): 688/688 game scores 2024-25 exact,
 52/52 current season, 324 player-game boxes with every stat exact except

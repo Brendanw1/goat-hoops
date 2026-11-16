@@ -134,6 +134,8 @@ function CareerArc({ rows }: { rows: number[][] }) {
 
 /** One player: full stat tables (basic + advanced), career arc, category
  *  panels, and game logs across every baked season. */
+const ordinal = (n: number) => `${n}${[11, 12, 13].includes(n % 100) ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+
 export default async function HoopsPlayerPage({ params }: {
   params: Promise<{ id: string }>;
 }) {
@@ -828,7 +830,7 @@ export default async function HoopsPlayerPage({ params }: {
             </h2>
             <div className="grid grid-cols-3 gap-1.5">
               <RateChip label="BPM (per 100 vs average)" cls={pctTone(pc("bpm") != null ? pc("bpm")! / 100 : null)}
-                value={<>{sgn(crP.bpm as number)}{pc("bpm") != null && <span className="text-text-dim font-normal text-[10px]"> · {pc("bpm")}th</span>}</>} />
+                value={<>{sgn(crP.bpm as number)}{pc("bpm") != null && <span className="text-text-dim font-normal text-[10px]"> · {ordinal(pc("bpm")!)}</span>}</>} />
               <RateChip label="Regressed BPM" value={typeof reg === "number" ? sgn(reg) : "—"} />
               <RateChip label="VORP" value={typeof crP.vorp === "number" ? (crP.vorp as number).toFixed(1) : "—"} />
             </div>
@@ -845,7 +847,7 @@ export default async function HoopsPlayerPage({ params }: {
           const v = crP[k], pc = (crP[`${k}|pct`] as { all?: number } | undefined)?.all;
           return typeof v === "number" ? (
             <RateChip label={label} cls={pctTone(pc != null ? pc / 100 : null)}
-              value={<>{f(v)}{pc != null && <span className="text-text-dim font-normal text-[10px]"> · {pc}th</span>}</>} />
+              value={<>{f(v)}{pc != null && <span className="text-text-dim font-normal text-[10px]"> · {ordinal(pc)}</span>}</>} />
           ) : null;
         };
         return (
@@ -860,11 +862,21 @@ export default async function HoopsPlayerPage({ params }: {
               {chip("off_load", "Offensive Load / 100", (v) => v.toFixed(1))}
               {chip("gmsc", "Game Score / game", (v) => v.toFixed(1))}
             </div>
+            {typeof crP.xefg === "number" && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2.5">
+                {chip("xefg", "Expected eFG (shot quality)", (v) => rate(v))}
+                {chip("smk", "Shot-making (eFG − xeFG)", (v) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}`)}
+                {chip("fdrawn36", "FT fouls drawn / 36", (v) => v.toFixed(1))}
+                {chip("andones", "And-ones", (v) => v.toFixed(0))}
+              </div>
+            )}
             <ShotCreation zones={crP.zones} types={crP.types} />
             <PanelNote>
               ESPN play-by-play: zones and assisted share passed §0i against an independent source
-              (RESULTS-HOOPS); shot types are ESPN&apos;s labels, descriptive · percentiles vs qualified
-              players that season · descriptive, not a forecast
+              (RESULTS-HOOPS); shot types are ESPN&apos;s labels, descriptive. Expected eFG: a per-shot make
+              model on distance, zone and shot family, no shooter identity (§20, held-out log loss 2.9% better
+              than zone averages); shot-making in points of eFG. Fouls drawn count trips to the line (§18) ·
+              percentiles vs qualified players that season · descriptive, not a forecast
             </PanelNote>
           </div>
         );

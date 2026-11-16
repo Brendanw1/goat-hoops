@@ -39,6 +39,8 @@ const DEFS: Def[] = [
   { key: "c3_rate", label: "Corner-3 rate", group: "Shot zones", pct: true, dp: 1, what: "share of field-goal attempts from the corners" },
   { key: "c3_fg", label: "Corner 3P%", group: "Shot zones", pct: true, dp: 1, what: "corner three-point percentage" },
   { key: "ab3_fg", label: "Above-break 3P%", group: "Shot zones", pct: true, dp: 1, what: "above-the-break three-point percentage" },
+  { key: "xefg", label: "Expected eFG", group: "Shot quality", pct: true, dp: 1, what: "the eFG a league-average shooter would post on this player's shots: per-shot make model on distance, zone and shot family, no shooter identity (§20)" },
+  { key: "smk", label: "Shot-making", group: "Shot quality", pct: true, dp: 1, what: "actual eFG minus expected eFG on the same shots (points of eFG made above or below the shot quality)" },
   { key: "pct_unast", label: "Self-created %", group: "Self-creation", pct: true, dp: 1, what: "share of made field goals that were unassisted" },
   { key: "unast36", label: "Self-created FGM/36", group: "Self-creation", dp: 2, what: "unassisted made field goals per 36 minutes" },
   { key: "unast3_36", label: "Self-created 3PM/36", group: "Self-creation", dp: 2, what: "unassisted made threes per 36 minutes" },
@@ -202,7 +204,7 @@ export default async function LeadersPage({ searchParams }: {
       <p className="text-[10px] text-text-dim/70">
         Regular season, computed from ESPN box scores with NBA.com definitions (on-court team totals
         estimated by minutes share); shot zones, self-creation and playmaking from ESPN play-by-play.
-        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j/§16/§18 checks against an independent source; see Methods.
+        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j/§16/§18/§20 checks against an independent source; see Methods.
         {def.key === "off_load" && " Offensive Load is benchmarked against LUMA Basketball Research's load channel (Lens), which is not shown here."}
         {(def.key === "bpm" || def.key === "vorp") && " BPM is benchmarked against LUMA Basketball Research's xPTS-RAPM, which is not shown here."}
         Descriptive, not a forecast.

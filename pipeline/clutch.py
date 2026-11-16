@@ -14,6 +14,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hoops_export import MART  # noqa: E402
+from creation import clock_seconds  # noqa: E402
 
 
 def clutch_events(p: pd.DataFrame) -> pd.Series:
@@ -28,7 +29,8 @@ def team_clutch(g: pd.DataFrame) -> dict:
     reg = g[g.season_type == 2].astype({"game_id": str})
     p = pd.read_parquet(MART / "pbp.parquet", columns=[
         "game_id", "seq", "period", "clock_sec", "type_text", "team_id", "home_score", "away_score",
-        "is_shooting", "points_attempted", "p1"]).astype({"game_id": str})
+        "is_shooting", "points_attempted", "p1", "clock_display"]).astype({"game_id": str})
+    p["clock_sec"] = clock_seconds(p)
     p = p[p.game_id.isin(reg.game_id)].sort_values(["game_id", "seq"]).reset_index(drop=True)
     p["clutch"] = clutch_events(p)
     prev = p.groupby("game_id")[["home_score", "away_score", "clock_sec"]].shift(1)

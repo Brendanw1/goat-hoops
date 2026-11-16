@@ -1,0 +1,15 @@
+{
+ "n_train": 219873,
+ "n_test": 211810,
+ "logloss_base": 0.65773,
+ "logloss_model": 0.63895,
+ "rel_change": -0.0286,
+ "ci95_diff": [
+  -0.01974,
+  -0.01799
+ ],
+ "calib_max_gap": 0.0151,
+ "calib_base": 0.0083,
+ "pass": true,
+ "ran": "2026-11-16"
+}

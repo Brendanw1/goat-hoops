@@ -1,0 +1,22 @@
+{
+ "games_train": 1234,
+ "games_test": 1192,
+ "states_test": 577382,
+ "brier_base": 0.1604,
+ "brier_model": 0.1435,
+ "ci95_diff": [
+  -0.02162,
+  -0.01265
+ ],
+ "calib_max_gap": 0.0354,
+ "calib_base": 0.0331,
+ "coef": {
+  "m_t": 0.0858,
+  "sq": 0.0823,
+  "s_t": 0.1514,
+  "b_t": 0.0434
+ },
+ "intercept": 0.1088,
+ "pass": false,
+ "ran": "2026-11-16"
+}

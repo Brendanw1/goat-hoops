@@ -143,3 +143,8 @@ last-10/30 rolling sparklines. The figure repos stay reference-only
    0.958 vs NBA.com PFD, level with FTA/2), putback rate (descriptive), last
    10/30 and monthly splits with sparklines, four-factor diverging bars,
    strength of schedule and clutch on team pages (descriptive).
+5. **Batch 5 — C2 and C5.** 2026-11-16: per-shot xeFG + shot-making **shipped**
+   (§20 PASS, held-out log loss −2.9% vs the §9 zone table, calibration 0.015);
+   win probability / WPA **not shipped** (§19 FAIL: Brier −10.5% vs
+   score-and-time, but calibration 0.035 vs a 0.02 bar; §19-b re-test outlined
+   in the read).

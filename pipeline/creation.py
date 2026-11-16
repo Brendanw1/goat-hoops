@@ -63,6 +63,13 @@ def load_shots(g: pd.DataFrame) -> pd.DataFrame:
 TRIP = r"^Free Throw - 1 of [23]$"  # §0h-c: and-ones, technicals, flagrants, clear paths are not trips
 
 
+def clock_seconds(p: pd.DataFrame) -> pd.Series:
+    """Seconds left in the period. The mart parses only "M:SS"; under a minute
+    ESPN shows "SS.T" and `clock_sec` comes back null, so fill it from the display."""
+    sub = pd.to_numeric(p.clock_display.where(~p.clock_display.astype(str).str.contains(":")), errors="coerce")
+    return p.clock_sec.fillna(sub)
+
+
 FOUL_TRIP = r"^Free Throw - (?:Flagrant |Clear Path )?1 of ([123])$"  # §18: a trip started = a foul drawn
 
 
@@ -70,9 +77,11 @@ def pbp_flags(g: pd.DataFrame) -> pd.DataFrame:
     """Regular-season PBP rows credited to p1, flagged by turnover type, FT trip
     (§0h-c), foul drawn / and-one / implied FTA (§18) and putback FGA."""
     reg = g.loc[g.season_type == 2, ["game_id", "season_year"]].astype({"game_id": str})
-    p = pd.read_parquet(MART / "pbp.parquet", columns=["game_id", "seq", "period", "clock_sec", "type_text",
-                                                       "p1", "is_shooting", "is_scoring", "points_attempted"])
+    p = pd.read_parquet(MART / "pbp.parquet", columns=["game_id", "seq", "period", "clock_sec", "clock_display",
+                                                       "type_text", "p1", "is_shooting", "is_scoring",
+                                                       "points_attempted"])
     p = p.astype({"game_id": str}).merge(reg, on="game_id")
+    p["clock_sec"] = clock_seconds(p)
     p = p[p.p1.notna()].sort_values(["game_id", "seq"])
     p["athlete_id"] = p.p1.astype("Int64").astype(str)
     p["badpass"] = p.type_text.str.contains("Bad Pass", na=False)
@@ -306,6 +315,8 @@ def _selfcheck() -> None:
     assert abs(gmsc(one)[0] - (10 + 1.6 - 5.6)) < 1e-9
     ft = pd.Series(["Free Throw - 1 of 2", "Free Throw - 1 of 1", "Free Throw - 1 of 3",
                     "Free Throw - Flagrant 1 of 2", "Free Throw - Technical", "Free Throw - 2 of 2"])
+    c = clock_seconds(pd.DataFrame({"clock_sec": [65.0, None, None], "clock_display": ["1:05", "0.0", "12.4"]}))
+    assert list(c) == [65.0, 0.0, 12.4], c
     assert list(ft.str.match(TRIP)) == [True, False, True, False, False, False]
     assert list(ft.str.extract(FOUL_TRIP, expand=False).fillna("-")) == ["2", "1", "3", "2", "-", "-"]
 
