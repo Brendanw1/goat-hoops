@@ -2000,3 +2000,90 @@ The fix that rode along: ESPN's sub-minute clock ("SS.T") parses to null in
 the mart's `clock_sec` (11.5% of rows). `creation.clock_seconds` fills it
 from the display for every reader in this repo (§18 putbacks/and-ones,
 clutch, §19); one 2025-26 game ships an "H:MM:SS" display and its 9 rows drop.
+
+## §19-b — win probability re-test after a data diagnosis (pre-registered 2026-11-16, after the §19 FAIL, before any §19-b model is fit)
+
+**Why a re-test.** §19 failed calibration (0.035 vs 0.02) and stays FAIL on
+the books. The diagnosis found a *data* defect the §19 read did not know
+about: ESPN appends late corrections with higher `seq` but earlier game time
+(e.g. two 1:53 plays after "End Game"), so `seq` order puts stale scores
+into states. In `seq` order the score falls at some point in 2,634 of 2,921
+games and the last state disagrees with the final score in 443. Ordered by
+game clock (period, clock descending, total score, then seq) those drop to
+373 (real scorer corrections, a three changed to a two) and 26.
+
+**Data rules (fixed now).** Canonical play order = (period, clock_sec
+descending, home + away score, seq), shared by every PBP reader here
+(`creation.ordered`). Games whose last ordered state differs from the box
+final are dropped (26). Neutral-site games (`games.neutral`, 13) get the
+home-court terms zeroed. Everything else as §19 (states, τ, b, s).
+
+**Model selection (training season only).** Candidates: (C0) the §19
+logistic; (C1) C0 with the neutral rule; (C2) sklearn
+HistGradientBoostingClassifier (max_iter 300, learning rate 0.05,
+random_state 0) on m, τ, m/√τ, s, s·√τ, b, b/√τ, neutral, monotone
+increasing in every margin, strength and ball feature. Five-fold
+game-grouped CV on **site 2026 only**; pick the lowest CV Brier among
+candidates whose pooled CV max-decile gap ≤ 0.02 (else the lowest ECE). The
+choice is locked before the test.
+
+**Test (held out).** Fit the chosen spec on site 2026, score **site 2025**
+(its games are used by nothing in §19-b selection; reverse in time,
+disclosed). Baseline B (score and time, §19) fit the same way. Pass when:
+(1) Brier beats B with the 95% game-bootstrap interval of the difference < 0;
+(2) weighted ECE (mean |gap| over ten equal-weight deciles) ≤ 0.015; (3) every
+decile's 95% game-bootstrap interval of its gap overlaps [−0.02, +0.02].
+*The calibration criterion changes from §19's single max-gap* because the
+§19 read showed one decile's observed rate carries roughly ±0.02 of
+game-clustered noise at ~1,200 games; (2) and (3) keep the 2-point intent
+while accounting for it. Forward check on the live 2026-27 season (fit
+2025 + 2026) is reported, not gated. Pass → WP line on game pages and
+player WPA (credit rule as §19). Production refits on 2025 + 2026.
+
+## §16-b — Offensive / Defensive BPM split (pre-registered 2026-11-16, before any computation)
+
+**What.** Myers' OBPM 2.0 coefficients (KB
+`sources/basketball/basketball-reference-com-457a28b29d.md`, "The
+Offense/Defense Split"): Pts(adj) 0.605; 3PM 0.477; AST 0.476; TO −0.579 →
+−0.882; ORB 0.606 → 0.422; DRB −0.112 → 0.103; STL 0.177 → 0.294; BLK 0.725
+→ 0.097; PF −0.439 (position 1 → 5, linear); FGA −0.330 → −0.472, FTA
+−0.145 → −0.208 (offensive role 1 → 5); position constant −1.698 at 1, 0 at
+3 and above; role constant −0.860 / 0 / +0.860 at 1 / 3 / 5. Position, role,
+per-100 base and points adjustment exactly as §16. **Team adjustment:**
+minutes-weighted OBPM sums to the team's ORtg minus the league ORtg (same
+possession estimate; no lead correction, as §16; the source states the
+total-BPM rule, and the offensive analogue is our reading). DBPM = BPM −
+OBPM.
+
+**Gate (same pool as §16: ≥ 1,000 min pooled 2025-26 + 2024-25, LUMA
+xPTS-RAPM 2026 window, ≥ 2,500 poss, unique names).** Reference offense =
+`xpts_off + conv_off`, defense = `xpts_def + conv_def` (LUMA, validation
+only). OBPM passes with r ≥ 0.55 and r ≥ r(points per 36) + 0.03; DBPM
+passes with r ≥ 0.25 and r ≥ r((STL + BLK) per 36) + 0.03; each also needs
+year-to-year r ≥ 0.50 (≥ 1,000 min both seasons). Each component renders
+only if it passes. Bars do not move.
+
+## §17-b — attempt-based shrinkage exposure and the new rates (pre-registered 2026-11-16, before any computation)
+
+**What.** §17 regressed every rate with minutes as the exposure (its stated
+simplification). Here attempt-based stats use their attempts: TS% (FGA +
+0.44·FTA); eFG%, FT rate, 3PA rate (FGA); zone rates and pull-up rate
+(shot-table FGA); rim / mid / corner-3 / above-break FG% (that zone's FGA);
+pull-up eFG (pull-up FGA); self-created % (shot-table FGM). k (in attempts)
+is fit exactly as §17 on site 2025 (odd/even, k = m·(1 − r)/r, m = median
+half-attempts); μ is the attempt-weighted mean of the qualified pool.
+
+**Gate (the §17 held-out split of site 2026).** Per stat, attempt exposure
+replaces minutes only if its held-out MSE is below the §17 minutes-exposure
+MSE. The new rates get the §17 rule (regressed renders only if its held-out
+MSE beats raw): FT fouls drawn/36, and-ones/36 and (if §16-b passes)
+OBPM/DBPM with minutes exposure; putback rate (offensive rebounds), xeFG and
+shot-making (shot-table FGA) with attempt exposure. Per-stat decisions, no
+pooled bar. Ranking by the regressed value on `/leaders` is a display
+option over gated values, not a new model.
+
+**Descriptive additions in the same build (no gate, labelled):** a rookie
+race (cumulative Game Score by week, rookies = 2026 draftees per the BDL
+draft bio plus any player with no game in the 2022-23 → 2025-26 spine), and
+a player on/off panel from the §0f-gated stint walk (on- vs off-court net,
+on-court ORtg/DRtg vs the team, possessions shown, small samples flagged).
