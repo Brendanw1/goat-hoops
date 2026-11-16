@@ -68,8 +68,18 @@ export type HoopsTeamDoc = {
     starters5?: { names: string[]; g: number }[];
     analytics?: HoopsTeamAnalytics;
     playtype?: HoopsTeamPlaytype;
+    /** §22 rotation fingerprint (seasons whose bake-time structural gates passed) */
+    rotation?: HoopsRotation;
   }>;
 };
+export type HoopsRotation = {
+  games: number;
+  /** top 13 by floor time; sh = % of team games on the floor in each regulation minute */
+  players: { id: string; name: string; mpg: number; gp: number; stint: number; spg: number; sh: number[] }[];
+  close: { ids: string[]; names: string[]; games: number; share: number } | null;
+};
+/** §22 stint chart: per team, [player name, [game-second start, end, team +/- in spell][]] */
+export type HoopsGameStints = Record<string, [string, [number, number, number][]][]>;
 export type HoopsPlayerRow = {
   id: string; name: string; pos: string | null; team: string | null;
   gp: number; gs: number | null; min: number; pts: number; reb: number; ast: number;
@@ -185,6 +195,7 @@ export type HoopsGameDoc = {
   boxes: Record<string, HoopsBoxRow[]>;
   shots: HoopsShot[];
   plays: HoopsPlay[];
+  stints?: HoopsGameStints;
 };
 
 export type HoopsRead = {

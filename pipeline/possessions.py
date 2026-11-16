@@ -345,7 +345,7 @@ def main() -> None:
     ap.add_argument("--order", choices=("seq", "clock"), default="clock",
                     help="clock = §21 (creation.clock_frame order + interval stint minutes); "
                          "seq = the §1 walk (kept for reproducing old reads)")
-    ap.add_argument("--walk", choices=("v1", "b22"), default="v1",
+    ap.add_argument("--walk", choices=("v1", "b22"), default="b22",
                     help="b22 = §22-b walk: evidence period starters, no technical/ejection "
                          "evidence, look-ahead eviction, backdated swaps")
     ap.add_argument("--label", default="",

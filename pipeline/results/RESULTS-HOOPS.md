@@ -2652,3 +2652,9 @@ The §22 placement reads (r 0.958) were deflated by the same defect.
 registered and passes once the reference defect is removed. That correction
 was made after the read, so per the house rules the decision to ship on it
 is the owner's and is recorded here when made.
+
+**Owner decision (2026-11-16): ship.** The owner accepted the corrected
+placement measurement (player-games both sources hold). The registered
+measurement's 0.922 stays on the record next to it. The §22-b walk becomes the
+default for every season, /lineups and on/off rebuild on it, and §22's
+visuals ship, with structural gates 3–5 re-checked per season at bake time.

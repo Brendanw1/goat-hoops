@@ -154,9 +154,12 @@ bar as an independent season and joins `/lineups`. Watch item: 2026-27 possessio
   substitution log. pbpstats' official-log intervals clear both bars on the same box.
   Two handling fixes shipped in `possessions.py` (stints tile every period; the walk is
   deterministic).
-- [ ] 1.4 Blocked by the §22 FAIL. Reopens with a walk that recovers missed entries (its own
-  pre-registration) or an intervals source for the seasons we show.
-- [ ] 1.5 Blocked with 1.4.
+- [x] 1.3b **§22-b (2026-11-16):** the substitution walk rebuilt (evidence period starters, no
+  technical/ejection evidence, look-ahead eviction, backdated swaps); held-out minutes 98.4% /
+  97.9%; shipped on the owner's decision (placement passed on the corrected measure).
+- [x] 1.4 Bake (team docs `rotation`, game docs `stints`), components, team and game pages,
+  dev check at 1280 px and 375 px.
+- [x] 1.5 Source registry row, METRICS entry, README page table.
 
 **Acceptance:**
 - Structural: each team's shares sum to 5.00 ± 0.01 in every minute bin.

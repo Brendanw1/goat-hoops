@@ -17,8 +17,8 @@ failures are recorded alongside the passes.
 | Players | Season and game logs, last 10/30 and monthly splits, percentile panels, shot charts and zones, shot creation, expected eFG and shot-making, Box Plus/Minus split into offense and defense, raw on/off with most-used lineups |
 | Leaders | 50+ stats by position pool, each with its status (box score, gated, or descriptive), a percentile strip, and raw or regressed ranking |
 | Rookies | A weekly rookie race, production vs playing time, and class standings |
-| Teams | Four factors vs the league, strength of schedule, clutch record, team boards |
-| Games | Box scores, shot charts, play-by-play and a run-of-play chart for every game |
+| Teams | Four factors vs the league, strength of schedule, clutch record, team boards, a minute-by-minute rotation fingerprint |
+| Games | Box scores, shot charts, play-by-play, a run-of-play chart and a who-played-when stint chart for every game |
 | Lineups | Five-man units and on/off from our own substitution tracking |
 | Methods | Every metric's definition, plus a [source table](https://hoops.goatpro.dev/methods#sources) tracing each stat to its feed call, code and test |
 
@@ -34,6 +34,7 @@ failures are recorded alongside the passes.
 | Free-throw fouls drawn and and-ones from play-by-play | r 0.958 against NBA.com's fouls-drawn; implied free-throw attempts exact | §18 |
 | Per-shot expected eFG (gradient boosting on distance, angle, zone and shot family; no shooter identity) | held-out log loss 2.9% better than a zone-average table | §20 |
 | Lineups and on/off from a substitution walk of the play-by-play | 99.92% of 1,199 games reconcile to the final score exactly | §0f |
+| Substitution walk rebuilt (clock order, evidence starters, look-ahead eviction, backdated swaps) | held out: player minutes within 1.0 of the box in 98.4% of player-games (was 91.1%); placement vs pbpstats r 0.999 on games both hold. As registered, placement read r 0.922, because the reference is missing late-season games. The correction was made after the read and accepted by the owner | §21, §22, §22-b |
 | Win probability | **Failed twice.** Beats score-and-time by 8.5% on Brier but misses the calibration bar (ECE 0.0168 vs 0.015). Not on the site | §19, §19-b |
 | Adjusted plus-minus (RAPM) | **Failed** all eight pre-registered reads (best benchmark 0.676 against a 0.70 bar). Not on the site | §1–§8 |
 

@@ -114,8 +114,14 @@ FAMILIES = [
      "method": "stint walk from substitutions on clock-ordered events, with players who act added to the floor; "
                "net rating on vs off court per 100 possessions; raw, not adjusted for teammates or opponents; "
                "a season in progress shows on/off from 500 possessions with a 90% range (§0f amendment)",
-     "code": "pipeline/possessions.py, pipeline/lineups_build.py", "gate": "§0f / §21",
+     "code": "pipeline/possessions.py, pipeline/lineups_build.py", "gate": "§0f / §21 / §22-b",
      "refs": ["wowy", "rapm"]},
+    {"family": "Rotation fingerprint and stint chart", "keys": ["rotation", "stints"], "feeds": ["espn_pbp", "espn_box"],
+     "method": "§22-b substitution walk (evidence period starters, look-ahead eviction, backdated swaps); per team "
+               "the share of games each player is on the floor in each regulation minute, average spell, spells "
+               "per game and the closing five; per game each player's spells with the team's plus-minus",
+     "code": "pipeline/possessions.py, pipeline/rotations.py", "gate": "§22 / §22-b",
+     "refs": []},
     {"family": "Team four factors, SOS, clutch", "keys": ["four_factors", "sos", "clutch"], "feeds": ["espn_box", "espn_pbp"],
      "method": "Oliver's four factors from team box; SOS = games-weighted mean opponent net rating; clutch = last 5 min, margin within 5",
      "code": "pipeline/rates.py, pipeline/clutch.py, SOS in web/app/(dashboard)/teams/[abbr]/page.tsx", "gate": None, "refs": ["bref_glossary", "nba_glossary"]},

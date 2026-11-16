@@ -2250,6 +2250,24 @@ def bake(out_dir: Path | None = None) -> dict:
     pg_by = {k: v for k, v in pgx.groupby("game_id")}
     sh_by = {k: v for k, v in sh.groupby("game_id")}
     tg_by = {k: v for k, v in tg.groupby("game_id")}
+    # §22 rotation fingerprint (team docs) + stint chart (game docs): every
+    # season the §22-b walk covers, each re-checked on §22's structural gates
+    from rotations import build as rot_build, structural as rot_gate
+    rot_games, rot_gates = {}, {}
+    for rs in (2025, 2026, 2027):
+        if not (ROOT / "data" / "derived" / f"stints_{rs}.parquet").exists():
+            continue
+        r_teams, r_games, r_ps, r_bins, r_n, r_pg = rot_build(rs)
+        rot_gates[rs] = rot_gate(r_ps, r_bins, r_n, r_pg)
+        if not all(v for k, v in rot_gates[rs].items() if k.endswith("_pass")):
+            continue  # a failed season renders nothing
+        rot_games.update(r_games)
+        for abbr, doc in r_teams.items():
+            if abbr in team_seasons and rs in team_seasons[abbr]:
+                team_seasons[abbr][rs]["rotation"] = doc
+    counts["rotation_gates"] = {str(k): all(v for kk, v in g.items() if kk.endswith("_pass"))
+                                for k, g in rot_gates.items()}
+
     n_games = 0
     for gid, gss in pb.groupby("game_id"):
         gr = gg.loc[gid]
@@ -2290,7 +2308,8 @@ def bake(out_dir: Path | None = None) -> dict:
                               "tov": iv(getattr(r, "totalTurnovers", None))})
         jwrite_gz(out / "game" / f"{gid}.json.gz", {
             "game": game_row(gr, gid), "teams": teams_out, "boxes": boxes,
-            "shots": shots, "plays": plays})
+            "shots": shots, "plays": plays,
+            **({"stints": rot_games[str(gid)]} if str(gid) in rot_games else {})})
         n_games += 1
     counts["game_files"] = n_games
 

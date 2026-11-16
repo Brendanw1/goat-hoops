@@ -17,6 +17,8 @@ LUMA validation gate, mart tables).
 - Regressed values — §17; attempt exposure — §17-b (`pipeline/shrink.py`)
 - Fouls drawn (free-throw) and and-ones — §18 (`pipeline/creation.py`)
 - Per-shot expected eFG and shot-making — §20 (`pipeline/xefg.py`)
+- Substitution walk — §21 / §22-b (`pipeline/possessions.py`); rotation
+  fingerprint and stint chart — §22 (`pipeline/rotations.py`)
 - Not live: win probability (§19, §19-b FAIL; `pipeline/wp.py`)
 - Descriptive (no gate): rookie race (`pipeline/rookies.py`), team clutch
   (`pipeline/clutch.py`)

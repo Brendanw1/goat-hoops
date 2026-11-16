@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RotationFingerprint } from "@/components/ui/rotation-fingerprint";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import {
@@ -215,6 +216,15 @@ export default async function HoopsTeamPage({ params }: {
             {agg.games.length > 8 && (
               <div className="rounded-lg border border-border-subtle bg-surface-1 px-3 py-2 max-w-5xl">
                 <MarginStrip games={[...agg.games].reverse()} />
+              </div>
+            )}
+            {agg.rotation && (
+              <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl">
+                <h3 className="text-xs font-medium text-text-primary mb-1.5">
+                  Rotation <span className="text-text-dim font-normal text-[10px]">
+                    · who plays which minutes · §22 substitution walk</span>
+                </h3>
+                <RotationFingerprint rot={agg.rotation} abbr={key} />
               </div>
             )}
             {agg.starters5?.length ? (

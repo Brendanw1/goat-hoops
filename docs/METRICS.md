@@ -164,6 +164,23 @@ possessions together. All-Star exhibition games are excluded. Raw, not
 adjusted for teammates or opponents (RAPM, which would, has not passed its
 gate).
 
+**Rotation fingerprint (team page) and stint chart (game page) (§22, §22-b,
+`pipeline/rotations.py`).** From the substitution walk, each player's
+unbroken spells on the floor in game seconds. The fingerprint shades, per
+regulation minute, the share of the team's games the player was on the
+floor, for the 13 players with the most floor time. It also lists minutes per
+game, average spell length and spells per game, and marks the closing five:
+the five most often on the floor in the last 5:00 of games within 5 points. The
+stint chart draws every spell in a game, colored by the team's plus-minus
+during it. The walk behind them (§22-b) reads each period's starters from who
+acts first, picks who left on a missed substitution by looking ahead in the
+period, and dates the swap to the first stoppage after that player's last
+action. On held-out 2024-25 games, player minutes are within 1.0 of the box
+score in 98.4% of player-games and within 1% over a season for 97.9% of
+players; placement against pbpstats' official-log intervals is r 0.999 on
+the player-games both sources hold. Each season is re-checked at bake time
+(team shares sum to five in every minute; minutes vs box).
+
 **Rookie race (`/rookies`, descriptive, `pipeline/rookies.py`).** Rookies =
 drafted the summer before the season (BDL draft bio) plus undrafted players
 whose first ESPN-spine game is that season. Weekly cumulative Game Score as a
