@@ -216,11 +216,13 @@ def load_bdl_box(season: str) -> pd.DataFrame:
     f = BDL / f"stats_{season}.parquet"
     if f.exists():
         return pd.read_parquet(f)
-    f = BDL / f"stats_{season}.pages.jsonl"
-    if not f.exists():
+    from paths import open_pages   # the raw dump, else its .zst (paths.py)
+    fh = open_pages(BDL / f"stats_{season}.pages.jsonl")
+    if fh is None:
         return pd.DataFrame()
-    rows = [flatten_bdl_row(r) for line in f.read_text().splitlines() if line.strip()
-            for r in json.loads(line).get("rows", [])]
+    with fh:
+        rows = [flatten_bdl_row(r) for line in fh if line.strip()
+                for r in json.loads(line).get("rows", [])]
     return pd.DataFrame(rows)
 
 
@@ -1117,8 +1119,9 @@ def _adv_scan_parquet(path: Path, wanted: list[str], seen: set, emit) -> int:
 def _adv_scan_jsonl(path: Path, seen: set, emit) -> int:
     """Stream the page dumps (several GB, each line one 100-row page); only
     unseen (game, player) keys are emitted, so overlapping walks dedup."""
+    from paths import open_pages   # the raw dump, else its .zst (paths.py)
     n = 0
-    with open(path, "r") as f:
+    with open_pages(path) as f:
         for line in f:
             if not line.strip():
                 continue
@@ -1212,12 +1215,13 @@ def advagg_phase(out, counts) -> None:
 
     n_rows = 0
     rows_n: dict[int, int] = {}
+    from paths import pages_exist
     # jsonls first: the parquets are snapshots derived from them, so the live
     # dumps win on duplicate (game, player) keys
     for name in ("advanced_2024.pages.jsonl", "advanced_2025.pages.jsonl",
                  "advanced_2026.pages.jsonl"):
         p = BDL / name
-        if p.exists():
+        if pages_exist(p):   # raw or .zst (paths.py)
             n_rows += _adv_scan_jsonl(p, seen, emit)
     for name in ("advanced_2023.parquet", "advanced_2024_salvaged.parquet",
                  "advanced_v2_checkpoints_recovered.parquet", "advanced_2026.parquet"):

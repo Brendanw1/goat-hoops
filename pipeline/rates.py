@@ -193,10 +193,11 @@ def bdl_full_game_rows(fields, season: int = 2024) -> dict:
         ab = BDL_ABBR2ESPN.get(d.get("team.abbreviation"), d.get("team.abbreviation"))
         ref[(str(d["game.date"])[:10], ab, nm)] = d
 
+    from paths import open_pages   # the raw dump, else its .zst (paths.py)
     for fn in ("advanced_2024.pages.jsonl", "advanced_2025.pages.jsonl", "advanced_2026.pages.jsonl"):
-        p = BDL / fn
-        if p.exists():
-            with open(p) as f:
+        f = open_pages(BDL / fn)
+        if f is not None:
+            with f:
                 for line in f:
                     try:
                         for r in json.loads(line).get("rows", []):

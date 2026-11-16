@@ -63,6 +63,8 @@ def main() -> None:
     deadline = time.mktime(time.strptime(a.deadline, "%Y-%m-%d %H:%M")) if a.deadline else None
 
     ck = CK_DIR / f"advanced_{a.label}.pages.jsonl"
+    from paths import restore_pages
+    restore_pages(ck)   # a compressed-only checkpoint goes back to raw before we append to it
     if not ck.exists():
         sys.exit(f"no checkpoint at {ck}")
     cursor, n_cached = last_complete_line(ck)
