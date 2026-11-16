@@ -191,51 +191,89 @@ per 100 after our misses, break-even line).
   offensive-rebound reset).
 - Transition share by team vs pbpstats' early-clock share: r ≥ 0.85.
 
-### Phase 3 — Assist web and the opponent scouting sheet
+### Plan after Phase 2 (revised 2026-11-16, after §22-b shipped)
+
+Three things changed the plan. (1) The walk is now accurate (minutes within 1.0 of the box in
+98.4% of held-out player-games), so work that failed on the old walk is worth a retest.
+(2) The pbpstats reference has holes (wrong ids in `pt_ids_2024-25.json`, coverage thinning
+after January), so every test against it starts with a coverage audit and compares only
+records both sources hold. (3) Stints now carry real times, so `/lineups` no longer needs
+possession-proportional minute estimates.
+
+Standing rule for every phase below: **audit the reference first.** Report the reference's
+coverage of our records by month and by player before the read, and restrict comparisons to
+records both sources hold. This goes in each pre-registration, not after the read.
+
+### Phase 3 — Quick wins, assist web, scouting sheet
 
 **Build:**
-- **Assist web** (player and team pages): arc diagram from passer to scorer, width = assisted
-  makes, color = zone of the make. Descriptive.
-- **Scouting sheet** `/teams/[abbr]/scout`: one printable page assembled from Phases 1–2 plus
-  shot diet, late-clock options, top assist pairs, closing five, foul drawers, bonus
-  tendencies, challenge habits.
+- 3.1 `/lineups` and on/off switch from possession-proportional minutes to real stint minutes
+  (`t0`/`t1`). Structural check: unit minutes per team-game sum to 5 × game length.
+- 3.2 **Assist web** (player and team pages): passer → scorer arcs, width = assisted makes,
+  color = zone of the make; top pairs only, small samples greyed. Descriptive.
+- 3.3 **Scouting sheet** `/teams/[abbr]/scout`: one printable page built from shipped parts:
+  rotation fingerprint and closing five (Phase 1), possession anatomy (Phase 2, if it passed),
+  shot diet and zones, top assist pairs, foul drawers, late-clock options.
 
-**Steps and acceptance:**
-- [ ] 3.1 Assisted makes per player match box AST in ≥ 99% of player-games (structural).
-- [ ] 3.2 Assist web on player and team pages; top-N pairs only, small samples greyed.
-- [ ] 3.3 Scouting sheet fits one US Letter page in print; every panel carries its source
-  line and status.
+**Acceptance:**
+- [ ] 3.1 Unit minutes reconcile structurally in ≥ 99% of team-games; on/off minutes within
+  1% of box for ≥ 95% of qualified players.
+- [ ] 3.2 Assisted makes per player match box AST in ≥ 99% of player-games.
+- [ ] 3.3 Sheet fits one US Letter page in print; every panel carries its source and status;
+  a panel whose gate failed is left off, not greyed in.
 
-### Phase 4 — Data depth: mart move, ESPN backfill, win probability §19-c
+**Size:** one session. No new pre-registration except 3.1's structural check.
 
-**Build:** five more seasons of ESPN play-by-play, then the win-probability retest.
+### Phase 4 — Data depth and the retests the new walk makes possible
 
-- [ ] 4.1 Move `hoops_mart` to its own private repo (owner go-ahead pending); point
-  `paths.py` and the 24 hardcoded paths at it; keep the daily refresh green.
-- [ ] 4.2 Backfill 2019-20 → 2023-24 (≈ 6,150 games) with the existing ingestor; same
-  resumable receipts and 1.5 s pause.
-- [ ] 4.3 Per season: game-score exact vs the schedule ≥ 99.9%; §0f walk passes.
-- [ ] 4.4 Pre-register **§19-c**: train on several seasons, strength prior shrunk by
-  measured reliability, test on a season none of them saw. Bars unchanged from §19-b.
+**Build:** more seasons, an out-of-season check of the walk, then two retests.
+
+- [ ] 4.1 Move `hoops_mart` to its own private repo (**owner go-ahead pending**); repoint
+  `paths.py` and the hardcoded paths; keep the daily refresh green. `vt_baseball` is not
+  pushed until this is done.
+- [ ] 4.2 Re-pull the pbpstats reference for 2022-23 → 2024-25 with corrected player ids;
+  coverage ≥ 98% of our player-games in every month before it is used again.
+- [ ] 4.3 Backfill ESPN play-by-play 2019-20 → 2023-24 (≈ 6,150 games) with the existing
+  ingestor; per season, final scores exact ≥ 99.9% and §0f passes.
+- [ ] 4.4 **§22-c**: the §22-b walk on 2022-23 and 2023-24, seasons it never saw; same minutes
+  and placement bars. This is the clean out-of-sample answer to the §22-b measurement question.
+- [ ] 4.5 **§19-c** win probability: train on several seasons, strength prior shrunk by measured
+  reliability, test on a season none of them saw. Bars unchanged from §19-b.
+- [ ] 4.6 **§28 RAPM retest** on the §22-b walk. RAPM failed all eight reads (best 0.676 vs a 0.70
+  bar) when the walk mis-assigned about 9% of floor time; that error is now about 2%.
+  Pre-register before any fit: same benchmark, same bar, multi-season prior from 4.3. If it
+  passes, the site gets its first adjusted impact number.
+
+**Order:** 4.1 → 4.2 → 4.3 → 4.4, then 4.5 and 4.6 in parallel. 4.6 has the highest payoff in
+the whole plan.
 
 ### Phase 5 — Tier 2 models (each its own pre-registration)
 
-| Item | Build | Test / acceptance |
-|---|---|---|
-| 5.1 Rebound geography (§24) | offensive-rebound probability by miss x/y, shot type and possession context; half-court map with opponent fast-break arrows | held-out log loss beats a zone-only baseline; calibration max decile gap ≤ 0.02 |
-| 5.2 Run autopsy (§25) | every 10-0 run: what fed it, what ended it; timeout effect vs matched no-timeout runs | pre-registered matched control; effect CI excludes 0 to claim anything, otherwise shown as "no measurable effect" |
-| 5.3 Bonus clock | when each team enters the penalty per quarter and FT points earned in it | team fouls per quarter reconcile to box PF ≥ 99% |
-| 5.4 Stint fatigue (§26) | efficiency and turnover rate by minutes into stint and real rest (wallclock) | split-half reliability reported; selection-aware design (within-player, matched game state) |
-| 5.5 Foul-trouble ledger (§27) | minutes and net rating after early fouls vs matched controls | matched control; sample sizes on every cell |
+Ordered by value per unit of risk:
 
-### Phase 6 — Tier 3 (descriptive, quick)
+| Order | Item | Build | Test / acceptance |
+|---|---|---|---|
+| 1 | 5.1 Bonus clock | when each team enters the penalty per quarter; FT points earned in it | team fouls per quarter reconcile to box PF ≥ 99% (structural) |
+| 2 | 5.2 Rebound geography (§24) | offensive-rebound probability by miss x/y, shot type and possession context; pairs with Phase 2's crash or retreat | held-out log loss beats a zone-only baseline; max calibration decile gap ≤ 0.02 |
+| 3 | 5.3 Stint fatigue (§26) | efficiency and turnover rate by minutes into a spell and real rest, now that spells have true times | split-half reliability reported; within-player, matched game state |
+| 4 | 5.4 Foul-trouble ledger (§27) | minutes and net rating after early fouls vs matched controls | matched control; sample size on every cell |
+| 5 | 5.5 Run autopsy (§25) | every 10-0 run: what fed it, what ended it; timeout effect vs matched no-timeout runs | effect CI must exclude 0 to claim anything; otherwise "no measurable effect" |
+
+### Phase 6 — Tier 3 (descriptive, quick; any order)
 
 - [ ] 6.1 End-of-quarter card: 2-for-1 chances taken and converted, last-possession points
   (counts always shown).
-- [ ] 6.2 Challenge scorecard by team, quarter and call type (~65% of challenges overturned
-  league-wide), with n.
-- [ ] 6.3 Real-time strip on game pages: game time vs wallclock (median game 137 real minutes),
-  stoppages by kind.
+- [ ] 6.2 Challenge scorecard by team, quarter and call type, with n.
+- [ ] 6.3 Real-time strip on game pages: game time vs wallclock, stoppages by kind.
+
+### Housekeeping track (runs alongside, no phase)
+
+- Chicago has ESPN play-by-play for only 39 of its 2025-26 games: re-ingest the missing
+  games (mart owner).
+- Dependabot: `minimatch` via eslint (dev-only); clear it with the next dependency bump.
+- Owner decisions still open: data licensing for the NBA.com-derived seasons, Vercel Web
+  Analytics, a read-only R2 key for the site.
+- Early-season floors return to 1,500 automatically at 1,000 walked games (about mid-February).
 
 ### Not building
 
