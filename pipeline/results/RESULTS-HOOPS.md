@@ -1446,3 +1446,59 @@ ESPN seasons (2024-25 → live) from our rebuild, and the live season's
 "dated trial snapshot" flag drops for it. A stat that fails does not render
 for the live season; the miss gets the data vs handling vs modeling
 diagnosis before any retry. Thresholds do not move after the read.
+
+### §0h read (2026-11-15): PARTIAL — 5 of 11 pass; the misses are a reference mismatch
+
+Sample: 295 players, site 2025, ≥ 500 ESPN regular-season minutes, present in
+`advagg` 2025.
+
+| stat | r | median abs diff | bar | verdict |
+|---|---|---|---|---|
+| usg_pct | 0.9966 | 0.0064 | r ≥ 0.97 | PASS |
+| ast_pct | 0.9937 | 0.0055 | r ≥ 0.97 | PASS |
+| orb_pct | 0.9918 | 0.0053 | r ≥ 0.97 | PASS |
+| drb_pct | 0.9913 | 0.0168 | r ≥ 0.97 | PASS |
+| reb_pct | 0.9943 | 0.0112 | r ≥ 0.97 | PASS |
+| ts_pct | 0.8864 | 0.0142 | r ≥ 0.995, ≤ 0.005 | FAIL |
+| efg_pct | 0.8788 | 0.0158 | r ≥ 0.995, ≤ 0.005 | FAIL |
+| ftr | 0.3202 | 0.0646 | r ≥ 0.995, ≤ 0.005 | FAIL |
+| to_ratio | 0.9533 | 0.4252 | r ≥ 0.995, ≤ 0.5 | FAIL |
+| ast_to | 0.4942 | 0.5860 | r ≥ 0.99 | FAIL |
+| pie | 0.8448 | 0.0418 | r ≥ 0.98 | FAIL |
+
+**Diagnosis: handling, on the reference side — the season roll-up is a
+different estimand.** Three causes, each shown on named players (top-minute
+2024-25 rows): (1) `advagg` season rows include postseason/play-in/Cup game
+rows (Bridges gp 100 vs 81 regular-season, identical box minutes); (2)
+balldontlie's `free_throw_attempt_rate` is the team's on-floor four-factor
+FT rate, not the player's (every player sits 0.19-0.28; Harden's own FTA/FGA
+is 0.445) — there is no player-level counterpart; (3) `advagg` rolls rates up
+as a minutes-weighted mean of per-game ratios, not ratio of sums (ours,
+Bridges AST/TO = 306/132 = 2.318 exactly; theirs 1.784). Recomputing ours as
+a mean of game ratios moved TS r 0.886 → 0.947 but not FT rate (0.315) —
+consistent with (2). Our pure-box ratios are arithmetic on the ESPN box that
+already passed §0/§0b; the season-level reference cannot test them.
+
+**Consequence (as registered):** the 5 passes render live. The 6 misses do
+not render for the live season off this read. Re-test: §0h-b.
+
+## §0h-b — pure-box ratios, game-level (pre-registered 2026-11-15, after the §0h read, before any game-level comparison)
+
+**What.** Re-test the §0h misses on the estimand both sources share: one
+(game, player) row at a time, regular season only, where a ratio is just
+that game's ratio. `ftr` is withdrawn from gating — balldontlie carries no
+player-level FT rate (§0h cause 2); it ships descriptive with STL%/BLK%/3PA
+rate.
+
+**Fixed rules.** balldontlie per-game v2-advanced rows for BDL season 2024
+(site 2025), joined to ESPN `player_game` by (BDL game → ESPN game via date +
+teams, BDL player → ESPN id via the bake's bridge); regular season, `min > 0`.
+Per-game values from the §0h formulas on that game's box alone. A row is
+compared only where both sides are defined (`ast_to`: TOV > 0; `ts`/`efg`:
+FGA + FTA > 0). balldontlie rounds to 3 dp, so "match" = |diff| ≤ 0.0015
+(to_ratio: ≤ 0.15; ast_to: ≤ 0.015).
+
+**Gate.** Per stat, share of compared rows that match ≥ 0.97, over ≥ 10,000
+rows. PIE is held to the same bar (per-game PIE is a single-game ratio on
+both sides). Pass → the stat renders live as season ratio of sums (the
+NBA.com season definition). Fail → stays off live; diagnose.
