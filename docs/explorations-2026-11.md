@@ -63,7 +63,9 @@ skill (chances are the tracking input the spec wanted) — so it got the
 inline stability read before any claim:
 
 - **Year-over-year stability, 2023-24 → 2024-25, n=289 shared players:
-  r = 0.221.** That is far below what a stable skill shows; conversion as
+  r = 0.221** (re-run 2026-11-15 after the advagg single-quarter-row fix,
+  §0h-b: **r = 0.170, n=291** — the verdict only strengthens). That is far
+  below what a stable skill shows; conversion as
   measured is mostly context (team, role, position of the chances) plus
   noise.
 - Consequence: the site chip ships as "conversion of chances" vs league

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BackLink } from "@/components/ui/back-link";
 import { StatsTable, type StatsRow } from "@/components/ui/stats-table";
-import { getHoopsAdvAgg, getHoopsMeta, getHoopsPlayers, getHoopsSeasAvgs, hoopsSeasons } from "@/lib/data-hoops";
+import { getHoopsAdvAgg, getHoopsMeta, getHoopsPlayers, getHoopsRates, getHoopsSeasAvgs, hoopsSeasons } from "@/lib/data-hoops";
 import { UsageScatter, type ScatterRow } from "@/components/ui/usage-scatter";
 
 export const metadata = { title: "Hoops stats" };
@@ -21,7 +21,10 @@ export default async function HoopsStatsPage({ searchParams }: {
   // live season has no qualifiers yet and an empty leaderboard reads as broken
   const established = seasons.find((s) => (meta?.seasons[String(s)]?.games ?? 0) >= 400);
   const season = Number(sp.season) || (established ?? seasons[0]);
-  const [board, advDoc] = await Promise.all([getHoopsPlayers(), getHoopsAdvAgg()]);
+  const [board, advDoc, rates] = await Promise.all([getHoopsPlayers(), getHoopsAdvAgg(), getHoopsRates()]);
+  // §0h: TS%/USG% rebuilt from the ESPN box (gated, live) win wherever they exist
+  const ours = rates?.stats.includes("ts_pct") && rates.stats.includes("usg_pct")
+    ? rates.seasons[String(season)]?.players : undefined;
   const advPlayers = advDoc?.seasons[String(season)]?.players ?? {};
   const lg = { ...(advDoc?.league[String(season)] ?? {}) } as Record<string, unknown>;
   const n = (v: unknown) => (typeof v === "number" ? v : null);
@@ -34,7 +37,8 @@ export default async function HoopsStatsPage({ searchParams }: {
         id: r.id, name: r.name, team: r.team, gp: r.gp, gs: r.gs, min: r.min,
         pts: r.pts, reb: r.reb, ast: r.ast, stl: r.stl, blk: r.blk, tov: r.tov,
         fgp: r.fgp ?? null, tpp: r.tpp ?? null, ftp: r.ftp ?? null,
-        ts: n(a?.ts_pct), usg: n(a?.usg_pct), ortg: n(a?.ortg), drtg: n(a?.drtg),
+        ts: n(ours ? ours[r.id]?.ts_pct : a?.ts_pct), usg: n(ours ? ours[r.id]?.usg_pct : a?.usg_pct),
+        ortg: n(a?.ortg), drtg: n(a?.drtg),
         net: n(a?.net), pie: n(a?.pie),
       };
     });
@@ -50,13 +54,19 @@ export default async function HoopsStatsPage({ searchParams }: {
     }
   }
 
+  if (ours) {
+    const rl = rates!.league[String(season)] ?? {};
+    lg["ts|dist"] = rl["ts_pct|dist"];
+    lg["usg|dist"] = rl["usg_pct|dist"];
+  }
+
   // advanced fields: advagg covers through 2025-26; a season the walk hasn't
   // reached (the live one) takes usage/TS from the season-averages doc —
   // a frozen trial snapshot once the subscription lapses, so it gets a flag
   const usgCovered = rows.filter((r) => r.usg != null).length;
   let enriched = rows;
   let snapshotAsOf: string | null = null;
-  if (usgCovered < rows.length / 2) {
+  if (!ours && usgCovered < rows.length / 2) {
     const sa = await getHoopsSeasAvgs(season);
     if (sa?.players) {
       let filled = 0;
@@ -99,8 +109,10 @@ export default async function HoopsStatsPage({ searchParams }: {
       <p className="text-xs text-text-dim max-w-5xl">
         {rows.length} players with {MIN_GP}+ games. Click any header to sort; a column colored
         green sits in the season&apos;s top quartile (top decile bold), red the bottom.
-        Shooting % bands come from the season&apos;s own player pool; TS%/USG%/ratings from the
-        balldontlie v2-advanced roll-ups.
+        Shooting % bands come from the season&apos;s own player pool;
+        {ours ? <> TS% and USG% are rebuilt daily from ESPN box scores (<Link href="/leaders" className="underline">gated, see Leaders</Link>);
+        ORtg/DRtg/NET/PIE are balldontlie roll-ups where they exist.</>
+          : <> TS%/USG%/ratings from the balldontlie v2-advanced roll-ups.</>}
         {season === 2024 && <> <span className="text-flag">The 2023-24 season is partial (567 of 1230 games covered).</span></>}
         {snapshotAsOf && (
           <span className="text-flag">

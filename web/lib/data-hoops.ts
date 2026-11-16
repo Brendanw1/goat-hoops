@@ -355,6 +355,25 @@ export const getHoopsPlayerShots = cache(async (season: number): Promise<HoopsPl
 export const getHoopsContracts = cache(async (): Promise<HoopsContractDoc | null> =>
   (await fetchFromR2<HoopsContractDoc>("contracts.json").catch(() => null)) ?? null);
 
+/** §0h rates rebuilt from the ESPN box (rates.json.gz) — live every season the
+ *  mart covers; `stats` lists only what passed §0h/§0h-b or is descriptive. */
+export type HoopsRatesPct = { all?: number; pos?: number };
+export type HoopsRatesPlayer = {
+  gp: number; min: number; pos: string | null; q: boolean;
+} & Record<string, number | string | boolean | HoopsRatesPct | null>;
+export type HoopsRatesDoc = {
+  seasons: Record<string, { players: Record<string, HoopsRatesPlayer> }>;
+  league: Record<string, { qual_min: number; qual_gp: number; n: number; pools: Record<string, number> }
+    & Record<string, unknown>>;
+  lower_better: string[];
+  stats: string[];
+  gate_0h: { stats?: Record<string, { pass: boolean; pass_0hb?: boolean }> };
+  note: string;
+};
+
+export const getHoopsRates = cache(async (): Promise<HoopsRatesDoc | null> =>
+  (await fetchGzippedJson<HoopsRatesDoc>("rates.json.gz").catch(() => null)) ?? null);
+
 export const getHoopsAdvAgg = cache(async (): Promise<HoopsAdvAggDoc | null> =>
   (await fetchGzippedJson<HoopsAdvAggDoc>("advagg.json.gz").catch(() => null)) ?? null);
 

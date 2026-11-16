@@ -28,12 +28,16 @@ point differential (colored pos/neg at ±0 — wins do that job).
 
 | metric | definition | rendered |
 |---|---|---|
-| eFG% | (FGM + 0.5·3PM)/FGA | player page, /stats (advanced block) |
-| TS% | PTS / (2·(FGA + 0.44·FTA)) — BDL's calc | advanced tables, chips |
-| USG% | BDL usage_percentage (est. version) | advanced tables (neutral — load, not grade) |
-| AST% / ORB% / DRB% / REB% | BDL percentage fields | advanced table |
+| eFG% | (FGM + 0.5·3PM)/FGA — ESPN-box rebuild, §0h-b gated | player page, /stats, /leaders |
+| TS% | PTS / (2·(FGA + 0.44·FTA)); ESPN seasons from the §0h rebuild (regular season, Σ/Σ, §0h-b gated), earlier seasons BDL | advanced tables, chips, /leaders |
+| USG% | (FGA + 0.44·FTA + TOV) / on-floor team total (minutes-share estimate); ESPN seasons §0h rebuild, earlier BDL | advanced tables (neutral — load, not grade), /leaders |
+| AST% / ORB% / DRB% / REB% | NBA.com definitions, on-floor totals by minutes share; ESPN seasons §0h rebuild (r ≥ 0.991 vs BDL), earlier BDL | advanced table, /leaders |
+| AST/TO | AST / TOV, season Σ/Σ — §0h-b gated | /leaders |
+| FT rate / 3PA rate | FTA/FGA, 3PA/FGA — descriptive (no external counterpart) | /leaders |
+| STL% / BLK% | STL / on-floor opp poss; BLK / on-floor opp 2PA — descriptive | /leaders |
+| TO ratio | **not rendered live** — §0h-b FAIL (NBA counts FT trips; needs PBP) | — |
 | ORtg / DRtg / NET | BDL ratings (minutes-weighted roll-up) + est. variants | advanced table, /stats |
-| PIE | BDL pie | advanced table, /stats |
+| PIE | BDL pie, BDL seasons only — **not rebuilt**: §0h-b showed BDL's PIE is not the published formula | advanced table, /stats |
 | Pace / est. pace | BDL | doc only (context, not rendered as grade) |
 | Tracking per-36 | deflections, contested, charges, box outs, screen AST (+pts), loose balls, passes, touches, 2nd AST, FT AST, reb chances, blocks against | Defense & activity panel |
 | Matchups | minutes matched, opp FG% / 3P%, rim FG% allowed (lower better) | Defense & activity panel |
@@ -54,6 +58,15 @@ point differential (colored pos/neg at ±0 — wins do that job).
 | by month / pre-post deadline (traded players) | computable from game logs (BDL rows carry team changes implicitly via `team`) | — |
 | clutch | live (deltas, gp-flagged) | clutch panel |
 | schedule strength / opponent-adjusted scoring | needs opponent ratings (Track A/B) | MODELS-ROADMAP |
+
+## 3b. Leaderboards (`/leaders`, §0h)
+
+Qualified = minutes ≥ 500 scaled by the share of the season played (cap
+500) AND games ≥ half the team's games. Percentiles rank within the chosen
+pool: all qualified, or a position pool (G/F/C) when ≥ 40 qualify. Box stats
+rank live in the page; rates carry baked percentiles. Every board states its
+n and its status (box score / gated / descriptive). Stabilization-derived
+floors replace these defaults once measured (catalog C3).
 
 ## 4. Splits canon (what "everywhere" means)
 

@@ -1102,8 +1102,8 @@ def _adv_scan_parquet(path: Path, wanted: list[str], seen: set, emit) -> int:
     for r in df[use].itertuples(index=False):
         d = dict(zip(use, r))
         gid, pid = d.get("game.id"), d.get("player.id")
-        if pd.isna(gid) or pd.isna(pid):
-            continue
+        if pd.isna(gid) or pd.isna(pid) or d.get("period", 0) != 0:
+            continue  # period 1-5 rows are single quarters, not the game (§0h-b)
         key = (int(gid), int(pid))
         if key in seen:
             continue
@@ -1128,8 +1128,8 @@ def _adv_scan_jsonl(path: Path, seen: set, emit) -> int:
             for r in rows:
                 d = flatten_bdl_row(r)
                 gid, pid = d.get("game.id"), d.get("player.id")
-                if gid is None or pid is None:
-                    continue
+                if gid is None or pid is None or d.get("period", 0) not in (0, None):
+                    continue  # single-quarter rows (§0h-b)
                 key = (int(gid), int(pid))
                 if key in seen:
                     continue
@@ -1145,7 +1145,7 @@ def advagg_phase(out, counts) -> None:
     most). League block carries the distribution the site colors against."""
     rate_l = list(ADV_RATE_COLS.items())
     cnt_l = list(ADV_COUNT_COLS.items())
-    wanted = ["game.id", "player.id", "game.season", "possessions"] + [c for _, c in rate_l] \
+    wanted = ["game.id", "player.id", "game.season", "period", "possessions"] + [c for _, c in rate_l] \
         + [c for _, c in cnt_l]
     seasons: dict[int, dict] = {}
     seen: set = set()
@@ -2184,6 +2184,8 @@ def bake(out_dir: Path | None = None) -> dict:
     market_phase(out, counts)
     draft_phase(out, counts)
     advagg_phase(out, counts)
+    from rates import rates_phase  # §0h — reads advagg.json.gz as its gate reference
+    rates_phase(out, counts)
     careers_phase(out, counts)
     standings_phase(out, counts)
     reads_phase(out, counts)

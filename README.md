@@ -29,6 +29,12 @@ game reports with x/y shot charts, teams, players — over the validated
 box-score spine. Models (RAPM, shot quality, lineups) are Phase 2, each
 pre-registered in `pipeline/RESULTS-HOOPS.md`.
 
+Live at https://hoops.goatpro.dev (Vercel project `goat-hoops`, root `web/`;
+pushing `main` deploys). Player rates (TS%, eFG%, USG%, AST%, REB%s, AST/TO,
+plus descriptive FT/3PA rates and STL%/BLK%) are rebuilt from the ESPN box by
+`pipeline/rates.py` under the §0h/§0h-b gates and rank on `/leaders` with
+percentiles by position pool.
+
 The LUMA cross-check gate (2026-10-29): 688/688 game scores 2024-25 exact,
 52/52 current season, 324 player-game boxes with every stat exact except
 assists (scorer judgment). Credit: LUMA Basketball Research (ARC v3.1,

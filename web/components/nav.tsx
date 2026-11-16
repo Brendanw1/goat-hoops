@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/teams", label: "Teams" },
   { href: "/players", label: "Players" },
   { href: "/stats", label: "Stats" },
+  { href: "/leaders", label: "Leaders" },
   { href: "/alltime", label: "All-Time" },
   { href: "/eras", label: "Eras" },
   { href: "/lineups", label: "Lineups" },

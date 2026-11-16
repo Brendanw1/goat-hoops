@@ -1,0 +1,33 @@
+{
+ "registered": "\u00a70h-b",
+ "bdl_rows": 31770,
+ "espn_rows": 26275,
+ "joined": 25127,
+ "stats": {
+  "ts_pct": {
+   "compared": 23950,
+   "match_rate": 0.9997,
+   "pass": true
+  },
+  "efg_pct": {
+   "compared": 23804,
+   "match_rate": 0.9999,
+   "pass": true
+  },
+  "to_ratio": {
+   "compared": 24378,
+   "match_rate": 0.788,
+   "pass": false
+  },
+  "ast_to": {
+   "compared": 15772,
+   "match_rate": 0.9996,
+   "pass": true
+  },
+  "pie": {
+   "compared": 25127,
+   "match_rate": 0.0441,
+   "pass": false
+  }
+ }
+}

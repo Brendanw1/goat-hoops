@@ -1502,3 +1502,35 @@ FGA + FTA > 0). balldontlie rounds to 3 dp, so "match" = |diff| ≤ 0.0015
 rows. PIE is held to the same bar (per-game PIE is a single-game ratio on
 both sides). Pass → the stat renders live as season ratio of sums (the
 NBA.com season definition). Fail → stays off live; diagnose.
+
+### §0h-b read (2026-11-15): 3 of 5 PASS — TS%, eFG%, AST/TO render live
+
+25,127 ESPN rows joined to balldontlie full-game rows (31,770 BDL 2024
+regular-season rows, `period == 0` only; 26,275 ESPN rows).
+
+| stat | compared | match rate | verdict |
+|---|---|---|---|
+| ts_pct | 23,950 | 0.9997 | PASS |
+| efg_pct | 23,804 | 0.9999 | PASS |
+| ast_to | 15,772 | 0.9996 | PASS |
+| to_ratio | 24,378 | 0.7880 | FAIL |
+| pie | 25,127 | 0.0441 | FAIL |
+
+**to_ratio — diagnosis: data.** Misses are small (0.2-0.5 on the 0-100
+scale) and no single FTA weight reconciles them; consistent with NBA.com
+counting actual free-throw trips from play-by-play where §0h uses the
+0.44·FTA estimate. A PBP free-throw-trip count is the fix; it needs its own
+registration. Off live until then.
+
+**pie — diagnosis: definition.** balldontlie's game PIE runs a median 2.01×
+the NBA-published formula (IQR 1.47-3.41) — a different denominator than
+"both teams' game totals". Not resolvable from the rows; PIE stays off live.
+
+**Also found (data, reference side):** two recovered balldontlie files
+(`advanced_v2_checkpoints_recovered.parquet`, `advanced_2023.parquet`) are
+mostly single-quarter rows (`period` 1-5). `advagg_phase` dedups first-seen
+by (game, player) without a period filter — sized and fixed in the same
+change (see COLLABORATION).
+
+**Live set (§0h + §0h-b):** usg_pct, ast_pct, orb_pct, drb_pct, reb_pct,
+ts_pct, efg_pct, ast_to; descriptive and ungated: ftr, tpar, stl_pct, blk_pct.
