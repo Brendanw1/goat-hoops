@@ -1,0 +1,55 @@
+{
+ "a": {
+  "n_players": 370,
+  "zones": {
+   "rim": {
+    "r_fga_pg": 0.9986,
+    "share_ours": 0.2908,
+    "share_ref": 0.2781,
+    "fg_ours": 0.6564,
+    "fg_ref": 0.6628,
+    "pass": true
+   },
+   "paint": {
+    "r_fga_pg": 0.997,
+    "share_ours": 0.1956,
+    "share_ref": 0.202,
+    "fg_ours": 0.4431,
+    "fg_ref": 0.4445,
+    "pass": true
+   },
+   "mid": {
+    "r_fga_pg": 0.9988,
+    "share_ours": 0.0939,
+    "share_ref": 0.0974,
+    "fg_ours": 0.4178,
+    "fg_ref": 0.4161,
+    "pass": true
+   },
+   "c3": {
+    "r_fga_pg": 0.9927,
+    "share_ours": 0.1073,
+    "share_ref": 0.1134,
+    "fg_ours": 0.3916,
+    "fg_ref": 0.3865,
+    "pass": true
+   },
+   "ab3": {
+    "r_fga_pg": 0.9997,
+    "share_ours": 0.3126,
+    "share_ref": 0.3091,
+    "fg_ours": 0.3525,
+    "fg_ref": 0.3533,
+    "pass": true
+   }
+  },
+  "pass": true
+ },
+ "b": {
+  "rows": 20548,
+  "match_rate": 0.9992,
+  "median_abs_diff": 0.0,
+  "pass": true
+ },
+ "ran": "2026-11-15"
+}

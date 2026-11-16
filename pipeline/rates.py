@@ -38,7 +38,19 @@ STATS = {"ts_pct": (3, (0.995, 0.005)), "efg_pct": (3, (0.995, 0.005)),
          "drb_pct": (3, (0.97, None)), "reb_pct": (3, (0.97, None)),
          "pie": (3, (0.98, None)), "stl_pct": (3, None), "blk_pct": (3, None),
          "tpar": (3, None)}
-LOWER_BETTER = ("to_ratio",)
+# §0i (creation.py): stat -> round digits, and which gate it rides
+# ("a" zones, "b" assisted share, "ab" both, None descriptive, "box" §0-gated box counts)
+CREATION = {"rim_rate": (3, "a"), "mid_rate": (3, "a"), "c3_rate": (3, "a"),
+            "rim_fg": (3, "a"), "mid_fg": (3, "a"), "c3_fg": (3, "a"), "ab3_fg": (3, "a"),
+            "pct_unast": (3, "b"), "unast36": (2, "b"), "unast3_36": (2, "b"),
+            "ast_pts36": (1, "b"), "ast3_36": (2, "b"), "ast_rim36": (2, "ab"),
+            "pullup_rate": (3, None), "pullup_efg": (3, None),
+            "badpass36": (2, None), "lostball36": (2, None),
+            "gmsc": (1, "box"), "g30": (0, "box"), "g40": (0, "box"), "dd": (0, "box"), "td": (0, "box")}
+# attempt floors on top of the minutes floor (full season; the live season scales them)
+FLOOR = {"rim_fg": ("rim_fga", 100), "mid_fg": ("mid_fga", 60), "c3_fg": ("c3_fga", 40),
+         "ab3_fg": ("ab3_fga", 100), "pullup_efg": ("pu_fga", 100)}
+LOWER_BETTER = ("to_ratio", "badpass36", "lostball36")
 POS = {"G": "G", "PG": "G", "SG": "G", "F": "F", "SF": "F", "PF": "F", "C": "C"}
 FULL_QUAL_MIN = 500  # completed-season minutes floor; the live season scales it
 POOL_MIN = 40        # a position pool renders only with this many qualifiers
@@ -142,14 +154,13 @@ GATE_B_STATS = {"ts_pct": ("true_shooting_percentage", 0.0015),
                 "ast_to": ("assist_to_turnover", 0.015), "pie": ("pie", 0.0015)}
 
 
-def gate_b(pg, tg, g) -> dict:
-    """§0h-b: per-(game, player) pure-box ratios vs balldontlie's full-game rows,
-    BDL season 2024 = site 2025, regular season. Scans every recovered source;
-    period != 0 rows are single quarters and are skipped."""
+def bdl_full_game_rows(fields) -> dict:
+    """balldontlie full-game v2-advanced rows for BDL season 2024 (site 2025),
+    regular season, keyed (date, ESPN abbr, normalized name). Scans every
+    recovered source; period != 0 rows are single quarters and are skipped."""
     from hoops_export import BDL, BDL_ABBR2ESPN, flatten_bdl_row, norm_name
     want = {"game.id", "player.id", "game.date", "game.season", "game.postseason", "period",
-            "player.first_name", "player.last_name", "team.abbreviation",
-            *(f for f, _ in GATE_B_STATS.values())}
+            "player.first_name", "player.last_name", "team.abbreviation", *fields}
     ref, seen = {}, set()
 
     def take(d):
@@ -181,15 +192,27 @@ def gate_b(pg, tg, g) -> dict:
             df = df[[c for c in df.columns if c in want]]
             for d in df.to_dict("records"):
                 take(d)
+    return ref
 
-    t = team_games(tg, pg, g)
-    p = pg[pg.pts.notna() & (pg["min"] > 0)].rename(columns={"to": "tov"})
-    p = p.astype({"game_id": str, "team_id": str}).merge(t[t.season_year == 2025], on=["game_id", "team_id"])
-    gi = g.astype({"game_id": str}).set_index("game_id")
+
+def espn_game_key(g: pd.DataFrame):
+    """(game_id, team_id, name) -> the (date, abbr, normalized name) key above."""
+    from hoops_export import norm_name
+    date = {str(r.game_id): str(r.date_et)[:10] for r in g.itertuples()}
     abbr = {}
     for r in g.itertuples():
         abbr[(str(r.game_id), str(int(r.home_team_id)))] = r.home_abbr
         abbr[(str(r.game_id), str(int(r.away_team_id)))] = r.away_abbr
+    return lambda gid, tid, name: (date.get(str(gid)), abbr.get((str(gid), str(tid))), norm_name(name))
+
+
+def gate_b(pg, tg, g) -> dict:
+    """§0h-b: per-(game, player) pure-box ratios vs balldontlie's full-game rows."""
+    ref = bdl_full_game_rows([f for f, _ in GATE_B_STATS.values()])
+    key_of = espn_game_key(g)
+    t = team_games(tg, pg, g)
+    p = pg[pg.pts.notna() & (pg["min"] > 0)].rename(columns={"to": "tov"})
+    p = p.astype({"game_id": str, "team_id": str}).merge(t[t.season_year == 2025], on=["game_id", "team_id"])
     ours = {"ts_pct": lambda r: r.pts / (2 * (r.fga + 0.44 * r.fta)) if r.fga + r.fta > 0 else None,
             "efg_pct": lambda r: (r.fgm + 0.5 * r.tpm) / r.fga if r.fga > 0 else None,
             "to_ratio": lambda r: (100 * r.tov / (r.fga + 0.44 * r.fta + r.ast + r.tov)
@@ -200,8 +223,7 @@ def gate_b(pg, tg, g) -> dict:
     hits = {k: [0, 0] for k in GATE_B_STATS}
     joined = 0
     for r in p.itertuples():
-        key = (str(gi.at[r.game_id, "date_et"])[:10], abbr.get((r.game_id, r.team_id)), norm_name(r.name))
-        d = ref.get(key)
+        d = ref.get(key_of(r.game_id, r.team_id, r.name))
         if d is None:
             continue
         joined += 1
@@ -229,6 +251,21 @@ def build(pg, tg, g, adv_path: Path) -> dict:
                 gt["stats"][k]["pass_0hb"] = True
     failed = {k for k, v in gt.get("stats", {}).items() if not (v["pass"] or v.get("pass_0hb"))}
     shown = [k for k in STATS if k not in failed]
+    status = {k: "gated (§0h)" if k in gt.get("stats", {}) else "descriptive" for k in shown}
+    digits = {k: v[0] for k, v in STATS.items()}
+    from creation import GATE as GATE_0I, ZONES, TYPES, features
+    g0i = json.loads(GATE_0I.read_text()) if GATE_0I.exists() else {}  # offline; fail closed
+    gpass = {"a": g0i.get("a", {}).get("pass", False), "b": g0i.get("b", {}).get("pass", False)}
+    for k, (dp, gk) in CREATION.items():
+        if gk in (None, "box") or all(gpass[c] for c in gk):
+            shown.append(k)
+            digits[k] = dp
+            status[k] = {None: "descriptive", "box": "box score"}.get(gk, "gated (§0i)")
+    f = features(pg, g)
+    f["pu_fga"] = f.t_pullup_fga + f.t_stepback_fga
+    a["athlete_id"] = a.athlete_id.astype(str)
+    a = a.merge(f.drop(columns=["mins"]), on=["season_year", "athlete_id"], how="left")
+    types = [t for t, _ in TYPES] + ["other"]
     team_gp = g[g.season_type == 2].groupby("season_year").size() * 2 / 30  # games per team
     seasons, league = {}, {}
     for season, ss in a.groupby("season_year"):
@@ -238,15 +275,21 @@ def build(pg, tg, g, adv_path: Path) -> dict:
         q = ss[(ss["min"] >= qual) & (ss.gp >= qual_gp)]
         lg = {"qual_min": qual, "qual_gp": qual_gp, "n": len(q)}
         pct = {k: {} for k in shown}
+        qk = {}
         for k in shown:
             hb = k not in LOWER_BETTER
-            v = q[k].dropna()
+            if k in FLOOR:
+                col, base = FLOOR[k]
+                lg[f"{k}|floor"] = fl = round(base * min(1, tgp / 82))
+                qk[k] = ss[col] >= fl
+            qq = q[qk[k].loc[q.index]] if k in qk else q
+            v = qq[k].dropna()
             if len(v) >= 30:
-                lg[f"{k}|dist"] = {f"p{p}": round(float(v.quantile(p / 100)), STATS[k][0])
+                lg[f"{k}|dist"] = {f"p{p}": round(float(v.quantile(p / 100)), digits[k])
                                    for p in (10, 25, 50, 75, 90)}
-                for e, pc in zip(q.loc[v.index, "athlete_id"], pctile(v, hb)):
+                for e, pc in zip(qq.loc[v.index, "athlete_id"], pctile(v, hb)):
                     pct[k][e] = {"all": int(pc)}
-            for pos, qp in q.groupby("pos"):
+            for pos, qp in qq.groupby("pos"):
                 vp = qp[k].dropna()
                 if len(vp) >= POOL_MIN:
                     for e, pc in zip(qp.loc[vp.index, "athlete_id"], pctile(vp, hb)):
@@ -258,14 +301,22 @@ def build(pg, tg, g, adv_path: Path) -> dict:
                    "q": bool(r.min >= qual and r.gp >= qual_gp)}
             for k in shown:
                 v = getattr(r, k)
-                row[k] = None if pd.isna(v) else round(float(v), STATS[k][0])
+                row[k] = None if pd.isna(v) else round(float(v), digits[k])
                 if r.athlete_id in pct[k]:
                     row[f"{k}|pct"] = pct[k][r.athlete_id]
+                if k in qk:
+                    row[f"{k}|q"] = bool(qk[k].at[r.Index])
+            # shot-diet panel: [fga, fgm, assisted fgm] by zone, [fga, fgm, 3pm] by type
+            if gpass["a"] and gpass["b"] and getattr(r, "fga_sh", 0) > 0:
+                row["zones"] = {z: [int(getattr(r, f"{z}_fga")), int(getattr(r, f"{z}_fgm")),
+                                    int(getattr(r, f"{z}_ast"))] for z in ZONES}
+                row["types"] = {t: [int(getattr(r, f"t_{t}_fga")), int(getattr(r, f"t_{t}_fgm")),
+                                    int(getattr(r, f"t_{t}_tpm"))] for t in types}
             players[r.athlete_id] = row
         seasons[int(season)] = {"players": players}
         league[int(season)] = lg
     return {"seasons": seasons, "league": league, "lower_better": list(LOWER_BETTER),
-            "stats": shown, "gate_0h": gt,
+            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i,
             "note": "§0h — NBA.com-definition rates rebuilt from the ESPN box; on-floor "
                     "team totals approximated by minutes share. Descriptive, not a forecast."}
 

@@ -68,6 +68,33 @@ rank live in the page; rates carry baked percentiles. Every board states its
 n and its status (box score / gated / descriptive). Stabilization-derived
 floors replace these defaults once measured (catalog C3).
 
+Attempt-based stats add an attempt floor on top (full season; scaled for
+the live season): rim FG% 100 rim FGA, mid FG% 60, corner 3P% 40,
+above-break 3P% 100, pull-up eFG% 100.
+
+## 3c. Shot creation and playmaking (`pipeline/creation.py`, §0i)
+
+From ESPN play-by-play (`shots` ⋈ `pbp` on `play_id`), regular season,
+heaves excluded (the box stopped counting them as FGA in 2025-26).
+
+| stat | definition | status |
+|---|---|---|
+| rim / mid / corner-3 rate | zone FGA / FGA; rim = 2PA within 4 ft, paint = other 2PA in the lane, mid = other 2PA, c3 = 3PA within 14 ft of the baseline, ab3 = other 3PA | gated §0i-A |
+| rim / mid FG%, corner / above-break 3P% | zone FGM / FGA | gated §0i-A |
+| self-created % | unassisted FGM / FGM (assisted = PBP assister on the make) | gated §0i-B |
+| self-created FGM/36, 3PM/36 | unassisted makes (threes) per 36 min | gated §0i-B |
+| AST points/36 | (2·assists on 2s + 3·assists on 3s) per 36 | gated §0i-B |
+| AST to 3s/36, AST at rim/36 | assists by the receiver's shot (3PM; rim make) per 36 | gated §0i-B (rim: A+B) |
+| pull-up rate, pull-up eFG% | ESPN "Pullup"/"Step Back" shot labels: share of FGA, eFG on them | descriptive |
+| bad-pass / lost-ball TO/36 | PBP turnover types (incl. out-of-bounds variants) per 36 | descriptive |
+| Game Score | Hollinger: PTS + 0.4FGM − 0.7FGA − 0.4(FTA−FTM) + 0.7ORB + 0.3DRB + STL + 0.7AST + 0.7BLK − 0.4PF − TOV, per game | box |
+| 30/40-pt games, double/triple-doubles | counts; doubles over PTS/REB/AST/STL/BLK | box |
+
+Shot types are exclusive, first match wins: putback/tip > alley-oop >
+cutting > driving > step-back > pull-up > other. The player page's shot
+creation panel shows zone makes split assisted vs self-created and the type
+diet with eFG.
+
 ## 4. Splits canon (what "everywhere" means)
 
 Every player-season table eventually carries these cut dimensions, built from

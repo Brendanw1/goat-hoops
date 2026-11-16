@@ -360,13 +360,17 @@ export const getHoopsContracts = cache(async (): Promise<HoopsContractDoc | null
 export type HoopsRatesPct = { all?: number; pos?: number };
 export type HoopsRatesPlayer = {
   gp: number; min: number; pos: string | null; q: boolean;
-} & Record<string, number | string | boolean | HoopsRatesPct | null>;
+  /** §0i shot diet: zone -> [fga, fgm, assisted fgm]; type -> [fga, fgm, 3pm] */
+  zones?: Record<string, number[]>; types?: Record<string, number[]>;
+} & Record<string, number | string | boolean | HoopsRatesPct | Record<string, number[]> | null | undefined>;
 export type HoopsRatesDoc = {
   seasons: Record<string, { players: Record<string, HoopsRatesPlayer> }>;
   league: Record<string, { qual_min: number; qual_gp: number; n: number; pools: Record<string, number> }
     & Record<string, unknown>>;
   lower_better: string[];
   stats: string[];
+  /** per stat: "gated (§0h)" | "gated (§0i)" | "box score" | "descriptive" */
+  status?: Record<string, string>;
   gate_0h: { stats?: Record<string, { pass: boolean; pass_0hb?: boolean }> };
   note: string;
 };

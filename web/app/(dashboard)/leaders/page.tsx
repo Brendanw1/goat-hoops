@@ -24,8 +24,30 @@ const DEFS: Def[] = [
   { key: "orb_pct", label: "OREB%", group: "Rebounding", pct: true, dp: 1, what: "share of available offensive rebounds grabbed" },
   { key: "drb_pct", label: "DREB%", group: "Rebounding", pct: true, dp: 1, what: "share of available defensive rebounds grabbed" },
   { key: "reb_pct", label: "REB%", group: "Rebounding", pct: true, dp: 1, what: "share of all available rebounds grabbed" },
+  { key: "rim_rate", label: "Rim rate", group: "Shot zones", pct: true, dp: 1, what: "share of field-goal attempts within 4 ft of the rim" },
+  { key: "rim_fg", label: "Rim FG%", group: "Shot zones", pct: true, dp: 1, what: "field-goal percentage within 4 ft of the rim" },
+  { key: "mid_rate", label: "Mid rate", group: "Shot zones", pct: true, dp: 1, what: "share of field-goal attempts from mid-range (long twos outside the paint)" },
+  { key: "mid_fg", label: "Mid FG%", group: "Shot zones", pct: true, dp: 1, what: "mid-range field-goal percentage" },
+  { key: "c3_rate", label: "Corner-3 rate", group: "Shot zones", pct: true, dp: 1, what: "share of field-goal attempts from the corners" },
+  { key: "c3_fg", label: "Corner 3P%", group: "Shot zones", pct: true, dp: 1, what: "corner three-point percentage" },
+  { key: "ab3_fg", label: "Above-break 3P%", group: "Shot zones", pct: true, dp: 1, what: "above-the-break three-point percentage" },
+  { key: "pct_unast", label: "Self-created %", group: "Self-creation", pct: true, dp: 1, what: "share of made field goals that were unassisted" },
+  { key: "unast36", label: "Self-created FGM/36", group: "Self-creation", dp: 2, what: "unassisted made field goals per 36 minutes" },
+  { key: "unast3_36", label: "Self-created 3PM/36", group: "Self-creation", dp: 2, what: "unassisted made threes per 36 minutes" },
+  { key: "pullup_rate", label: "Pull-up rate", group: "Self-creation", pct: true, dp: 1, what: "share of attempts that are pull-up or step-back jumpers (ESPN's shot labels)" },
+  { key: "pullup_efg", label: "Pull-up eFG%", group: "Self-creation", pct: true, dp: 1, what: "effective FG% on pull-up and step-back jumpers" },
+  { key: "ast_pts36", label: "AST points/36", group: "Playmaking", dp: 1, what: "points created by assists per 36 minutes (2 or 3 per assisted make)" },
+  { key: "ast3_36", label: "AST to 3s/36", group: "Playmaking", dp: 2, what: "assists on made threes per 36 minutes" },
+  { key: "ast_rim36", label: "AST at rim/36", group: "Playmaking", dp: 2, what: "assists on makes within 4 ft of the rim per 36 minutes" },
+  { key: "badpass36", label: "Bad-pass TO/36", group: "Playmaking", dp: 2, what: "bad-pass turnovers per 36 minutes (lower is better)" },
+  { key: "lostball36", label: "Lost-ball TO/36", group: "Playmaking", dp: 2, what: "lost-ball turnovers per 36 minutes (lower is better)" },
   { key: "stl_pct", label: "STL%", group: "Defense", pct: true, dp: 1, what: "steals per opponent possession while on court" },
   { key: "blk_pct", label: "BLK%", group: "Defense", pct: true, dp: 1, what: "share of opponent two-point attempts blocked" },
+  { key: "gmsc", label: "Game Score", group: "Milestones", dp: 1, what: "Hollinger Game Score per game" },
+  { key: "g30", label: "30-pt games", group: "Milestones", dp: 0, what: "games with 30 or more points" },
+  { key: "g40", label: "40-pt games", group: "Milestones", dp: 0, what: "games with 40 or more points" },
+  { key: "dd", label: "Double-doubles", group: "Milestones", dp: 0, what: "games with 10+ in two of points, rebounds, assists, steals, blocks" },
+  { key: "td", label: "Triple-doubles", group: "Milestones", dp: 0, what: "games with 10+ in three of points, rebounds, assists, steals, blocks" },
 ];
 const BOX = new Set(["pts", "reb", "ast", "stl", "blk"]);
 const POOLS: Record<string, string> = { all: "All", G: "Guards", F: "Forwards", C: "Centers" };
@@ -50,12 +72,13 @@ export default async function LeadersPage({ searchParams }: {
   const n = [25, 50, 100].includes(Number(sp.n)) ? Number(sp.n) : 25;
   const lower = rates.lower_better.includes(def.key);
   const gate = rates.gate_0h.stats?.[def.key];
-  const status = BOX.has(def.key) ? "box score"
-    : gate && (gate.pass || gate.pass_0hb) ? "gated (§0h)" : "descriptive";
+  const status = BOX.has(def.key) ? "box score" : rates.status?.[def.key]
+    ?? (gate && (gate.pass || gate.pass_0hb) ? "gated (§0h)" : "descriptive");
+  const floor = lg[`${def.key}|floor`] as number | undefined;
 
   const boardRows = new Map((board?.seasons[String(season)] ?? []).map((r) => [r.id, r]));
   const qualified = Object.entries(rates.seasons[String(season)]?.players ?? {})
-    .filter(([, p]) => p.q && (pool === "all" || p.pos === pool))
+    .filter(([, p]) => p.q && p[`${def.key}|q`] !== false && (pool === "all" || p.pos === pool))
     .flatMap(([id, p]) => {
       const b = boardRows.get(id);
       const raw = BOX.has(def.key) ? b?.[def.key as "pts"] : p[def.key];
@@ -117,7 +140,7 @@ export default async function LeadersPage({ searchParams }: {
 
       <p className="text-xs text-text-dim">
         <span className="text-text-secondary font-medium">{def.label}</span> — {def.what}.
-        {" "}Qualified: {lg.qual_min}+ minutes and {lg.qual_gp}+ games ({qualified.length} {POOLS[pool].toLowerCase()}
+        {" "}Qualified: {lg.qual_min}+ minutes and {lg.qual_gp}+ games{floor ? ` and ${floor}+ attempts of this kind` : ""} ({qualified.length} {POOLS[pool].toLowerCase()}
         {pool === "all" ? " players" : ""}). Percentiles rank within this pool.
         {" "}<span className={status === "descriptive" ? "text-flag" : ""}>Status: {status}</span>
         {status === "descriptive" && " — no external reference to check it against yet."}
@@ -163,8 +186,9 @@ export default async function LeadersPage({ searchParams }: {
 
       <p className="text-[10px] text-text-dim/70">
         Regular season, computed from ESPN box scores with NBA.com definitions (on-court team totals
-        estimated by minutes share). Gated rates passed the §0h/§0h-b checks against an independent
-        source; see Methods. Descriptive, not a forecast.
+        estimated by minutes share); shot zones, self-creation and playmaking from ESPN play-by-play.
+        Gated stats passed the §0h/§0h-b/§0i checks against an independent source; see Methods.
+        Descriptive, not a forecast.
       </p>
     </div>
   );

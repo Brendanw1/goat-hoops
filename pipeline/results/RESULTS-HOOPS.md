@@ -1574,3 +1574,37 @@ taxonomy), turnover split, Game Score and milestones → descriptive (no
 external counterpart; box counts already §0-gated). A failed gate keeps its
 stats off the site; the miss gets the data/handling/modeling diagnosis.
 Thresholds do not move after the read.
+
+### §0i read (2026-11-15): PASS — both gates
+
+Run: `python pipeline/creation.py --gate` → `data/derived/gate_creation_0i.json`.
+
+**Gate A — zones: PASS** (370 players ≥ 500 min, name-bridged, ambiguous names dropped).
+
+| zone | r (FGA/g) | share ours / ref | FG% ours / ref |
+|---|---|---|---|
+| rim | 0.9986 | 29.1 / 27.8 | 65.6 / 66.3 |
+| paint | 0.9970 | 19.6 / 20.2 | 44.3 / 44.5 |
+| mid | 0.9988 | 9.4 / 9.7 | 41.8 / 41.6 |
+| c3 | 0.9927 | 10.7 / 11.3 | 39.2 / 38.7 |
+| ab3 | 0.9997 | 31.3 / 30.9 | 35.3 / 35.3 |
+
+The largest gap (rim share +1.3 pts, inside the 2.0 bar) is the integer-foot
+blur on the 4-ft arc the registration anticipated: a few of NBA.com's
+paint-non-RA attempts land in our rim bucket.
+
+**Gate B — assisted share: PASS.** 20,548 (game, player) rows with FGM > 0;
+match rate 0.9992 (bar 0.95), median |diff| 0.0.
+
+**Handling note, set before the gate ran and outside the gate season.** From
+2025-26 the box stops counting end-of-period heaves as FGA, and ESPN labels
+them `Heave Jump Shot` (1,062 in 2025-26, 164 so far in 2026-27, none in
+2024-25). They are dropped from the shot table, which brings shot-table FGA to
+box parity: net diff 0 in 2024-25, +12 in 2025-26 (0.003% of rows), 0 in 2026-27.
+
+**Ships:** zone rates and FG% (A); unassisted share, unassisted makes and
+threes per 36, assist points and assisted threes per 36 (B); rim assists per
+36 (A+B); the zone/type shot-diet panel. Descriptive: pull-up/step-back rate
+and eFG, bad-pass and lost-ball turnovers per 36. Box: Game Score,
+30/40-point games, double- and triple-doubles. Zone FG% stats carry attempt
+floors (rim 100, mid 60, c3 40, ab3 100, pull-up 100; the live season scales them).

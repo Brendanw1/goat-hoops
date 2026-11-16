@@ -4,7 +4,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { ShotHeatMap } from "@/components/ui/shot-heatmap";
 import {
   getHoopsAdvAgg, getHoopsCareers, getHoopsClutch, getHoopsContracts, getHoopsMeta, getHoopsPlayer,
-  getHoopsPlayerShots, getHoopsProjections, getHoopsRebound, getHoopsSeasAvgs,
+  getHoopsPlayerShots, getHoopsProjections, getHoopsRates, getHoopsRebound, getHoopsSeasAvgs,
   getHoopsSimilar, getHoopsSurplus,
 } from "@/lib/data-hoops";
 import type { HoopsContractDeal, HoopsSSCat } from "@/lib/data-hoops";
@@ -12,6 +12,7 @@ import { teamColor } from "@/lib/team-colors";
 import { pctTone, pctBarTone } from "@/lib/tone";
 import { PercentileRadar } from "@/components/ui/percentile-radar";
 import { ShotQuadrant } from "@/components/ui/shot-quadrant";
+import { ShotCreation } from "@/components/ui/shot-creation";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -140,13 +141,20 @@ export default async function HoopsPlayerPage({ params }: {
   if (!doc || !Object.keys(doc.seasons).length) notFound();
   const seasons = Object.keys(doc.seasons).sort((a, b) => Number(b) - Number(a));
   const [cdoc, advDoc, careers, meta, ss26, ss25, ps27, ps25,
-         similarDoc, surplusDoc, clutchDoc, reboundDoc, projDoc] = [
+         similarDoc, surplusDoc, clutchDoc, reboundDoc, projDoc, ratesDoc] = [
     await getHoopsContracts(), await getHoopsAdvAgg(), await getHoopsCareers(), await getHoopsMeta(),
     await getHoopsSeasAvgs(2026), await getHoopsSeasAvgs(2025),
     await getHoopsPlayerShots(2027), await getHoopsPlayerShots(2025),
     await getHoopsSimilar(), await getHoopsSurplus(), await getHoopsClutch(),
-    await getHoopsRebound(), await getHoopsProjections()];
+    await getHoopsRebound(), await getHoopsProjections(), await getHoopsRates()];
   const ssDoc = ss26 ?? ss25;
+  // §0i shot creation: latest season with at least 50 attempts
+  const crSeason = Object.keys(ratesDoc?.seasons ?? {}).sort((a, b) => Number(b) - Number(a))
+    .find((s) => {
+      const z = ratesDoc?.seasons[s]?.players[id]?.zones;
+      return z && Object.values(z).reduce((n, v) => n + v[0], 0) >= 50;
+    });
+  const crP = crSeason ? ratesDoc?.seasons[crSeason]?.players[id] : undefined;
   const ss = ssDoc?.players[id];
   const pt = ss?.playtype ?? [];
   const adv = ss?.adv;
@@ -774,7 +782,7 @@ export default async function HoopsPlayerPage({ params }: {
                   </span>
                 </h2>
                 <ShotQuadrant pool={pool} highlight={id} xMid={xMid} />
-                <PanelNote>x = the league&apos;s eFG in the zones he takes (the diet); y = his actual eFG minus
+                <PanelNote>x = the league&apos;s eFG in the zones the player takes (the diet); y = actual eFG minus
                   that (the making) — RESULTS-HOOPS §9, descriptive benchmark</PanelNote>
               </div>
             );
@@ -782,6 +790,34 @@ export default async function HoopsPlayerPage({ params }: {
           <div className="text-[10px] text-text-dim/70">ESPN-derived coordinates — internal research</div>
         </div>
       )}
+      {crP?.zones && crP.types && (() => {
+        const chip = (k: string, label: string, f: (v: number) => string) => {
+          const v = crP[k], pc = (crP[`${k}|pct`] as { all?: number } | undefined)?.all;
+          return typeof v === "number" ? (
+            <RateChip label={label} cls={pctTone(pc != null ? pc / 100 : null)}
+              value={<>{f(v)}{pc != null && <span className="text-text-dim font-normal text-[10px]"> · {pc}th</span>}</>} />
+          ) : null;
+        };
+        return (
+          <div className="rounded-lg border border-border-subtle px-3 py-2.5 text-xs max-w-5xl">
+            <h2 className="text-sm font-medium text-text-primary mb-1.5">
+              Shot creation <span className="text-text-dim font-normal text-[10px]">· {seasonLabel(crSeason!)} · regular season</span>
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2.5">
+              {chip("pct_unast", "Self-created share of makes", (v) => rate(v))}
+              {chip("unast36", "Self-created makes / 36", (v) => v.toFixed(1))}
+              {chip("ast_pts36", "Points from assists / 36", (v) => v.toFixed(1))}
+              {chip("gmsc", "Game Score / game", (v) => v.toFixed(1))}
+            </div>
+            <ShotCreation zones={crP.zones} types={crP.types} />
+            <PanelNote>
+              ESPN play-by-play: zones and assisted share passed §0i against an independent source
+              (RESULTS-HOOPS); shot types are ESPN&apos;s labels, descriptive · percentiles vs qualified
+              players that season · descriptive, not a forecast
+            </PanelNote>
+          </div>
+        );
+      })()}
 
       {/* Game logs — every baked season --------------------------------------- */}
       {seasons.map((s) => {

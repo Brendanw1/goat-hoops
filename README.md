@@ -33,7 +33,11 @@ Live at https://hoops.goatpro.dev (Vercel project `goat-hoops`, root `web/`;
 pushing `main` deploys). Player rates (TS%, eFG%, USG%, AST%, REB%s, AST/TO,
 plus descriptive FT/3PA rates and STL%/BLK%) are rebuilt from the ESPN box by
 `pipeline/rates.py` under the §0h/§0h-b gates and rank on `/leaders` with
-percentiles by position pool.
+percentiles by position pool. Shot zones, self-created vs assisted makes,
+assists by receiver zone, turnover types and milestones come from ESPN
+play-by-play in `pipeline/creation.py` (§0i; gates run offline with
+`python pipeline/creation.py --gate`) and feed the same boards plus the
+player page's shot creation panel.
 
 The LUMA cross-check gate (2026-10-29): 688/688 game scores 2024-25 exact,
 52/52 current season, 324 player-game boxes with every stat exact except

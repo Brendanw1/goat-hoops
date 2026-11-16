@@ -127,5 +127,9 @@ last-10/30 rolling sparklines. The figure repos stay reference-only
    (RESULTS-HOOPS): 8 gated + 4 descriptive stats live; TO ratio and PIE
    held back (see the reads). Team four factors already ship from §0d.
 2. **Batch 2 — A2 + A3 + A8**, with the creation and distribution visuals.
+   **Shipped 2026-11-15** under §0i (both gates PASS): 13 gated zone/creation/
+   playmaking stats, 4 descriptive, 5 box milestones; player-page shot
+   creation panel. Box Creation / Offensive Load and assisted-teammate eFG
+   not built yet.
 3. **Batch 3 — C1 (BPM-style) and C3 (regressed percentiles)**, pre-registered.
 4. A4/A5/A7 fill in as they touch the same bake.
