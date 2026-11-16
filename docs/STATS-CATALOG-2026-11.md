@@ -78,6 +78,8 @@ leaderboard content.
 | Play types (PnR handler, iso, post, spot-up, transition) | Synergy-derived via BDL, frozen | same |
 | Shot clock, defender distance, catch-and-shoot by touch time | tracking-only | A2's pull-up proxy meanwhile |
 | Charges drawn, screen assists | not named in ESPN PBP | tracking |
+| Assisted-teammate eFG (how teammates shoot off a player's passes) | ESPN PBP names the passer only on makes; a pass leading to a miss leaves no record, so any eFG would count makes only | tracking "potential assists" |
+| Box Creation as a standalone stat | §0j FAIL: against LUMA's pass-ended creation it loses to plain assists (0.86 vs 0.98); its extra scoring signal needs a reference for non-assist creation | tracking "opportunities created" |
 | Coverage (blitz/ice/switch), rotations, VOSS | no public source (coverage note's open gap) | research note only |
 | EPM / LEBRON / DARKO / RAPTOR | brand metrics, can't be re-hosted (Closing 5) | build our own families (C) |
 
@@ -129,7 +131,8 @@ last-10/30 rolling sparklines. The figure repos stay reference-only
 2. **Batch 2 — A2 + A3 + A8**, with the creation and distribution visuals.
    **Shipped 2026-11-15** under §0i (both gates PASS): 13 gated zone/creation/
    playmaking stats, 4 descriptive, 5 box milestones; player-page shot
-   creation panel. Box Creation / Offensive Load and assisted-teammate eFG
-   not built yet.
+   creation panel. Follow-ups the same day: TO ratio from FT trips (§0h-c,
+   held out, PASS), Offensive Load (§0j PASS vs LUMA `load`); Box Creation
+   (§0j FAIL) and assisted-teammate eFG (not recoverable) moved to B.
 3. **Batch 3 — C1 (BPM-style) and C3 (regressed percentiles)**, pre-registered.
 4. A4/A5/A7 fill in as they touch the same bake.

@@ -37,7 +37,9 @@ percentiles by position pool. Shot zones, self-created vs assisted makes,
 assists by receiver zone, turnover types and milestones come from ESPN
 play-by-play in `pipeline/creation.py` (§0i; gates run offline with
 `python pipeline/creation.py --gate`) and feed the same boards plus the
-player page's shot creation panel.
+player page's shot creation panel. TO ratio counts free-throw trips from the
+play-by-play (§0h-c); Offensive Load (Ben Taylor's formula) is benchmarked
+against LUMA's `load` channel (§0j, `--gate-j`).
 
 The LUMA cross-check gate (2026-10-29): 688/688 game scores 2024-25 exact,
 52/52 current season, 324 player-game boxes with every stat exact except

@@ -60,7 +60,11 @@ def load_shots(g: pd.DataFrame) -> pd.DataFrame:
     return s
 
 
-def turnovers(g: pd.DataFrame) -> pd.DataFrame:
+TRIP = r"^Free Throw - 1 of [23]$"  # §0h-c: and-ones, technicals, flagrants, clear paths are not trips
+
+
+def pbp_flags(g: pd.DataFrame) -> pd.DataFrame:
+    """Regular-season PBP rows credited to p1, flagged by turnover type and FT trip."""
     reg = g.loc[g.season_type == 2, ["game_id", "season_year"]].astype({"game_id": str})
     p = pd.read_parquet(MART / "pbp.parquet", columns=["game_id", "type_text", "p1"])
     p = p.astype({"game_id": str}).merge(reg, on="game_id")
@@ -68,7 +72,13 @@ def turnovers(g: pd.DataFrame) -> pd.DataFrame:
     p["athlete_id"] = p.p1.astype("Int64").astype(str)
     p["badpass"] = p.type_text.str.contains("Bad Pass", na=False)
     p["lostball"] = p.type_text.str.contains("Lost Ball", na=False)
-    return p.groupby(["season_year", "athlete_id"])[["badpass", "lostball"]].sum().reset_index()
+    p["trips"] = p.type_text.str.match(TRIP, na=False)
+    return p
+
+
+def turnovers(g: pd.DataFrame) -> pd.DataFrame:
+    return pbp_flags(g).groupby(["season_year", "athlete_id"])[["badpass", "lostball", "trips"]] \
+        .sum().reset_index()
 
 
 def gmsc(pg: pd.DataFrame) -> pd.Series:
@@ -223,6 +233,9 @@ def _selfcheck() -> None:
     one = pd.DataFrame({"pts": [10], "fgm": [4], "fga": [8], "fta": [2], "ftm": [2], "oreb": [0],
                         "dreb": [0], "stl": [0], "ast": [0], "blk": [0], "pf": [0], "to": [0]})
     assert abs(gmsc(one)[0] - (10 + 1.6 - 5.6)) < 1e-9
+    ft = pd.Series(["Free Throw - 1 of 2", "Free Throw - 1 of 1", "Free Throw - 1 of 3",
+                    "Free Throw - Flagrant 1 of 2", "Free Throw - Technical", "Free Throw - 2 of 2"])
+    assert list(ft.str.match(TRIP)) == [True, False, True, False, False, False]
 
 
 if __name__ == "__main__":

@@ -1,0 +1,9 @@
+{
+ "label": "\u00a70h-c TO ratio, FT trips, held-out site 2026",
+ "rows": 14042,
+ "espn_rows": 25736,
+ "match_rate": 0.9997,
+ "median_abs_diff": 0.0,
+ "pass": true,
+ "ran": "2026-11-15"
+}

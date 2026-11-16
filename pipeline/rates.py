@@ -11,8 +11,10 @@ whose 2025 roll-ups are the gate reference). Standalone:
 import gzip
 import json
 import sys
+import time
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -39,13 +41,15 @@ STATS = {"ts_pct": (3, (0.995, 0.005)), "efg_pct": (3, (0.995, 0.005)),
          "pie": (3, (0.98, None)), "stl_pct": (3, None), "blk_pct": (3, None),
          "tpar": (3, None)}
 # §0i (creation.py): stat -> round digits, and which gate it rides
-# ("a" zones, "b" assisted share, "ab" both, None descriptive, "box" §0-gated box counts)
+# ("a" zones, "b" assisted share, "ab" both, None descriptive, "box" §0-gated box counts;
+#  "c" / "l" = §0j Box Creation / Offensive Load vs LUMA)
 CREATION = {"rim_rate": (3, "a"), "mid_rate": (3, "a"), "c3_rate": (3, "a"),
             "rim_fg": (3, "a"), "mid_fg": (3, "a"), "c3_fg": (3, "a"), "ab3_fg": (3, "a"),
             "pct_unast": (3, "b"), "unast36": (2, "b"), "unast3_36": (2, "b"),
             "ast_pts36": (1, "b"), "ast3_36": (2, "b"), "ast_rim36": (2, "ab"),
             "pullup_rate": (3, None), "pullup_efg": (3, None),
             "badpass36": (2, None), "lostball36": (2, None),
+            "box_creation": (1, "c"), "off_load": (1, "l"),
             "gmsc": (1, "box"), "g30": (0, "box"), "g40": (0, "box"), "dd": (0, "box"), "td": (0, "box")}
 # attempt floors on top of the minutes floor (full season; the live season scales them)
 FLOOR = {"rim_fg": ("rim_fga", 100), "mid_fg": ("mid_fga", 60), "c3_fg": ("c3_fga", 40),
@@ -113,6 +117,14 @@ def player_rates(pg: pd.DataFrame, tgo: pd.DataFrame) -> pd.DataFrame:
     a["stl_pct"] = div(a.stl, a.d_stl)
     a["blk_pct"] = div(a.blk, a.d_blk)
     a["pie"] = div(a.n_pie, a.d_pie)
+    # §0j: Ben Taylor's Box Creation / Offensive Load, per 100 player possessions
+    per = 100 / a.d_stl.where(a.d_stl > 0)
+    ast, pts, tov = a.ast * per, a.pts * per, a.tov * per
+    prof = (2 / (1 + np.exp(-a.tpa * per)) - 1) * div(a.tpm, a.tpa).fillna(0)
+    bc = 0.1843 * ast + 0.0969 * (pts + tov) - 2.3021 * prof + 0.0582 * (ast * (pts + tov) * prof) - 1.1942
+    a["box_creation"] = bc.clip(lower=0)
+    a["off_load"] = (0.75 * (ast - 0.38 * a.box_creation) + a.fga * per + 0.44 * a.fta * per
+                     + a.box_creation + tov)
     return a
 
 
@@ -147,6 +159,9 @@ def gate(a: pd.DataFrame, adv_path: Path) -> dict:
 
 
 GATE_B = Path(__file__).resolve().parents[1] / "data" / "derived" / "gate_rates_0hb.json"
+GATE_C = GATE_B.with_name("gate_rates_0hc.json")  # §0h-c: TO ratio from FT trips, held out
+GATE_J = GATE_B.with_name("gate_creation_0j.json")  # §0j: Box Creation / Offensive Load vs LUMA
+LUMA_CACHE = MART.parent / "luma" / "channels_load.parquet"  # validation only; never shipped
 # stat -> (balldontlie field, match tolerance) — §0h-b; ftr withdrawn (no player-level field)
 GATE_B_STATS = {"ts_pct": ("true_shooting_percentage", 0.0015),
                 "efg_pct": ("effective_field_goal_percentage", 0.0015),
@@ -154,9 +169,9 @@ GATE_B_STATS = {"ts_pct": ("true_shooting_percentage", 0.0015),
                 "ast_to": ("assist_to_turnover", 0.015), "pie": ("pie", 0.0015)}
 
 
-def bdl_full_game_rows(fields) -> dict:
-    """balldontlie full-game v2-advanced rows for BDL season 2024 (site 2025),
-    regular season, keyed (date, ESPN abbr, normalized name). Scans every
+def bdl_full_game_rows(fields, season: int = 2024) -> dict:
+    """balldontlie full-game v2-advanced rows for one BDL season (2024 = site
+    2025), regular season, keyed (date, ESPN abbr, normalized name). Scans every
     recovered source; period != 0 rows are single quarters and are skipped."""
     from hoops_export import BDL, BDL_ABBR2ESPN, flatten_bdl_row, norm_name
     want = {"game.id", "player.id", "game.date", "game.season", "game.postseason", "period",
@@ -164,7 +179,7 @@ def bdl_full_game_rows(fields) -> dict:
     ref, seen = {}, set()
 
     def take(d):
-        if d.get("period") not in (0, None) or d.get("game.season") != 2024 or d.get("game.postseason"):
+        if d.get("period") not in (0, None) or d.get("game.season") != season or d.get("game.postseason"):
             return
         k = (d["game.id"], d["player.id"])
         if k in seen:
@@ -174,7 +189,7 @@ def bdl_full_game_rows(fields) -> dict:
         ab = BDL_ABBR2ESPN.get(d.get("team.abbreviation"), d.get("team.abbreviation"))
         ref[(str(d["game.date"])[:10], ab, nm)] = d
 
-    for fn in ("advanced_2024.pages.jsonl", "advanced_2025.pages.jsonl"):
+    for fn in ("advanced_2024.pages.jsonl", "advanced_2025.pages.jsonl", "advanced_2026.pages.jsonl"):
         p = BDL / fn
         if p.exists():
             with open(p) as f:
@@ -185,7 +200,7 @@ def bdl_full_game_rows(fields) -> dict:
                     except json.JSONDecodeError:
                         continue
     for fn in ("advanced_2024_salvaged.parquet", "advanced_v2_checkpoints_recovered.parquet",
-               "advanced_2023.parquet"):
+               "advanced_2023.parquet", "advanced_2026.parquet"):
         p = BDL / fn
         if p.exists():
             df = pd.read_parquet(p)
@@ -241,30 +256,135 @@ def gate_b(pg, tg, g) -> dict:
     return out
 
 
+def gate_c(pg, g) -> dict:
+    """§0h-c: game-level TO ratio with PBP free-throw trips vs balldontlie
+    season 2025 (site 2026) — held out; the trip rule was fit on 2024-25."""
+    from creation import pbp_flags
+    ref = bdl_full_game_rows(["turnover_ratio"], season=2025)
+    key_of = espn_game_key(g)
+    gs = g[(g.season_type == 2) & (g.season_year == 2026)]
+    tr = pbp_flags(gs).groupby(["game_id", "athlete_id"]).trips.sum()
+    p = pg.astype({"game_id": str, "athlete_id": str, "team_id": str})
+    p = p[p.game_id.isin(gs.game_id.astype(str)) & (p["min"] > 0)]
+    p = p.join(tr, on=["game_id", "athlete_id"]).fillna({"trips": 0})
+    diffs = []
+    for r in p.itertuples():
+        d = ref.get(key_of(r.game_id, r.team_id, r.name))
+        if d is None or d.get("turnover_ratio") is None or pd.isna(d["turnover_ratio"]):
+            continue
+        den = r.fga + r.trips + r.ast + r.to
+        diffs.append((100 * r.to / den if den > 0 else 0.0) - float(d["turnover_ratio"]))
+    diffs = pd.Series(diffs).abs()
+    rate = float((diffs <= 0.15).mean()) if len(diffs) else 0.0
+    return {"label": "§0h-c TO ratio, FT trips, held-out site 2026", "rows": int(len(diffs)),
+            "espn_rows": int(len(p)), "match_rate": round(rate, 4),
+            "median_abs_diff": round(float(diffs.median()), 3) if len(diffs) else None,
+            "pass": bool(len(diffs) >= 10_000 and rate >= 0.95)}
+
+
+def luma_load_channels() -> pd.DataFrame:
+    """LUMA `load` / `lcreation`, window 1, seasons 2025-26, gp >= 40 — paged
+    through the hoops_mart client (50-row cap) and cached outside the repo."""
+    if LUMA_CACHE.exists():
+        return pd.read_parquet(LUMA_CACHE)
+    sys.path.insert(0, str(MART.parents[1]))
+    from luma_games_pull import rpc, sql
+    sid, _ = rpc(1, "initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
+                                   "clientInfo": {"name": "goat-hoops", "version": "0.1"}})
+    rpc(None, "notifications/initialized", session=sid)
+    rows = []
+    for season in (2025, 2026):
+        for ch in ("load", "lcreation"):
+            off = 0
+            while True:
+                page = sql(sid, f"SELECT c.season AS season, c.pid AS pid, p.name AS name, c.channel AS channel, "
+                                f"c.value AS value, c.gp AS gp FROM channels c JOIN players p ON p.pid = c.pid "
+                                f"WHERE c.channel = '{ch}' AND c.\"window\" = 1 AND c.season = {season} "
+                                f"AND c.gp >= 40 ORDER BY c.pid LIMIT 50 OFFSET {off}")
+                rows += page
+                if len(page) < 50:
+                    break
+                off += 50
+                time.sleep(2)
+    df = pd.DataFrame(rows, columns=["season", "pid", "name", "channel", "value", "gp"])
+    df = df.astype({"season": int, "pid": int, "value": float, "gp": float})
+    LUMA_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(LUMA_CACHE)
+    return df
+
+
+def gate_j(pg, tg, g) -> dict:
+    """§0j: Pearson r of our Box Creation / Offensive Load vs LUMA's lcreation /
+    load, each season, against a naive baseline (RESULTS-HOOPS §0j)."""
+    from hoops_export import norm_name
+    a = player_rates(pg, team_games(tg, pg, g))
+    names = pg.astype({"athlete_id": str}).groupby("athlete_id").name.last()
+    a["nm"] = a.athlete_id.map(names).map(norm_name)
+    per = 100 / a.d_stl.where(a.d_stl > 0)
+    a["ast100"] = a.ast * per
+    a["plays100"] = (a.fga + 0.44 * a.fta + a.tov + a.ast) * per
+    lu = luma_load_channels()
+    lu["nm"] = lu.name.map(norm_name)
+    out = {"box_creation": {"ref": "lcreation", "base": "ast100", "bar": 0.85},
+           "off_load": {"ref": "load", "base": "plays100", "bar": 0.90}}
+    for k, spec in out.items():
+        ok, by = True, {}
+        for season in (2025, 2026):
+            ours = a[(a.season_year == season) & (a["min"] >= 500)]
+            ours = ours[~ours.nm.duplicated(keep=False)]
+            ref = lu[(lu.season == season) & (lu.channel == spec["ref"])]
+            ref = ref[~ref.nm.duplicated(keep=False)]
+            j = ours.merge(ref[["nm", "value"]], on="nm").dropna(subset=[k, spec["base"], "value"])
+            r = float(np.corrcoef(j[k], j.value)[0, 1])
+            rb = float(np.corrcoef(j[spec["base"]], j.value)[0, 1])
+            p = r >= spec["bar"] and r >= rb - 0.02
+            ok &= p
+            by[str(season)] = {"n": int(len(j)), "r": round(r, 4), "r_baseline": round(rb, 4), "pass": bool(p)}
+        spec.update(seasons=by, passed=ok)
+        out[k] = {**spec, "pass": bool(ok)}
+        out[k].pop("passed")
+    out["credit"] = "LUMA Basketball Research (Lens: load, lcreation) — validation reference only"
+    return out
+
+
 def build(pg, tg, g, adv_path: Path) -> dict:
     a = player_rates(pg, team_games(tg, pg, g))
     gt = gate(a, adv_path)
+    gate_c_doc = json.loads(GATE_C.read_text()) if GATE_C.exists() else {}
+    if gate_c_doc:
+        gt["c"] = gate_c_doc
+        if gate_c_doc.get("pass") and "to_ratio" in gt.get("stats", {}):
+            gt["stats"]["to_ratio"]["pass_0hc"] = True
     if GATE_B.exists():  # §0h-b re-test, run offline (it scans GBs): a pass overrides a §0h miss
         gt["b"] = json.loads(GATE_B.read_text())
         for k, v in gt["b"]["stats"].items():
             if v["pass"] and k in gt["stats"]:
                 gt["stats"][k]["pass_0hb"] = True
-    failed = {k for k, v in gt.get("stats", {}).items() if not (v["pass"] or v.get("pass_0hb"))}
+    failed = {k for k, v in gt.get("stats", {}).items()
+              if not (v["pass"] or v.get("pass_0hb") or v.get("pass_0hc"))}
     shown = [k for k in STATS if k not in failed]
-    status = {k: "gated (§0h)" if k in gt.get("stats", {}) else "descriptive" for k in shown}
+    status = {k: ("gated (§0h-c)" if gt["stats"][k].get("pass_0hc") and not gt["stats"][k]["pass"]
+                  else "gated (§0h)") if k in gt.get("stats", {}) else "descriptive" for k in shown}
     digits = {k: v[0] for k, v in STATS.items()}
     from creation import GATE as GATE_0I, ZONES, TYPES, features
     g0i = json.loads(GATE_0I.read_text()) if GATE_0I.exists() else {}  # offline; fail closed
     gpass = {"a": g0i.get("a", {}).get("pass", False), "b": g0i.get("b", {}).get("pass", False)}
+    g0j = json.loads(GATE_J.read_text()) if GATE_J.exists() else {}  # offline; fail closed
+    gpass |= {"c": g0j.get("box_creation", {}).get("pass", False),
+              "l": g0j.get("off_load", {}).get("pass", False)}
     for k, (dp, gk) in CREATION.items():
         if gk in (None, "box") or all(gpass[c] for c in gk):
             shown.append(k)
             digits[k] = dp
-            status[k] = {None: "descriptive", "box": "box score"}.get(gk, "gated (§0i)")
+            status[k] = {None: "descriptive", "box": "box score", "c": "gated (§0j)",
+                         "l": "gated (§0j)"}.get(gk, "gated (§0i)")
     f = features(pg, g)
     f["pu_fga"] = f.t_pullup_fga + f.t_stepback_fga
     a["athlete_id"] = a.athlete_id.astype(str)
     a = a.merge(f.drop(columns=["mins"]), on=["season_year", "athlete_id"], how="left")
+    # §0h-c: NBA.com counts free-throw trips; the §0h record above keeps 0.44·FTA
+    den = a.fga + a.trips.fillna(0) + a.ast + a.tov
+    a["to_ratio"] = (100 * a.tov / den).where(den > 0)
     types = [t for t, _ in TYPES] + ["other"]
     team_gp = g[g.season_type == 2].groupby("season_year").size() * 2 / 30  # games per team
     seasons, league = {}, {}
@@ -316,7 +436,7 @@ def build(pg, tg, g, adv_path: Path) -> dict:
         seasons[int(season)] = {"players": players}
         league[int(season)] = lg
     return {"seasons": seasons, "league": league, "lower_better": list(LOWER_BETTER),
-            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i,
+            "stats": shown, "status": status, "gate_0h": gt, "gate_0i": g0i, "gate_0j": g0j,
             "note": "§0h — NBA.com-definition rates rebuilt from the ESPN box; on-floor "
                     "team totals approximated by minutes share. Descriptive, not a forecast."}
 
@@ -366,6 +486,21 @@ def _selfcheck() -> None:
 
 if __name__ == "__main__":
     _selfcheck()
+    if "--gate-j" in sys.argv:
+        gm = pd.read_parquet(MART / "games.parquet")
+        res = gate_j(pd.read_parquet(MART / "player_game.parquet"),
+                     pd.read_parquet(MART / "team_game.parquet"), gm[gm.completed])
+        res["ran"] = pd.Timestamp.now().strftime("%Y-%m-%d")
+        GATE_J.write_text(json.dumps(res, indent=1))
+        print(json.dumps(res, indent=1))
+        sys.exit()
+    if "--gate-c" in sys.argv:
+        gm = pd.read_parquet(MART / "games.parquet")
+        res = gate_c(pd.read_parquet(MART / "player_game.parquet"), gm[gm.completed])
+        res["ran"] = pd.Timestamp.now().strftime("%Y-%m-%d")
+        GATE_C.write_text(json.dumps(res, indent=1))
+        print(json.dumps(res, indent=1))
+        sys.exit()
     if "--gate-b" in sys.argv:
         gm = pd.read_parquet(MART / "games.parquet")
         res = gate_b(pd.read_parquet(MART / "player_game.parquet"),

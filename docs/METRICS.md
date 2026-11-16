@@ -35,7 +35,9 @@ point differential (colored pos/neg at ±0 — wins do that job).
 | AST/TO | AST / TOV, season Σ/Σ — §0h-b gated | /leaders |
 | FT rate / 3PA rate | FTA/FGA, 3PA/FGA — descriptive (no external counterpart) | /leaders |
 | STL% / BLK% | STL / on-floor opp poss; BLK / on-floor opp 2PA — descriptive | /leaders |
-| TO ratio | **not rendered live** — §0h-b FAIL (NBA counts FT trips; needs PBP) | — |
+| TO ratio | 100·TOV / (FGA + FT trips + AST + TOV); a trip = a PBP `Free Throw - 1 of 2` or `1 of 3` (and-ones, technicals, flagrants, clear paths excluded); lower is better — §0h-c gated (held out, 0.9997) | /leaders |
+| Offensive Load | Ben Taylor: 0.75·(AST − 0.38·BoxCreation) + FGA + 0.44·FTA + BoxCreation + TOV, per 100 player possessions (minutes share × average team possessions) — §0j gated vs LUMA `load` (r 0.986), level with a plain plays-per-100 sum; volume, not quality | /leaders, player page |
+| Box Creation | Taylor 2017 formula — **not rendered**: §0j FAIL (plain AST/100 tracks LUMA `lcreation` at 0.98 vs 0.86); computed only inside Offensive Load | — |
 | ORtg / DRtg / NET | BDL ratings (minutes-weighted roll-up) + est. variants | advanced table, /stats |
 | PIE | BDL pie, BDL seasons only — **not rebuilt**: §0h-b showed BDL's PIE is not the published formula | advanced table, /stats |
 | Pace / est. pace | BDL | doc only (context, not rendered as grade) |

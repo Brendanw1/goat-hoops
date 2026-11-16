@@ -1675,3 +1675,35 @@ the site doesn't already show and stays off. Pass → it renders on `/leaders`
 and the player page, labelled "an estimate of creation volume, not pass
 quality". LUMA values are used for this gate only and never shipped. The
 bars do not move after the read.
+
+### §0j read (2026-11-15): Offensive Load PASS · Box Creation FAIL
+
+Run: `python pipeline/rates.py --gate-j` → `data/derived/gate_creation_0j.json`.
+Reference: LUMA Basketball Research (Lens: `load`, `lcreation`), window 1.
+The pull is complete: 182 (2025) and 166 (2026) LUMA rows at gp ≥ 40, the same
+counts LUMA's own `count(*)` returns, and every row bridged by name.
+
+| metric | season | n | r vs LUMA | r of baseline | verdict |
+|---|---|---|---|---|---|
+| Box Creation | 2025 | 182 | 0.857 | 0.983 (AST/100) | FAIL |
+| Box Creation | 2026 | 166 | 0.859 | 0.985 (AST/100) | FAIL |
+| Offensive Load | 2025 | 182 | 0.986 | 0.986 (plays/100) | PASS |
+| Offensive Load | 2026 | 166 | 0.986 | 0.985 (plays/100) | PASS |
+
+**Box Creation — diagnosis: modeling (construct).** It clears its 0.85 bar
+but loses to plain assists by 0.13 in both seasons. Data and handling are
+ruled out: the inputs are §0-gated box counts and the formula matches
+Taylor's primary text. The gap is the construct. LUMA's `lcreation` counts
+possessions ended by a pass, which assists track almost exactly; Box
+Creation adds a scoring term (PTS + TOV) because Taylor fit it to
+hand-tracked "opportunities created", which include open looks a scorer's
+pressure creates without a pass. This reference can't say whether that
+extra signal is real, and the registered rule keeps the metric off when it
+loses to its baseline. Path back: a public reference for created
+opportunities that don't end in an assist (tracking-only today — catalog B).
+
+**Offensive Load — PASS, with a caveat stated on the site.** r 0.986 against
+`load` in both seasons, level with the naive plays-per-100 sum (within
+0.0004). It earns its place as a validated volume measure, but it adds
+almost nothing over that sum. It carries Box Creation inside its formula;
+this test validated the whole, not that part.

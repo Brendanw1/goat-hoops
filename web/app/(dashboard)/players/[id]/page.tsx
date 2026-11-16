@@ -803,10 +803,11 @@ export default async function HoopsPlayerPage({ params }: {
             <h2 className="text-sm font-medium text-text-primary mb-1.5">
               Shot creation <span className="text-text-dim font-normal text-[10px]">· {seasonLabel(crSeason!)} · regular season</span>
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-2.5">
               {chip("pct_unast", "Self-created share of makes", (v) => rate(v))}
               {chip("unast36", "Self-created makes / 36", (v) => v.toFixed(1))}
               {chip("ast_pts36", "Points from assists / 36", (v) => v.toFixed(1))}
+              {chip("off_load", "Offensive Load / 100", (v) => v.toFixed(1))}
               {chip("gmsc", "Game Score / game", (v) => v.toFixed(1))}
             </div>
             <ShotCreation zones={crP.zones} types={crP.types} />

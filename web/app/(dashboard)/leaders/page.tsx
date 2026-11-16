@@ -21,6 +21,8 @@ const DEFS: Def[] = [
   { key: "usg_pct", label: "USG%", group: "Creation", pct: true, dp: 1, what: "share of team plays the player finishes (shot, trip, turnover) while on court" },
   { key: "ast_pct", label: "AST%", group: "Creation", pct: true, dp: 1, what: "share of teammates' made shots the player assists while on court" },
   { key: "ast_to", label: "AST/TO", group: "Creation", dp: 2, what: "assists per turnover" },
+  { key: "off_load", label: "Offensive Load", group: "Creation", dp: 1, what: "Ben Taylor's estimate of offensive burden per 100 possessions: shots, free-throw trips, turnovers and plays created for teammates. Volume, not quality" },
+  { key: "to_ratio", label: "TO ratio", group: "Creation", dp: 1, what: "turnovers per 100 plays the player finishes or assists on (lower is better)" },
   { key: "orb_pct", label: "OREB%", group: "Rebounding", pct: true, dp: 1, what: "share of available offensive rebounds grabbed" },
   { key: "drb_pct", label: "DREB%", group: "Rebounding", pct: true, dp: 1, what: "share of available defensive rebounds grabbed" },
   { key: "reb_pct", label: "REB%", group: "Rebounding", pct: true, dp: 1, what: "share of all available rebounds grabbed" },
@@ -187,7 +189,8 @@ export default async function LeadersPage({ searchParams }: {
       <p className="text-[10px] text-text-dim/70">
         Regular season, computed from ESPN box scores with NBA.com definitions (on-court team totals
         estimated by minutes share); shot zones, self-creation and playmaking from ESPN play-by-play.
-        Gated stats passed the §0h/§0h-b/§0i checks against an independent source; see Methods.
+        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j checks against an independent source; see Methods.
+        {def.key === "off_load" && " Offensive Load is benchmarked against LUMA Basketball Research's load channel (Lens), which is not shown here."}
         Descriptive, not a forecast.
       </p>
     </div>
