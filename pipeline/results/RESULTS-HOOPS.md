@@ -2360,3 +2360,119 @@ fail on gates 1–2 → neither visual ships.
 substitutions at dead balls, and each is about 0.3 min per game off the
 whole-minute box. Risk: the ≤ 50 s gap merge in the reference bridges short
 bench stints (under ~1 minute) and blurs edges at timeouts.
+
+### §22 read, iteration 0 (2026-11-16): FAIL on every gate — the stints file loses 10% of floor time
+
+| Gate | Bar | Read |
+|---|---|---|
+| 1 placement r / MAD | ≥ 0.95 / ≤ 0.03 | 0.882 / 0.045 (386 player-teams, 18,528 cells) |
+| 2 interval Jaccard, median | ≥ 0.95 | 0.884 (21,045 player-games; p10 0.749) |
+| 3 team shares sum to 5 | ± 0.01 every bin | max deviation 5.00 |
+| 4 season minutes within 1% | ≥ 95% | 0.3% (375 players) |
+| 5 game minutes within 1.0 | ≥ 95% | 29.7% (26,202 player-games) |
+
+**Diagnosis: handling, in the input file.** `possessions.py` assigns
+`t0`/`t1` on the full stint list (§21 H3), then saves only the kept stints
+(poisoned pre-correction stints and short sides are dropped). The dropped
+stints' time goes with them: in the saved `stints_{season}.parquet`, 72% of
+period-games do not tile and 10.1% of all game time has no stint (2025;
+9.8% in 2026, 9.9% in 2027). The §21 minutes gate never saw this because it
+reads the in-memory list that still holds the poisoned stints. Every gate here
+reads the saved file, so all five fail together, and gate 3's 5.00 is a whole
+minute bin with nobody on the floor.
+
+**Iteration 1 change (one handling change, bars unchanged).** When the file is
+written, a dropped stint's time goes to the kept stint after it in the same
+period (`t0` = the previous kept stint's `t1`, 0 at a period's first kept
+stint), and a period's last kept stint runs to the period's end. That is the
+rule `lineups_build.py` already applies to the dropped stints' plays (windows
+run from the previous kept `end_i`), so time and points now follow the same
+convention. The walk, its possessions and the §21 minutes gate (computed
+before the re-tiling) are untouched.
+
+Added before the iteration 1 run (same day): re-running the walk to apply the
+change showed it is not reproducible. Two runs of identical code on the same
+mart differ in 2 of 1,234 games (401705186, 401705659). When a sixth player is
+evidenced, the eviction takes the least-recently-evidenced player, and
+players never evidenced all tie at −1; `min()` then returned whichever came
+first in a Python set, whose order is hash-seeded per process. Ties now break
+by athlete id. This is a reproducibility fix, logged as part of iteration 1;
+the §21 gates are re-read below with it.
+
+### §22 read, iteration 1 (2026-11-16): placement passes; the structural gates do not
+
+| Gate | Bar | Iteration 1 |
+|---|---|---|
+| 1 placement r / MAD | ≥ 0.95 / ≤ 0.03 | **0.958 / 0.015** PASS |
+| 2 interval Jaccard, median | ≥ 0.95 | **0.985** PASS (21,049 player-games; p10 0.922) |
+| 3 team shares sum to 5 | ± 0.01 every bin | max deviation 5.00 FAIL |
+| 4 season minutes within 1% | ≥ 95% | 79.2% FAIL |
+| 5 game minutes within 1.0 | ≥ 95% | 90.6% FAIL (26,202 player-games) |
+
+The §21 gates re-read on the re-tiled, deterministic walk: possessions 96.7%
+within ±2 (MAE 0.84), minutes median |Δ| 0.35, the same as before.
+
+**Diagnosis.**
+- Gate 3, *data*: the four teams at 5.00 are KEN, CAN, SHQ and CHK, the 2025
+  All-Star mini-tournament sides, which the feed files as regular-season
+  games. Every NBA team's deviation is 0.000.
+- Gate 4, *handling in `rotations.py`*: 3 games (401705008, 401705358,
+  401705697) are skipped because the game's last stint was dropped, so the
+  last kept `end_i` is short of the play count. The guard copied from
+  `lineups_build.py` reads that as "mart rebuilt after the walk". A player in
+  a skipped game loses ~30 of ~2,000 minutes, 1.5%, which alone breaks the 1%
+  bar.
+- Gate 5, *data (the walk's limit), not fixable in this iteration*: per-game
+  error is centered (median −0.02 min, sd 1.03). Misses rise with the game time
+  lost to dropped stints: 8–10% of player-games in games losing ≤ 6 minutes,
+  12.5% at 6–10, 34.6% above 10. The cause is the incomplete ESPN substitution
+  log. A player who enters without a sub row is found only at his first
+  recorded event, so his entry time is unknown.
+
+**Iteration 2 change (handling, bars unchanged).** Games where either side is
+not one of the 30 NBA teams (exhibitions) are excluded. A game is skipped only
+if its last kept `end_i` exceeds the play count, and the final kept stint's
+plus-minus window runs to the last play, matching its time window.
+
+### §22 read, iteration 2 (2026-11-16): FAIL on gates 4–5 — neither visual ships
+
+| Gate | Bar | Iteration 2 |
+|---|---|---|
+| 1 placement r / MAD | ≥ 0.95 / ≤ 0.03 | **0.958 / 0.015** PASS |
+| 2 interval Jaccard, median | ≥ 0.95 | **0.985** PASS (21,100 player-games) |
+| 3 team shares sum to 5 | ± 0.01 every bin | **0.000** PASS |
+| 4 season minutes within 1% | ≥ 95% | 79.2% FAIL (375 players; 96.5% within 2%) |
+| 5 game minutes within 1.0 | ≥ 95% | 90.7% FAIL (26,219 player-games) |
+
+Iteration 2 fixed gate 3. It did not move gate 4, so the iteration 1 diagnosis
+of gate 4 (the skipped games) was wrong. Re-diagnosed:
+
+- Gate 4, *data*: season errors are centered (mean −0.13%) but spread wider
+  (sd 0.90%) than independent per-game errors would give (about 0.4% over a
+  season). Some players are consistently under- or over-counted. When a missed
+  substitution is corrected, the walk evicts the least-recently-evidenced
+  player, and that guess falls the same way for the same bench roles.
+- Gate 5, *data*: as diagnosed in iteration 1.
+- *The bars are reachable with better input.* On the same ESPN box, the
+  pbpstats intervals (NBA.com's official logs) score 98.7% on gate 5 and 99.2%
+  on gate 4. The shortfall is the ESPN substitution log, not the method or
+  the bars.
+
+**Verdict: §22 FAIL.** Gates 1–3 show the walk puts floor time in the right
+minutes (r 0.958, Jaccard 0.985). Gates 4–5 show its per-game and per-season
+totals are not tight enough for a chart that implies exact minutes. The
+shipping rule requires all five, so neither the fingerprint nor the stint chart
+renders. The third iteration is not used, because no handling change in hand
+addresses missed entries in the ESPN log. Fishing for one would be the
+iteration the rule exists to prevent.
+
+**Kept from this test (handling fixes, both in `possessions.py`).** The saved
+stints file now tiles every period: before, 10% of game time had no stint,
+which affects any future consumer of `t0`/`t1`. The walk is also
+deterministic: before, the eviction tie made 2 of 1,234 games differ between
+runs. `rotations.py` stays in the tree, unwired, with its gate (`--gate`).
+
+**What would reopen it.** A walk that recovers missed entries. That is a
+modeling change to the substitution walk and gets its own pre-registration,
+judged by gates 4–5 and §21. Or an intervals source for the seasons we show
+(the pbpstats playing-time pull stops at 2024-25).

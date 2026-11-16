@@ -1,0 +1,21 @@
+{
+ "g3_max_bin_dev": 0.0,
+ "g3_pass": true,
+ "g4_within_1pct": 0.792,
+ "g4_n": 375,
+ "g4_pass": false,
+ "g5_within_1min": 0.9067,
+ "g5_n": 26219,
+ "g5_pass": false,
+ "season": 2025,
+ "population": 386,
+ "cells": 18528,
+ "g1_r": 0.9581,
+ "g1_mad": 0.0145,
+ "g1_pass": true,
+ "g2_jaccard_median": 0.9854,
+ "g2_n": 21100,
+ "g2_pass": true,
+ "jaccard_p10": 0.9214,
+ "pass": false
+}

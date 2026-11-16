@@ -188,7 +188,9 @@ def derive_stints(periods, types, tids, p1s, p2s, is_scoring, starters,
                 diag["evidence_adds"] += 1
                 changed = True
                 if len(oncourt[team]) > 5:
-                    evict = min(oncourt[team], key=lambda x: last_ev.get(x, -1))
+                    # ties (never-evidenced players at -1) break by id: set order is hash-seeded
+                    # per process, so min() alone made reruns differ (§22)
+                    evict = min(oncourt[team], key=lambda x: (last_ev.get(x, -1), x))
                     oncourt[team].discard(evict)
                     diag["evictions"] += 1
         if changed:
@@ -275,6 +277,16 @@ def main() -> None:
                     if len(s[side]) == 5:
                         interval_rows += [{"athlete_id": pid, "game_id": gid, "secs": s["t1"] - s["t0"]}
                                           for pid in s[side]]
+            # §22 iteration 1: only kept stints are saved; a dropped stint's time
+            # goes to the kept stint after it (as its plays do in lineups_build's
+            # (previous end_i, end_i] windows), the period's last kept stint runs
+            # to the period's end — the saved file tiles every period
+            for k, s in enumerate(stints):
+                prev = stints[k - 1] if k else None
+                nxt = stints[k + 1] if k + 1 < len(stints) else None
+                s["t0"] = prev["t1"] if prev is not None and prev["period"] == s["period"] else 0.0
+                if nxt is None or nxt["period"] != s["period"]:
+                    s["t1"] = 720.0 if s["period"] <= 4 else 300.0
         for p in poss:
             rows_poss.append({"game_id": gid, "team": p["team"],
                               "home": p["team"] == home_tid,

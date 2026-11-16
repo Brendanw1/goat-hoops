@@ -145,12 +145,18 @@ bar as an independent season and joins `/lineups`. Watch item: 2026-27 possessio
   stint plus-minus, foul ticks, timeout rules.
 
 **Steps:**
-- [ ] 1.1 Pre-register **§22**: our minute-by-minute on-floor share vs pbpstats'
+- [x] 1.1 Pre-register **§22**: our minute-by-minute on-floor share vs pbpstats'
   playing-time distribution, 2024-25, every player with ≥ 500 minutes.
-- [ ] 1.2 Build `rotations.py` on the Phase 0 stints (requires Phase 0 PASS).
-- [ ] 1.3 Read §22; diagnose any failure.
-- [ ] 1.4 Bake, components, team and game pages, dev check at 1280 px and 375 px.
-- [ ] 1.5 Source registry row (`pipeline/sources.py`), METRICS entry, README page table.
+- [x] 1.2 Build `rotations.py` on the Phase 0 stints (requires Phase 0 PASS).
+- [x] 1.3 Read §22; diagnose any failure. **FAIL (2026-11-16).** Placement passes
+  (r 0.958, Jaccard 0.985, shares sum to 5.00). Minutes fall short: 90.7% of player-games
+  within 1.0 min (bar 95%), 79.2% of seasons within 1% (bar 95%). The cause is the ESPN
+  substitution log. pbpstats' official-log intervals clear both bars on the same box.
+  Two handling fixes shipped in `possessions.py` (stints tile every period; the walk is
+  deterministic).
+- [ ] 1.4 Blocked by the §22 FAIL. Reopens with a walk that recovers missed entries (its own
+  pre-registration) or an intervals source for the seasons we show.
+- [ ] 1.5 Blocked with 1.4.
 
 **Acceptance:**
 - Structural: each team's shares sum to 5.00 ± 0.01 in every minute bin.
