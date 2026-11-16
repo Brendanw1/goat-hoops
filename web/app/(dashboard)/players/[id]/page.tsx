@@ -13,6 +13,7 @@ import { pctTone, pctBarTone } from "@/lib/tone";
 import { PercentileRadar } from "@/components/ui/percentile-radar";
 import { ShotQuadrant } from "@/components/ui/shot-quadrant";
 import { ShotCreation } from "@/components/ui/shot-creation";
+import { Sparkline } from "@/components/ui/sparkline";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -383,6 +384,23 @@ export default async function HoopsPlayerPage({ params }: {
                        labels[k] ?? k, b]);
           }
         }
+        // recent form and months, cut from the same baked game log
+        const log = [...(doc.seasons[latest]?.games ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+        const agg = (gs: typeof log) => {
+          const r: { g: number } & Record<string, number> = { g: gs.length };
+          for (const k of ["min", "pts", "reb", "ast", "tov"] as const) {
+            r[k] = Math.round((gs.reduce((s, x) => s + (x[k] ?? 0), 0) / gs.length) * 10) / 10;
+          }
+          return r;
+        };
+        for (const n of [10, 30]) if (log.length > n) rows.push(["Recent", `Last ${n}`, agg(log.slice(-n))]);
+        const months = new Map<string, typeof log>();
+        for (const x of log) months.set(x.date.slice(0, 7), [...(months.get(x.date.slice(0, 7)) ?? []), x]);
+        if (months.size > 1) {
+          for (const [m, gs] of months) {
+            rows.push(["Month", new Date(`${m}-15`).toLocaleString("en-US", { month: "short", year: "2-digit" }), agg(gs)]);
+          }
+        }
         return (
           <div className="rounded-lg border border-border-subtle px-3 py-2.5 max-w-5xl text-xs overflow-x-auto">
             <h2 className="text-sm font-medium text-text-primary mb-1.5">
@@ -411,8 +429,17 @@ export default async function HoopsPlayerPage({ params }: {
                 ))}
               </tbody>
             </table>
+            {log.length >= 5 && (
+              <div className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-3">
+                {(["pts", "reb", "ast"] as const).map((k) => (
+                  <Sparkline key={k} label={k.toUpperCase()} values={log.map((x) => x[k] ?? 0)} />
+                ))}
+              </div>
+            )}
             <PanelNote>violet G = under 10 games — small sample; no grade coloring until a
-              persistence test passes (docs/explorations-2026-11.md)</PanelNote>
+              persistence test passes (docs/explorations-2026-11.md). Sparklines: each game (dots),
+              trailing 10-game mean (line, shorter at the season&apos;s start), season mean (dashed).
+              Descriptive, not a forecast.</PanelNote>
           </div>
         );
       })()}

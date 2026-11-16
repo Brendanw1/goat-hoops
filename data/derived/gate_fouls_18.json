@@ -1,0 +1,17 @@
+{
+ "a": {
+  "n": 203,
+  "share_within_2pct": 1.0,
+  "median_abs_rel": 0.0,
+  "pass": true
+ },
+ "b": {
+  "n": 262,
+  "r": 0.9577,
+  "r_fta_half": 0.9549,
+  "pass": true
+ },
+ "pass": true,
+ "credit": "balldontlie (NBA.com pfd) \u2014 validation reference only",
+ "ran": "2026-11-16"
+}

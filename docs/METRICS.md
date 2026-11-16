@@ -101,6 +101,9 @@ heaves excluded (the box stopped counting them as FGA in 2025-26).
 | bad-pass / lost-ball TO/36 | PBP turnover types (incl. out-of-bounds variants) per 36 | descriptive |
 | Game Score | Hollinger: PTS + 0.4FGM − 0.7FGA − 0.4(FTA−FTM) + 0.7ORB + 0.3DRB + STL + 0.7AST + 0.7BLK − 0.4PF − TOV, per game | box |
 | 30/40-pt games, double/triple-doubles | counts; doubles over PTS/REB/AST/STL/BLK | box |
+| FT fouls drawn/36 | free-throw trips the player starts (`Free Throw - [Flagrant / Clear Path] 1 of N`, technicals excluded) per 36: ESPN names only the fouler, so the drawer is the next FT shooter. Counts only fouls that reach the line (no offensive or non-bonus fouls) | gated §18 (r 0.958 vs NBA.com PFD; implied FTA exact) |
+| And-ones (count, /36) | a `Free Throw - 1 of 1` by a player who made a FG at the same game clock | gated §18 |
+| Putback rate | share of the player's offensive rebounds whose next shot event is their own FGA, same period, within 3 s of game clock | descriptive |
 
 Shot types are exclusive, first match wins: putback/tip > alley-oop >
 cutting > driving > step-back > pull-up > other. The player page's shot
@@ -118,9 +121,18 @@ the game-log grain (the only honest place to cut):
 4. **Rest**: 0 days (B2B), 1, 2+.
 5. **Opponent tier**: vs winning / losing records (standings join).
 6. **Role**: starter/bench; team tenure (games 1–15 post-trade vs rest).
-7. **Context windows**: last 10, last 30 (rolling form for live seasons).
+7. **Context windows**: last 10, last 30, by month (live on the player
+   page's splits panel, cut at render from the baked game log), plus
+   trailing 10-game sparklines for PTS/REB/AST — neutral color.
 8. **Possession contexts**: overall vs clutch (BDL categories); by play type;
    by zone.
+
+**Team context (team page, descriptive, §18 block):** four factors as
+diverging bars vs the league (opponent FT rate added to the team grain);
+strength of schedule = opponents' season net rating averaged over games
+played (and net + SOS); clutch = last 5:00 of Q4/OT with the margin ≤ 5
+before the play, W-L, points and net per 100 possessions estimated from the
+box over clutch events (`pipeline/clutch.py` → `team_clutch.json`).
 
 Rules: splits render only from the game-log grain (never aggregated-then-cut);
 any split cell under 10 games gets the `flag` color; a split never colors a

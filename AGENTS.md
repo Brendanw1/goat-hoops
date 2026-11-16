@@ -15,6 +15,7 @@ LUMA validation gate, mart tables).
 - Offensive Load — §0j (`pipeline/rates.py`)
 - Box Plus/Minus 2.0 + VORP — §16 (`pipeline/bpm.py`)
 - Regressed values — §17 (`pipeline/shrink.py`)
+- Fouls drawn (free-throw) and and-ones — §18 (`pipeline/creation.py`)
 
 ## Clean-room rules (hard)
 

@@ -138,4 +138,8 @@ last-10/30 rolling sparklines. The figure repos stay reference-only
    **Shipped 2026-11-15**: BPM 2.0 + VORP (§16 PASS, r 0.673 vs LUMA
    xPTS-RAPM, stability 0.79) and regressed values on 32 rates (§17 PASS,
    32/32, median −9.4% held-out error).
-4. A4/A5/A7 fill in as they touch the same bake.
+4. **Batch 4 — A4/A5/A7 + team context.** **Shipped 2026-11-16**: FT fouls
+   drawn and and-ones (§18 PASS: implied FTA exact for 203/203 players, r
+   0.958 vs NBA.com PFD, level with FTA/2), putback rate (descriptive), last
+   10/30 and monthly splits with sparklines, four-factor diverging bars,
+   strength of schedule and clutch on team pages (descriptive).

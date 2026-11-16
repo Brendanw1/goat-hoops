@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import {
-  getHoopsContracts, getHoopsPlayers, getHoopsSurplus, getHoopsTeam, getHoopsTeams,
+  getHoopsContracts, getHoopsPlayers, getHoopsSurplus, getHoopsTeam, getHoopsTeamClutch, getHoopsTeams,
   type HoopsTeamAnalytics, type HoopsPlayerRow,
 } from "@/lib/data-hoops";
 import { teamColor } from "@/lib/team-colors";
 import { TeamDot } from "@/lib/team-dot";
 import { MarginStrip } from "@/components/ui/margin-strip";
+import { FourFactors } from "@/components/ui/four-factors";
 
 export const revalidate = 300; // prod: 5-min route cache; dev renders per request
 
@@ -67,8 +68,8 @@ export default async function HoopsTeamPage({ params }: {
 
   // franchise name from the teams board (the team file carries it too, but the
   // board is already in hand server-side and covers every baked season)
-  const [board, playersDoc, surplusDoc, contracts] = await Promise.all([
-    getHoopsTeams(), getHoopsPlayers(), getHoopsSurplus(), getHoopsContracts()]);
+  const [board, playersDoc, surplusDoc, contracts, clutchDoc] = await Promise.all([
+    getHoopsTeams(), getHoopsPlayers(), getHoopsSurplus(), getHoopsContracts(), getHoopsTeamClutch()]);
   const name = board?.seasons[seasons[0]]?.find((t) => t.abbr === key)?.name ?? key;
   const names = new Map<string, string>();
   for (const rows of Object.values(playersDoc?.seasons ?? {})) {
@@ -292,6 +293,69 @@ export default async function HoopsTeamPage({ params }: {
                     §0d-gated team grain (BDL sums vs ESPN boxes: all columns ≥ 0.99/0.97 bars) —
                     descriptive; possessions two-sided; live season flagged PARTIAL
                   </div>
+                  {lg && (
+                    <div className="mt-3 border-t border-border-subtle/50 pt-2">
+                      <p className="text-[11px] text-text-secondary mb-1.5">
+                        Four factors vs league <span className="text-text-dim">
+                          · bar = gap in points of %, drawn right when it helps the team</span>
+                      </p>
+                      <FourFactors
+                        offense={[
+                          { label: "eFG", v: a.efg, lg: lg.efg, dir: 1 },
+                          { label: "TOV%", v: a.tov_pct, lg: lg.tov_pct, dir: -1 },
+                          { label: "ORB%", v: a.orb_pct, lg: lg.orb_pct, dir: 1 },
+                          { label: "FT rate", v: a.ftr, lg: lg.ftr, dir: 1 },
+                        ]}
+                        defense={[
+                          { label: "opp eFG", v: a.opp_efg, lg: lg.opp_efg, dir: -1 },
+                          { label: "opp TOV%", v: a.opp_tov_pct, lg: lg.opp_tov_pct, dir: 1 },
+                          { label: "DRB%", v: a.drb_pct, lg: lg.drb_pct, dir: 1 },
+                          { label: "opp FT rate", v: a.opp_ftr, lg: lg.opp_ftr, dir: -1 },
+                        ]}
+                      />
+                    </div>
+                  )}
+                  {(() => {
+                    // strength of schedule: games-weighted mean opponent net rating (same season)
+                    const net = new Map(seasonRows.map((r) => [r.abbr, (r as { analytics?: HoopsTeamAnalytics }).analytics?.net ?? null]));
+                    const opp = agg.games.filter((x) => x.type === "regular").map((x) => (x.opp ? net.get(x.opp) : null))
+                      .filter((v): v is number => v != null);
+                    const sos = opp.length ? opp.reduce((t, v) => t + v, 0) / opp.length : null;
+                    const c = clutchDoc?.[s]?.[key];
+                    if (sos == null && !c) return null;
+                    const sgn = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`;
+                    return (
+                      <div className="mt-3 border-t border-border-subtle/50 pt-2 grid gap-x-6 gap-y-0.5 sm:grid-cols-2 tabular-nums">
+                        {sos != null && (
+                          <div>
+                            <span className="text-text-dim">Strength of schedule </span>
+                            <span className="text-text-primary">{sgn(sos)}</span>
+                            <span className="text-text-dim"> opp net · {opp.length} g</span>
+                            {a.net != null && (
+                              <span className="text-text-dim"> · net + SOS {sgn(a.net + sos)}</span>
+                            )}
+                          </div>
+                        )}
+                        {c && (
+                          <div>
+                            <span className="text-text-dim">Clutch </span>
+                            <span className="text-text-primary">{c.w}-{c.l}</span>
+                            <span className="text-text-dim"> · net </span>
+                            <span className={c.min < 100 ? "text-flag" : "text-text-primary"}>
+                              {c.net != null ? sgn(c.net) : "—"}
+                            </span>
+                            <span className="text-text-dim"> · {c.pf}-{c.pa} pts in {Math.round(c.min)} min</span>
+                          </div>
+                        )}
+                        <p className="sm:col-span-2 text-[10px] text-text-dim/70">
+                          SOS: opponents&apos; season net rating, averaged over games played. Clutch: last 5:00 of
+                          the 4th or OT with the margin ≤ 5 (ESPN play-by-play); net per 100 possessions
+                          estimated from the box (FGA − OREB + TOV + 0.44·FTA). Violet = under 100 clutch
+                          minutes, a small sample. Descriptive, not a forecast.
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}

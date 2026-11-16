@@ -4,6 +4,8 @@
  * rows shown in the table below drawn full-strength. Pure SVG, zero client
  * JS; hover any dot for its line. The table is the accessible view.
  */
+const ord = (n: number) => `${n}${[11, 12, 13].includes(n % 100) ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+
 export type StripPoint = { id: string; name: string; v: number; pct: number | null };
 
 const fillTone = (p: number | null) =>
@@ -46,7 +48,7 @@ export function StatStrip({ points, shown, fmt, label, lower = false }: {
             <circle key={p.id} cx={X(p.v)} cy={base + jit(p.id) * 0.5} r={on ? 4.5 : 3.2}
               className={fillTone(p.pct)} opacity={on ? 0.95 : 0.3}
               stroke={on ? "rgba(0,0,0,0.6)" : "none"} strokeWidth="1.5">
-              <title>{`${p.name} — ${fmt(p.v)}${p.pct != null ? ` · ${Math.round(p.pct * 100)}th pct` : ""}`}</title>
+              <title>{`${p.name} — ${fmt(p.v)}${p.pct != null ? ` · ${ord(Math.round(p.pct * 100))} pct` : ""}`}</title>
             </circle>
           );
         })}

@@ -28,6 +28,10 @@ const DEFS: Def[] = [
   { key: "orb_pct", label: "OREB%", group: "Rebounding", pct: true, dp: 1, what: "share of available offensive rebounds grabbed" },
   { key: "drb_pct", label: "DREB%", group: "Rebounding", pct: true, dp: 1, what: "share of available defensive rebounds grabbed" },
   { key: "reb_pct", label: "REB%", group: "Rebounding", pct: true, dp: 1, what: "share of all available rebounds grabbed" },
+  { key: "putback_rate", label: "Putback rate", group: "Rebounding", pct: true, dp: 1, what: "share of the player's offensive rebounds followed by their own shot within 3 seconds" },
+  { key: "fdrawn36", label: "FT fouls drawn/36", group: "Fouls drawn", dp: 2, what: "fouls drawn that sent the player to the line (each free-throw trip they start, and-ones included) per 36 minutes. Offensive and non-bonus fouls drawn aren't in the feed" },
+  { key: "andones", label: "And-ones", group: "Fouls drawn", dp: 0, what: "made field goals plus a foul (the shooter's 1-of-1 free throw at the same clock)" },
+  { key: "andone36", label: "And-ones/36", group: "Fouls drawn", dp: 2, what: "and-ones per 36 minutes" },
   { key: "rim_rate", label: "Rim rate", group: "Shot zones", pct: true, dp: 1, what: "share of field-goal attempts within 4 ft of the rim" },
   { key: "rim_fg", label: "Rim FG%", group: "Shot zones", pct: true, dp: 1, what: "field-goal percentage within 4 ft of the rim" },
   { key: "mid_rate", label: "Mid rate", group: "Shot zones", pct: true, dp: 1, what: "share of field-goal attempts from mid-range (long twos outside the paint)" },
@@ -198,7 +202,7 @@ export default async function LeadersPage({ searchParams }: {
       <p className="text-[10px] text-text-dim/70">
         Regular season, computed from ESPN box scores with NBA.com definitions (on-court team totals
         estimated by minutes share); shot zones, self-creation and playmaking from ESPN play-by-play.
-        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j/§16 checks against an independent source; see Methods.
+        Gated stats passed the §0h/§0h-b/§0h-c/§0i/§0j/§16/§18 checks against an independent source; see Methods.
         {def.key === "off_load" && " Offensive Load is benchmarked against LUMA Basketball Research's load channel (Lens), which is not shown here."}
         {(def.key === "bpm" || def.key === "vorp") && " BPM is benchmarked against LUMA Basketball Research's xPTS-RAPM, which is not shown here."}
         Descriptive, not a forecast.

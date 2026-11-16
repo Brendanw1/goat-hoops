@@ -40,6 +40,8 @@ export type HoopsTeamAnalytics = {
   efg: number; tsp: number; fg3ar: number; ftr: number;
   tov_pct: number; orb_pct: number; drb_pct: number;
   opp_efg: number; opp_tsp: number; opp_tov_pct: number; opp_orb_pct: number;
+  /** opponent FTA/FGA — ESPN-grain seasons only */
+  opp_ftr?: number;
   partial: boolean; src: "bdl" | "espn";
 };
 export type HoopsTeamPlaytype = {
@@ -211,6 +213,11 @@ export const getHoopsGame = cache(async (gid: string): Promise<HoopsGameDoc | nu
 
 export const getHoopsTeams = cache(async (): Promise<HoopsTeamsDoc | null> =>
   (await fetchFromR2<HoopsTeamsDoc>("teams.json").catch(() => null)) ?? null);
+
+/** §18 descriptive: clutch (last 5:00 of Q4/OT, margin ≤ 5) per season → team */
+export type HoopsTeamClutchRow = { g: number; w: number; l: number; min: number; pf: number; pa: number; net: number | null };
+export const getHoopsTeamClutch = cache(async (): Promise<Record<string, Record<string, HoopsTeamClutchRow>> | null> =>
+  (await fetchFromR2<Record<string, Record<string, HoopsTeamClutchRow>>>("team_clutch.json").catch(() => null)) ?? null);
 
 /** P2 history tier — 21 baked seasons of seasavgs rows (§0e-gated) */
 export type HoopsHistoryLeaderRow = {

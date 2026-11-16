@@ -637,7 +637,8 @@ def team_analytics_block(g: pd.DataFrame) -> tuple[dict, dict]:
             "opp_efg": round((r["fgm_o"] + 0.5 * r["fg3m_o"]) / opp_fga, 3),
             "opp_tsp": round(r["pts_o"] / (2 * (opp_fga + 0.44 * opp_fta)), 3),
             "opp_tov_pct": round(r["turnover_o"] / opp_to, 3),
-            "opp_orb_pct": round(r["oreb_o"] / (r["oreb_o"] + r["dreb"]), 3)}
+            "opp_orb_pct": round(r["oreb_o"] / (r["oreb_o"] + r["dreb"]), 3),
+            "opp_ftr": round(opp_fta / opp_fga, 3)}
         d["net"] = round(d["ortg"] - d["drtg"], 1) if d["ortg"] is not None and d["drtg"] is not None else None
         return d
 

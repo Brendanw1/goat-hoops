@@ -63,21 +63,50 @@ def load_shots(g: pd.DataFrame) -> pd.DataFrame:
 TRIP = r"^Free Throw - 1 of [23]$"  # §0h-c: and-ones, technicals, flagrants, clear paths are not trips
 
 
+FOUL_TRIP = r"^Free Throw - (?:Flagrant |Clear Path )?1 of ([123])$"  # §18: a trip started = a foul drawn
+
+
 def pbp_flags(g: pd.DataFrame) -> pd.DataFrame:
-    """Regular-season PBP rows credited to p1, flagged by turnover type and FT trip."""
+    """Regular-season PBP rows credited to p1, flagged by turnover type, FT trip
+    (§0h-c), foul drawn / and-one / implied FTA (§18) and putback FGA."""
     reg = g.loc[g.season_type == 2, ["game_id", "season_year"]].astype({"game_id": str})
-    p = pd.read_parquet(MART / "pbp.parquet", columns=["game_id", "type_text", "p1"])
+    p = pd.read_parquet(MART / "pbp.parquet", columns=["game_id", "seq", "period", "clock_sec", "type_text",
+                                                       "p1", "is_shooting", "is_scoring", "points_attempted"])
     p = p.astype({"game_id": str}).merge(reg, on="game_id")
-    p = p[p.p1.notna()]
+    p = p[p.p1.notna()].sort_values(["game_id", "seq"])
     p["athlete_id"] = p.p1.astype("Int64").astype(str)
     p["badpass"] = p.type_text.str.contains("Bad Pass", na=False)
     p["lostball"] = p.type_text.str.contains("Lost Ball", na=False)
     p["trips"] = p.type_text.str.match(TRIP, na=False)
-    return p
+    n = p.type_text.str.extract(FOUL_TRIP, expand=False)
+    p["fdrawn"] = n.notna()
+    p["tech_fta"] = p.type_text.eq("Free Throw - Technical")
+    p["fta_impl"] = n.astype(float).fillna(0) + p.tech_fta
+    fg = p.is_shooting.fillna(False) & p.points_attempted.isin([2, 3])
+    key = ["game_id", "period", "clock_sec", "athlete_id"]
+    made = p.loc[fg & p.is_scoring.fillna(False), key].drop_duplicates().assign(_m=True)
+    p = p.merge(made, on=key, how="left")
+    p["andone"] = p.type_text.eq("Free Throw - 1 of 1") & p._m.fillna(False).astype(bool)
+    # putback: the next shot event after an offensive rebound is the rebounder's own,
+    # same period, within 3 s of game clock
+    fg = p.is_shooting.fillna(False) & p.points_attempted.isin([2, 3])
+    oreb = p.type_text.eq("Offensive Rebound")
+    ev = p[fg | oreb]
+    nxt = ev.groupby("game_id")[["athlete_id", "period", "clock_sec"]].shift(-1)
+    nfg = (fg[ev.index]).groupby(ev.game_id).shift(-1).fillna(False).astype(bool)
+    pb = oreb[ev.index] & nfg & nxt.athlete_id.eq(ev.athlete_id) & nxt.period.eq(ev.period) \
+        & (ev.clock_sec - nxt.clock_sec).between(0, 3)
+    p["oreb_ev"] = oreb
+    p["putback"] = False
+    p.loc[pb[pb].index, "putback"] = True
+    return p.drop(columns="_m")
+
+
+FLAGS = ["badpass", "lostball", "trips", "fdrawn", "andone", "fta_impl", "tech_fta", "oreb_ev", "putback"]
 
 
 def turnovers(t: pd.DataFrame) -> pd.DataFrame:
-    return t.groupby(["season_year", "athlete_id"])[["badpass", "lostball", "trips"]].sum().reset_index()
+    return t.groupby(["season_year", "athlete_id"])[FLAGS].sum().reset_index()
 
 
 def gmsc(pg: pd.DataFrame) -> pd.Series:
@@ -160,6 +189,8 @@ def features(pg: pd.DataFrame, g: pd.DataFrame, keep: pd.DataFrame | None = None
         ast_rim36=c.a_rim * per36,
         pullup_rate=div(pu_fga, fga), pullup_efg=div(pu_fgm + 0.5 * pu_tpm, pu_fga),
         badpass36=c.badpass * per36, lostball36=c.lostball * per36,
+        fdrawn36=c.fdrawn * per36, andone36=c.andone * per36, andones=c.andone,
+        putback_rate=div(c.putback, c.oreb_ev),
     )
 
 
@@ -230,6 +261,38 @@ def gate_b(s: pd.DataFrame, pg: pd.DataFrame, g: pd.DataFrame) -> dict:
             "pass": bool(len(diffs) >= 10_000 and rate >= 0.95)}
 
 
+GATE_F = ROOT / "data" / "derived" / "gate_fouls_18.json"
+
+
+def gate_f(pg: pd.DataFrame, g: pd.DataFrame) -> dict:
+    """§18: (a) implied FTA vs box FTA; (b) FT fouls drawn/36 vs BDL pfd/36, site 2026."""
+    from hoops_export import norm_name
+    t = turnovers(pbp_flags(g)).query("season_year == 2026").set_index("athlete_id")
+    reg = g.loc[(g.season_type == 2) & (g.season_year == 2026), ["game_id"]].astype(str)
+    p = pg[pg.pts.notna() & (pg["min"] > 0)].astype({"game_id": str, "athlete_id": str}).merge(reg)
+    box = p.groupby("athlete_id").agg(fta=("fta", "sum"), mins=("min", "sum"), name=("name", "last"))
+    j = box.join(t, how="inner")
+    a = j[j.fta >= 100]
+    within = ((a.fta_impl - a.fta).abs() / a.fta <= 0.02)
+    ga = {"n": int(len(a)), "share_within_2pct": round(float(within.mean()), 4),
+          "median_abs_rel": round(float(((a.fta_impl - a.fta).abs() / a.fta).median()), 4)}
+    ga["pass"] = bool(ga["share_within_2pct"] >= 0.95)
+    b = pd.read_parquet(BDL / "seasavgs_2025_general_base.parquet")
+    b = b[(b.season == 2025) & (b.season_type == "regular")]
+    b = b.assign(nm=(b["player.first_name"] + " " + b["player.last_name"]).map(norm_name),
+                 bmin=b["stats.min"] * b["stats.gp"], pfd36=36 * b["stats.pfd"] / b["stats.min"])
+    b = b[~b.nm.duplicated(keep=False)]
+    e = j[j.mins >= 1000].assign(nm=lambda d: d.name.map(norm_name))
+    e = e[~e.nm.duplicated(keep=False)]
+    m = e.merge(b[b.bmin >= 1000][["nm", "pfd36"]], on="nm")
+    r = float(np.corrcoef(36 * m.fdrawn / m.mins, m.pfd36)[0, 1])
+    rb = float(np.corrcoef(36 * m.fta / 2 / m.mins, m.pfd36)[0, 1])
+    gb = {"n": int(len(m)), "r": round(r, 4), "r_fta_half": round(rb, 4),
+          "pass": bool(r >= 0.85 and r >= rb - 0.01)}
+    return {"a": ga, "b": gb, "pass": bool(ga["pass"] and gb["pass"]),
+            "credit": "balldontlie (NBA.com pfd) — validation reference only"}
+
+
 def _selfcheck() -> None:
     x = np.array([25, 25, 25, 1, 25, 40, 12])
     y = np.array([1, 4, 12, 5, 30, 20, 10])
@@ -244,6 +307,7 @@ def _selfcheck() -> None:
     ft = pd.Series(["Free Throw - 1 of 2", "Free Throw - 1 of 1", "Free Throw - 1 of 3",
                     "Free Throw - Flagrant 1 of 2", "Free Throw - Technical", "Free Throw - 2 of 2"])
     assert list(ft.str.match(TRIP)) == [True, False, True, False, False, False]
+    assert list(ft.str.extract(FOUL_TRIP, expand=False).fillna("-")) == ["2", "1", "3", "2", "-", "-"]
 
 
 if __name__ == "__main__":
@@ -256,6 +320,12 @@ if __name__ == "__main__":
         res = {"a": gate_a(f, pg, g), "b": gate_b(load_shots(g), pg, g),
                "ran": pd.Timestamp.now().strftime("%Y-%m-%d")}
         GATE.write_text(json.dumps(res, indent=1))
+        print(json.dumps(res, indent=1))
+    elif "--gate-f" in sys.argv:
+        g = pd.read_parquet(MART / "games.parquet")
+        res = gate_f(pd.read_parquet(MART / "player_game.parquet"), g[g.completed])
+        res["ran"] = pd.Timestamp.now().strftime("%Y-%m-%d")
+        GATE_F.write_text(json.dumps(res, indent=1))
         print(json.dumps(res, indent=1))
     else:
         print("selfcheck ok")

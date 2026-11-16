@@ -1872,3 +1872,21 @@ the 4th or OT with the margin ≤ 5 before the play; clutch net = points
 differential per 100 clutch possessions, possessions by the Oliver box
 estimate FGA − OREB + TOV + 0.44·FTA over clutch events, a box estimate, not
 a possession segmentation).
+
+### §18 read (2026-11-16): PASS — fouls drawn and and-ones render
+
+Run: `python pipeline/creation.py --gate-f` → `data/derived/gate_fouls_18.json`.
+
+| gate | n | result | bar | verdict |
+|---|---|---|---|---|
+| (a) implied FTA within 2% of box FTA (≥ 100 FTA) | 203 players | **100%** (median miss 0.0%) | ≥ 95% | PASS |
+| (b) FT fouls drawn/36 vs balldontlie `pfd`/36 (≥ 1,000 min) | 262 | **r 0.958** | ≥ 0.85 | PASS |
+| … baseline FTA/2 per 36, same players | 262 | 0.955 | trip count ≥ baseline − 0.01 | PASS (+0.003) |
+
+Read: every free throw in the feed belongs to a trip we count, so the trip →
+foul-drawn attribution loses nothing. Against NBA.com's PFD the trip count is
+level with halving FTA, not better: as expected, since both see only fouls
+that reach the line. The stat is honest as "free-throw fouls drawn"; it can't
+see offensive fouls or non-bonus fouls drawn, and the page says so. And-ones
+ride the same accounting. Sanity (2025-26, ≥ 1,500 min): and-one leaders
+Avdija 68, Randle 65, Dončić 63; median putback rate 0.34 (descriptive).
