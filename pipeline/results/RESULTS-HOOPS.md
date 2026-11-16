@@ -2476,3 +2476,25 @@ runs. `rotations.py` stays in the tree, unwired, with its gate (`--gate`).
 modeling change to the substitution walk and gets its own pre-registration,
 judged by gates 4–5 and §21. Or an intervals source for the seasons we show
 (the pbpstats playing-time pull stops at 2024-25).
+
+## §0f render-floor amendment (2026-11-16, owner decision; descriptive surface, no model gate)
+
+The §0f floors (units ≥ 100 possessions, on/off ≥ 1,500 on / 500 off) left the
+live season with no on/off and 29 units on 2026-11-16, 195 games in. The
+owner chose to show early-season numbers with their noise visible rather than
+wait until mid-December. For a season with fewer than 1,000 walked games:
+- on/off renders from 500 on-court / 200 off-court possessions (191 players
+  today). Each swing carries a 90% range from a standard error that treats
+  possessions as independent. Today's ranges are about ±13–14 per 100,
+  against about ±6 for a full season. Players are ordered by possessions, not
+  swing;
+- each team's six most-used units are listed at any sample; ORtg, DRtg and
+  net stay blank below 100 possessions together.
+
+Full seasons keep the original floors. The §0f gate (minutes, possessions,
+score) is unchanged and still decides whether anything renders. Also fixed
+here: the feed files All-Star exhibition games as regular season, and they were
+counted in §0f's game totals (2024-25 coverage read 1,231 of 1,230). They are
+now excluded (2024-25: 1,228 games, 2025-26: 1,183; all three seasons PASS).
+Chicago has play-by-play for only 39 of its 2025-26 games, a mart gap noted for
+the mart owner.

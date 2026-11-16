@@ -245,11 +245,14 @@ export const getHoopsHistory = cache(async (): Promise<HoopsHistoryDoc | null> =
 /** P3 lineups tier — §0f-gated unit + on-off rows (stint walk, PARTIAL) */
 export type HoopsUnitRow = {
   ids: string[]; names: string[]; min: number; poss: number; gp: number;
-  ortg: number; drtg: number | null; net: number | null;
+  /** null below the rating floor (early season lists units by usage at any sample) */
+  ortg: number | null; drtg: number | null; net: number | null;
 };
 export type HoopsOnOffRow = {
   pid: string; name: string; on_min: number; on_poss: number;
   on_net: number; off_net: number; diff: number;
+  /** standard error of diff (possessions treated as independent); 90% range = ±1.645·se */
+  diff_se?: number;
   on_ortg: number; on_drtg: number;
 };
 export type HoopsGate0f = {
@@ -258,7 +261,12 @@ export type HoopsGate0f = {
 };
 export type HoopsLineupsDoc = {
   seasons: Record<string, {
-    coverage: { games: number; of: number; partial: boolean; source: string };
+    coverage: {
+      games: number; of: number; partial: boolean; source: string;
+      /** §0f amendment: a season in progress uses lower floors and shows ranges */
+      early?: boolean;
+      floors?: { onoff_on: number; onoff_off: number; unit_rated: number; units_per_team: number | null };
+    };
     teams: Record<string, { units: HoopsUnitRow[]; onoff: HoopsOnOffRow[] }>;
     gate_0f?: HoopsGate0f;
   }>;

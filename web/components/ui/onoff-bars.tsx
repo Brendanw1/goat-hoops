@@ -6,14 +6,18 @@ import type { HoopsOnOffRow } from "@/lib/data-hoops";
  * sign is a fact; the magnitude is small-sample honest — floors applied
  * upstream). Pure SVG, zero client JS; hover for the full line.
  */
-export function OnOffBars({ rows, abbr }: {
-  rows: HoopsOnOffRow[]; abbr: string;
+export function OnOffBars({ rows, abbr, early = false }: {
+  rows: HoopsOnOffRow[]; abbr: string; early?: boolean;
 }) {
+  // early season: the 12 players with the most on-court possessions, in that
+  // order, so the chart doesn't rank noise; later: top and bottom six by swing
   const take = [...rows].sort((a, b) => b.diff - a.diff);
-  const shown = [...take.slice(0, 6), ...take.slice(-6).reverse()].filter(
-    (r, i, arr) => arr.findIndex((x) => x.pid === r.pid) === i);
+  const shown = early ? [...rows].sort((a, b) => b.on_poss - a.on_poss).slice(0, 12)
+    : [...take.slice(0, 6), ...take.slice(-6).reverse()].filter(
+      (r, i, arr) => arr.findIndex((x) => x.pid === r.pid) === i);
   if (!shown.length) return null;
-  const lim = Math.max(...shown.map((r) => Math.abs(r.diff)), 8) * 1.12;
+  const rng = (r: HoopsOnOffRow) => (early && r.diff_se != null ? 1.645 * r.diff_se : 0);
+  const lim = Math.min(Math.max(...shown.map((r) => Math.abs(r.diff) + rng(r)), 8) * 1.08, 40);
 
   const W = 760, rowH = 26, padT = 6, padB = 18;
   const H = padT + padB + shown.length * rowH;
@@ -24,12 +28,15 @@ export function OnOffBars({ rows, abbr }: {
   const X = (d: number) => midX + (d / lim) * half;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
+    // the chart scrolls inside its own box under ~600 px so names stay legible on phones
+    <div className="overflow-x-auto">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[600px]" role="img"
       aria-label={`on/off net differential, ${abbr}`}>
       <line x1={midX} y1={padT - 2} x2={midX} y2={H - padB + 2} stroke="rgba(255,255,255,0.22)" />
       {shown.map((r, k) => {
         const y = padT + k * rowH + rowH / 2;
         const w = Math.max(Math.abs((r.diff / lim) * half), 1.2);
+        const lo = Math.max(r.diff - rng(r), -lim), hi = Math.min(r.diff + rng(r), lim);
         const sub = `on ${r.on_net > 0 ? "+" : ""}${r.on_net.toFixed(1)} / off ${r.off_net > 0 ? "+" : ""}${r.off_net.toFixed(1)} net rtg`;
         return (
           <g key={r.pid}>
@@ -42,11 +49,18 @@ export function OnOffBars({ rows, abbr }: {
               textAnchor="end">{sub}</text>
             <rect x={r.diff >= 0 ? midX : midX - w} y={y - 5} width={w} height={10}
               rx="1.5" fill={r.diff >= 0 ? "var(--color-pos)" : "var(--color-neg)"} opacity="0.75">
-              <title>{`${r.name} — ${sub} · diff ${r.diff > 0 ? "+" : ""}${r.diff.toFixed(1)} over ${r.on_poss.toLocaleString()} on-court possessions (est min ${r.on_min.toLocaleString()})`}</title>
+              <title>{`${r.name} — ${sub} · diff ${r.diff > 0 ? "+" : ""}${r.diff.toFixed(1)}${rng(r) ? ` (90% range ${(r.diff - rng(r)).toFixed(0)} to ${(r.diff + rng(r)).toFixed(0)})` : ""} over ${r.on_poss.toLocaleString()} on-court possessions (est min ${r.on_min.toLocaleString()})`}</title>
             </rect>
-            <text x={r.diff >= 0 ? X(r.diff) + 6 : X(r.diff) - 6} y={y + 3.5} fontSize="9.5"
+            {rng(r) > 0 && (
+              <g stroke="rgba(255,255,255,0.45)" strokeWidth="1">
+                <line x1={X(lo)} x2={X(hi)} y1={y} y2={y} />
+                <line x1={X(lo)} x2={X(lo)} y1={y - 3.5} y2={y + 3.5} />
+                <line x1={X(hi)} x2={X(hi)} y1={y - 3.5} y2={y + 3.5} />
+              </g>
+            )}
+            <text x={early ? W - 2 : r.diff >= 0 ? X(r.diff) + 6 : X(r.diff) - 6} y={y + 3.5} fontSize="9.5"
               fill={r.diff >= 0 ? "var(--color-pos)" : "var(--color-neg)"}
-              textAnchor={r.diff >= 0 ? "start" : "end"} fontWeight="700" tabular-nums>
+              textAnchor={early ? "end" : r.diff >= 0 ? "start" : "end"} fontWeight="700" style={{ fontVariantNumeric: "tabular-nums" }}>
               {`${r.diff > 0 ? "+" : ""}${r.diff.toFixed(1)}`}
             </text>
           </g>
@@ -57,5 +71,6 @@ export function OnOffBars({ rows, abbr }: {
       <text x={midX - half} y={H - 5} fontSize="8.5" fill="rgba(255,255,255,0.3)"
         textAnchor="start">better with him off</text>
     </svg>
+    </div>
   );
 }

@@ -49,7 +49,7 @@ function UnitTable({ units }: { units: HoopsUnitRow[] }) {
               <td className="text-right px-2">{u.min.toFixed(0)}</td>
               <td className="text-right px-2">{u.poss.toLocaleString()}</td>
               <td className="text-right px-2">{u.gp}</td>
-              <td className="text-right px-2">{u.ortg.toFixed(1)}</td>
+              <td className="text-right px-2">{u.ortg?.toFixed(1) ?? "—"}</td>
               <td className="text-right px-2">{u.drtg?.toFixed(1) ?? "—"}</td>
               <td className={`text-right px-2 ${NET_TONE(u.net)}`}>
                 {u.net != null ? `${u.net > 0 ? "+" : ""}${u.net.toFixed(1)}` : "—"}
@@ -95,6 +95,8 @@ export default async function HoopsLineupsPage({
   const hero = data.units[0];
   const best = [...data.units].sort((a, b) => (b.net ?? -99) - (a.net ?? -99))[0];
   const onoff = data.onoff;
+  const early = !!cov.early;
+  const fl = cov.floors ?? { onoff_on: 1500, onoff_off: 500, unit_rated: 100, units_per_team: null };
 
   return (
     <div className="space-y-5">
@@ -144,9 +146,16 @@ export default async function HoopsLineupsPage({
       </div>
       {live && (
         <p className="text-[11px] text-text-dim max-w-5xl -mt-2">
-          Early-season window: a unit appears at 100 possessions together and on/off at
-          1,500 on-court possessions (≈ mid-December for starters). {teamKeys.length} of
-          30 teams have a qualifying unit so far.
+          {early ? (
+            <>Early season: each team&apos;s {fl.units_per_team} most-used units are listed at any
+              sample (ratings from {fl.unit_rated} possessions together), and on/off starts at{" "}
+              {fl.onoff_on.toLocaleString()} on-court possessions with a 90% range. At this sample a
+              swing of ±15 is within noise; the full floors (1,500) return when the season is
+              further along.</>
+          ) : (
+            <>Early-season window: a unit appears at 100 possessions together and on/off at
+              1,500 on-court possessions. {teamKeys.length} of 30 teams have a qualifying unit so far.</>
+          )}
           {fullKey && fullKey !== seasonKey && (
             <> The full table is in{" "}
               <Link href={`/lineups?season=${fullKey}&team=${abbr}`} className="underline hover:text-text-secondary">
@@ -168,7 +177,7 @@ export default async function HoopsLineupsPage({
               </p>
               <p className="text-[11px] text-text-dim tabular-nums mt-0.5">
                 {hero.min.toFixed(0)} est min · {hero.poss.toLocaleString()} poss · {hero.gp} games ·
-                {" "}ORtg {hero.ortg.toFixed(1)} · DRtg {hero.drtg?.toFixed(1)}
+                {hero.ortg != null && <>{" "}ORtg {hero.ortg.toFixed(1)} · DRtg {hero.drtg?.toFixed(1)}</>}
               </p>
             </div>
             <div className="text-right">
@@ -195,7 +204,9 @@ export default async function HoopsLineupsPage({
 
       <section className="space-y-2 max-w-5xl">
         <h2 className="text-sm font-medium text-text-primary">
-          Units <span className="text-text-dim font-normal text-[10px]">· ≥ 100 possessions · sorted by minutes</span>
+          Units <span className="text-text-dim font-normal text-[10px]">
+            {early ? `· ${fl.units_per_team} most-used · ratings from ${fl.unit_rated} possessions · sorted by minutes`
+              : "· ≥ 100 possessions · sorted by minutes"}</span>
         </h2>
         {data.units.length ? <UnitTable units={data.units} /> : (
           <p className="text-xs text-text-dim">No {abbr} unit has reached 100 possessions together yet.</p>
@@ -204,13 +215,15 @@ export default async function HoopsLineupsPage({
 
       <section className="space-y-2 max-w-5xl">
         <h2 className="text-sm font-medium text-text-primary">
-          On/off <span className="text-text-dim font-normal text-[10px]">· ≥ 1,500 on-court poss · net differential vs floor time without him</span>
+          On/off <span className="text-text-dim font-normal text-[10px]">
+            · ≥ {fl.onoff_on.toLocaleString()} on-court poss · net differential vs floor time without him
+            {early ? " · whiskers: 90% range · ordered by possessions" : ""}</span>
         </h2>
         {onoff.length ? (
-          <OnOffBars rows={onoff} abbr={abbr} />
+          <OnOffBars rows={onoff} abbr={abbr} early={early} />
         ) : (
           <p className="text-xs text-text-dim">
-            No {abbr} player has 1,500 on-court possessions yet — the floor keeps
+            No {abbr} player has {fl.onoff_on.toLocaleString()} on-court possessions yet — the floor keeps
             small-sample on/off swings off the page.
           </p>
         )}

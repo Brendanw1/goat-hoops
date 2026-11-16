@@ -267,11 +267,12 @@ def gate(season: int = 2025) -> int:
 
 def load_games(season: int) -> pd.DataFrame:
     """Regular-season games between NBA teams (§22: the feed files All-Star
-    exhibition sides as regular season; NBA teams are the ones with 40+ games)."""
+    exhibition sides as regular season; they play ≤ 3 games, NBA teams 10+ —
+    a 40-game cut dropped CHI, which has PBP for only 39 games of 2025-26)."""
     g = pd.read_parquet(MART / "games.parquet")
     g = g[(g.season_year == season) & (g.season_type == 2) & g.completed & (g.n_plays > 0)]
     n = pd.concat([g.home_abbr, g.away_abbr]).value_counts()
-    nba = set(n[n >= 40].index) if n.max() >= 40 else set(n.index)  # early season: no filter
+    nba = set(n[n >= 10].index) if n.max() >= 10 else set(n.index)  # first days: no filter
     return g[g.home_abbr.isin(nba) & g.away_abbr.isin(nba)].copy()
 
 

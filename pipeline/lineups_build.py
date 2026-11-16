@@ -51,6 +51,11 @@ GAMES_FULL = 1230
 UNIT_MIN_POSS = 100     # §0f render floor: units
 ONOFF_MIN_POSS = 1500   # §0f render floor: players
 ONOFF_MIN_OFF_POSS = 500
+# §0f amendment (2026-11-16, owner): a season still in progress (< EARLY_GAMES
+# walked games) shows on/off from 500 on / 200 off possessions with a 90% range,
+# and lists each team's most-used units at any sample (ratings only from 100)
+EARLY_GAMES = 1000
+EARLY_ONOFF_MIN_POSS, EARLY_ONOFF_MIN_OFF_POSS, EARLY_UNITS_PER_TEAM = 500, 200, 6
 
 
 def main() -> int:
@@ -64,9 +69,8 @@ def main() -> int:
                     help="run the §0f gate and print it; leave lineups.json.gz untouched")
     args = ap.parse_args()  # not `a`: the on/off loop below binds `a`
     season, sfx = args.season, (f"_{args.label}" if args.label else "")
-    games = pd.read_parquet(MART / "games.parquet")
-    gs = games[(games.season_year == season) & (games.season_type == 2)
-               & games.completed & (games.n_plays > 0)]
+    from rotations import load_games  # NBA-vs-NBA regular season (drops All-Star exhibitions)
+    gs = load_games(season)
     st = pd.read_parquet(DERIVED / f"stints_{season}{sfx}.parquet")
     ps = pd.read_parquet(DERIVED / f"possessions_{season}{sfx}.parquet")
     pg = pd.read_parquet(MART / "player_game.parquet",
@@ -216,43 +220,59 @@ def main() -> int:
     if not ok or args.no_write:
         return 0 if ok else 1
 
+    early = n_games < EARLY_GAMES
+    on_floor, off_floor = ((EARLY_ONOFF_MIN_POSS, EARLY_ONOFF_MIN_OFF_POSS) if early
+                           else (ONOFF_MIN_POSS, ONOFF_MIN_OFF_POSS))
+    # points-per-possession variance for the on/off standard error; treats
+    # possessions as independent (ponytail: ignores stint correlation and
+    # opponent mix, so the true range is somewhat wider)
+    var_pp = float(ps.loc[ps["live"], "pts"].var())
+    if early:  # the most-used units per team at any sample
+        top = {}
+        for (abbr, pids), u in units.items():
+            top.setdefault(abbr, []).append((u["poss"], pids))
+        keep = {(a, p) for a, lst in top.items()
+                for _, p in sorted(lst, reverse=True)[:EARLY_UNITS_PER_TEAM]}
     doc_teams: dict[str, dict] = {}
     for (abbr, pids), u in units.items():
-        if u["poss"] < UNIT_MIN_POSS or not abbr:
+        if not abbr or not ((abbr, pids) in keep if early else u["poss"] >= UNIT_MIN_POSS):
             continue
-        ortg = 100 * u["pf"] / u["poss"]
-        drtg = 100 * u["pa"] / u["dp"] if u["dp"] else None
+        rated = u["poss"] >= UNIT_MIN_POSS
+        ortg = 100 * u["pf"] / u["poss"] if rated else None
+        drtg = 100 * u["pa"] / u["dp"] if rated and u["dp"] else None
         doc_teams.setdefault(abbr, {"units": [], "onoff": []})["units"].append({
             "ids": list(pids),
             "names": [names.get(p, p) for p in pids],
             "min": round(u["sec"] / 60, 1),
             "poss": u["poss"],
             "gp": len(u["g"]),
-            "ortg": round(ortg, 1),
+            "ortg": round(ortg, 1) if ortg is not None else None,
             "drtg": round(drtg, 1) if drtg else None,
             "net": round(ortg - drtg, 1) if drtg else None,
         })
     for (abbr, pid), a in acc.items():
-        if (a["on"]["poss"] < ONOFF_MIN_POSS
-                or a["off"]["poss"] < ONOFF_MIN_OFF_POSS or not abbr):
+        if (a["on"]["poss"] < on_floor
+                or a["off"]["poss"] < off_floor or not abbr):
             continue
         on_r = 100 * a["on"]["pf"] / a["on"]["poss"]
         on_d = 100 * a["on"]["pa"] / a["on"]["dp"] if a["on"]["dp"] else 0
         off_r = 100 * a["off"]["pf"] / a["off"]["poss"]
         off_d = 100 * a["off"]["pa"] / a["off"]["dp"] if a["off"]["dp"] else 0
         on_net, off_net = on_r - on_d, off_r - off_d
+        se = 100 * (var_pp * sum(1 / max(x, 1) for x in (
+            a["on"]["poss"], a["on"]["dp"], a["off"]["poss"], a["off"]["dp"]))) ** 0.5
         doc_teams.get(abbr, {"units": [], "onoff": []})["onoff"].append({
             "pid": pid, "name": names.get(pid, pid),
             "on_min": round(a["on"]["sec"] / 60),
             "on_poss": a["on"]["poss"],
             "on_net": round(on_net, 1),
             "off_net": round(off_net, 1),
-            "diff": round(on_net - off_net, 1),
+            "diff": round(on_net - off_net, 1), "diff_se": round(se, 1),
             "on_ortg": round(on_r, 1), "on_drtg": round(on_d, 1)})
 
     for abbr, d in doc_teams.items():
         d["units"].sort(key=lambda r: -r["min"])
-        d["onoff"].sort(key=lambda r: -r["diff"])
+        d["onoff"].sort(key=lambda r: -r["on_poss"] if early else -r["diff"])
 
     # merge: this season's entry (with its own gate) into the existing doc
     path = OUT / "lineups.json.gz"
@@ -264,7 +284,11 @@ def main() -> int:
         "coverage": {"games": n_games, "of": GAMES_FULL,
                      "partial": n_games < GAMES_FULL,
                      "source": "ESPN PBP stint walk (§1 lineage)"
-                               + (f", input label '{args.label}'" if args.label else "")},
+                               + (f", input label '{args.label}'" if args.label else ""),
+                     "early": early,
+                     "floors": {"onoff_on": on_floor, "onoff_off": off_floor,
+                                "unit_rated": UNIT_MIN_POSS,
+                                "units_per_team": EARLY_UNITS_PER_TEAM if early else None}},
         "teams": doc_teams,
         "gate_0f": gate}
     if season == 2025:

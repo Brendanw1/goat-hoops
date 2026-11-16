@@ -154,7 +154,13 @@ most-used five-man units, all from the §0f stint walk of ESPN play-by-play
 (events in clock order since §21: possessions within ±2 of pbpstats in 96.7%
 of 2024-25 team-games, player minutes within a median 0.35 min of the box).
 Floors: 1,500 on-court and 500 off-court possessions; under ~2,500 on-court is
-flagged small; units under 500 possessions are labelled anecdotes. Raw, not
+flagged small; units under 500 possessions are labelled anecdotes. A season in
+progress (under 1,000 walked games) uses 500 on / 200 off, shows each swing
+with a 90% range (±1.645 standard errors, with the variance of points per
+possession treated as independent across possessions, so the true range is
+somewhat wider), orders players by possessions rather than by swing, and lists
+each team's six most-used units at any sample, rating them only from 100
+possessions together. All-Star exhibition games are excluded. Raw, not
 adjusted for teammates or opponents (RAPM, which would, has not passed its
 gate).
 

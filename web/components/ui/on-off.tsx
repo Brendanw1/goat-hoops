@@ -11,6 +11,8 @@ import type { HoopsOnOffRow, HoopsUnitRow } from "@/lib/data-hoops";
 export type OnOffSeason = {
   season: string; label: string; team: string; row: HoopsOnOffRow;
   mates: HoopsOnOffRow[]; units: HoopsUnitRow[];
+  /** season in progress: lower floor, show the 90% range on the swing */
+  early?: boolean; floor?: number;
 };
 
 const sgn = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}`;
@@ -45,7 +47,7 @@ export function OnOffPanel({ rows, id }: { rows: OnOffSeason[]; id: string }) {
                 <title>{`${r.label} on the floor: net ${sgn(r.row.on_net)} per 100 over ${r.row.on_poss} possessions`}</title>
               </circle>
               <text x={X(r.row.on_net) + (up ? 8 : -8)} y={y + 3} fontSize="9.5" textAnchor={up ? "start" : "end"} fill={c}>
-                {sgn(r.row.diff)}
+                {sgn(r.row.diff)}{r.early && r.row.diff_se != null ? ` ±${(1.645 * r.row.diff_se).toFixed(0)}` : ""}
               </text>
             </g>
           );
@@ -66,7 +68,7 @@ export function OnOffPanel({ rows, id }: { rows: OnOffSeason[]; id: string }) {
                 Offense <span className="text-text-primary">{r.row.on_ortg.toFixed(1)}</span> ·
                 Defense <span className="text-text-primary">{r.row.on_drtg.toFixed(1)}</span> ·
                 {" "}{r.row.on_poss.toLocaleString()} possessions, {Math.round(r.row.on_min)} min
-                {r.row.on_poss < 2500 && <span className="text-flag"> · small sample (under ~2,500 possessions)</span>}
+                {r.row.on_poss < 2500 && <span className="text-flag"> · {r.early ? "early season, " : ""}small sample (under ~2,500 possessions)</span>}
               </div>
               {r.mates.length > 1 && (
                 <div className="flex items-center gap-2">
@@ -79,7 +81,7 @@ export function OnOffPanel({ rows, id }: { rows: OnOffSeason[]; id: string }) {
                         <title>{`${m.name} ${sgn(m.diff)}`}</title></line>;
                     })}
                   </svg>
-                  <span className="text-text-dim">#{rank} of {r.mates.length} {r.team} players with 1,500+ on-court possessions</span>
+                  <span className="text-text-dim">#{rank} of {r.mates.length} {r.team} players with {(r.floor ?? 1500).toLocaleString()}+ on-court possessions</span>
                 </div>
               )}
             </div>

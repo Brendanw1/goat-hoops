@@ -112,7 +112,8 @@ FAMILIES = [
      "gate": "§17 / §17-b", "refs": ["stabilize"]},
     {"family": "On/off and lineups", "keys": ["onoff", "units"], "feeds": ["espn_pbp", "espn_box"],
      "method": "stint walk from substitutions on clock-ordered events, with players who act added to the floor; "
-               "net rating on vs off court per 100 possessions; raw, not adjusted for teammates or opponents",
+               "net rating on vs off court per 100 possessions; raw, not adjusted for teammates or opponents; "
+               "a season in progress shows on/off from 500 possessions with a 90% range (§0f amendment)",
      "code": "pipeline/possessions.py, pipeline/lineups_build.py", "gate": "§0f / §21",
      "refs": ["wowy", "rapm"]},
     {"family": "Team four factors, SOS, clutch", "keys": ["four_factors", "sos", "clutch"], "feeds": ["espn_box", "espn_pbp"],

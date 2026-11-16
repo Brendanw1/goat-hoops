@@ -156,7 +156,8 @@ export default async function HoopsPlayerPage({ params }: {
     .sort(([a], [b]) => Number(b) - Number(a))
     .flatMap(([season, sd]) => Object.entries(sd.teams).flatMap(([team, t]) => {
       const row = t.onoff.find((r) => r.pid === id);
-      return row ? [{ season, label: seasonLabel(season), team, row, mates: t.onoff, units: t.units }] : [];
+      return row ? [{ season, label: seasonLabel(season), team, row, mates: t.onoff, units: t.units,
+        early: !!sd.coverage.early, floor: sd.coverage.floors?.onoff_on ?? 1500 }] : [];
     }));
   const ssDoc = ss26 ?? ss25;
   // §0i shot creation: latest season with at least 50 attempts
@@ -867,8 +868,9 @@ export default async function HoopsPlayerPage({ params }: {
           <PanelNote>
             From our stint walk of ESPN play-by-play (§0f: substitutions reconciled to the box score, 99.9% of games score
             exactly). Raw on/off is not adjusted for who the player shares the floor with or who they face, so a bench
-            player behind a strong starter can look worse than they are; read it beside BPM. Shown only past 1,500
-            on-court and 500 off-court possessions; lineups under 500 possessions are anecdotes. <Link
+            player behind a strong starter can look worse than they are; read it beside BPM. Shown past 1,500
+            on-court and 500 off-court possessions; early in a season, past 500 and 200 with a 90% range on the
+            swing (most early swings sit inside it). Lineups under 500 possessions are anecdotes. <Link
             href="/lineups" className="underline">Team lineups</Link>.
           </PanelNote>
         </div>
