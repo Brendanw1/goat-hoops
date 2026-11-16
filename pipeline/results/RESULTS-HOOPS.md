@@ -2293,3 +2293,70 @@ after the PASS with the identical code. Possessions 95.8% within ±2 of
 pbpstats (MAE 0.90, 1,186 games), minutes median |Δ| 0.33 (25,808
 player-games), §0f 1.000 / 0.976 / 0.9983: it clears every bar as an
 independent season, and `/lineups` gains 2025-26 under §0f, its ship gate.
+
+## §22 — rotation fingerprint and stint chart (pre-registered 2026-11-16, before `rotations.py` exists)
+
+**Why.** Phase 1 of `docs/PBP-ROADMAP-2026-11.md`. The §21 walk gives every
+stint a time window (`t0`, `t1`), so a team's rotation can be drawn minute by
+minute (the fingerprint) and a game's substitution pattern player by player
+(the stint chart). The minutes gate showed the windows add up per game; it
+cannot show that they sit in the right part of the game. A stint shifted by
+three minutes passes the minutes gate and draws a wrong chart. This test
+checks placement against an independent source.
+
+**Measure (fixed now).**
+- *Ours*: from `stints_{season}.parquet` (clock walk, §21), a player's
+  on-floor intervals are the union of `[t0, t1)` over stints whose side lists
+  them, in game seconds (period offsets 720 s regulation, 300 s overtime).
+- *Reference*: pbpstats' `get-playing-time-distribution` possession
+  intervals per player-game, merged when the gap is ≤ 50 s
+  (`model_rows.spans_for`, the §1 v6 convention). Games join on
+  (Eastern date, home abbreviation); players join on normalized name within
+  the season (`pt_ids_2024-25.json`).
+- *Share*: for a (player, team) and regulation minute m (0–47), the seconds
+  on the floor in minute m summed over the team's joined games ÷ (60 × the
+  team's joined games).
+
+**Read before registering (the reference's fidelity only, not ours).** The
+merged pbpstats spans vs ESPN box minutes, 2024-25: 1,229 of 1,234 games
+bridge, 25,408 player-games join, median |Δ| 0.28 min, 81.7% within 0.5 min.
+ESPN box minutes are whole numbers (100% integer), so no source can sit
+within 0.5 min of them in 95% of player-games. The roadmap's stint-chart bar
+below moves from 0.5 to 1.0 min for that reason, before any of our numbers
+are read.
+
+**Data.** 2024-25 regular season (site 2025), the only season with
+pbpstats playing-time intervals in hand. Population: every (player, team)
+with ≥ 500 box minutes for that team in joined games.
+
+**Gates.**
+1. *Placement (external)*: over all (player-team × 48 minute) cells,
+   Pearson r between our share and the reference's ≥ 0.95, and mean absolute
+   difference ≤ 0.03.
+2. *Overlap (external)*: per player-game (population players, ≥ 5 minutes in
+   either source, all periods), Jaccard of the two interval sets; median
+   ≥ 0.95.
+3. *Structure*: every team's shares sum to 5.00 ± 0.01 in every minute bin.
+4. *Season minutes*: our season minutes within 1% of box for ≥ 95% of the
+   population.
+5. *Stint chart*: per player-game, our stint minutes within 1.0 min of box
+   in ≥ 95% of player-games with box minutes > 0.
+
+Report-only: the closing five (most frequent five on the floor in the last
+5:00 of regulation games within 5 at 5:00 left), average stint length,
+stints per game; payload size per team (budget ≤ 15 KB gzipped).
+
+**Iteration rule.** As §21: a failed gate is diagnosed (data vs handling vs
+modeling) and logged with its numbers before any change; at most three
+logged iterations; bars never move.
+
+**Shipping rule.** Gates 1–5 pass on 2024-25 → the fingerprint (team page)
+and stint chart (game page) render for every season the §21 walk covers,
+with gates 3–5 re-checked per season at bake time (no external reference
+exists after 2024-25; the copy says the placement test ran on 2024-25). Any
+fail on gates 1–2 → neither visual ships.
+
+**Expected.** r ≈ 0.98 and Jaccard median ≈ 0.97: both sources place
+substitutions at dead balls, and each is about 0.3 min per game off the
+whole-minute box. Risk: the ≤ 50 s gap merge in the reference bridges short
+bench stints (under ~1 minute) and blurs edges at timeouts.
