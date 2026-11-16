@@ -1394,3 +1394,55 @@ and it passes; §1's sub-walk gates fail in every season including the one
 floors (≥600 possessions each split, ~20 games) still gate the RUN DATE,
 not the spine: first eligible window ≈ mid-December 2026, re-derived by the
 daily cron's walk. No other §15b term changes.
+
+
+## §0h — player rate rebuild from the ESPN box (pre-registered 2026-11-15, before any computation)
+
+**What.** The live season's advanced columns (TS%, USG%, AST%, OREB%/DREB%/
+REB%, TO ratio, PIE) are a balldontlie snapshot frozen at the trial's end
+(Nov 9). Rebuild them from the §0-gated ESPN mart (`player_game`,
+`team_game`) so they stay live with the daily ingest. Definitions follow
+NBA.com (the same definitions balldontlie's v2 fields carry), so a column
+means the same thing in every season on /stats. Also derived, box-only:
+STL%, BLK%, 3PA rate — no balldontlie counterpart, so descriptive and not
+gated here.
+
+**Fixed rules.** Regular season only (`season_type == 2`), played rows only
+(`pts` notna, `min > 0`). Team minutes per game = Σ player minutes for that
+team-game (OT-correct). A player's on-floor share per game
+`s_g = min_g / (team_min_g / 5)`. Team-share denominators are Σ_g s_g·X_g
+over the player's own games (trade-safe; aggregate-then-divide, never a mean
+of ratios). Opponent = the same game's other team row. Possessions per §0d:
+`poss = FGA − OREB + TOV + 0.44·FTA`, two-sided average.
+
+**Formulas (fixed).**
+- `ts_pct = PTS / (2·(FGA + 0.44·FTA))`; `efg_pct = (FGM + 0.5·3PM) / FGA`
+- `ftr = FTA / FGA`; `tpar = 3PA / FGA`; `ast_to = AST / TOV`
+- `to_ratio = 100·TOV / (FGA + 0.44·FTA + AST + TOV)` (NBA.com TO ratio)
+- `usg_pct = (FGA + 0.44·FTA + TOV) / Σ s_g·(TmFGA + 0.44·TmFTA + TmTOV)`
+- `ast_pct = AST / (Σ s_g·TmFGM − FGM)`
+- `orb_pct = OREB / Σ s_g·(TmOREB + OppDREB)`; `drb_pct = DREB / Σ s_g·(TmDREB + OppOREB)`;
+  `reb_pct = REB / Σ s_g·(TmREB + OppREB)`
+- `stl_pct = STL / Σ s_g·OppPoss`; `blk_pct = BLK / Σ s_g·(OppFGA − Opp3PA)`
+- `pie = Σ(PTS + FGM + FTM − FGA − FTA + DREB + 0.5·OREB + AST + STL + 0.5·BLK − PF − TOV)
+  / Σ_g (same expression over both teams' game totals)`
+  (team turnovers use `totalTurnovers`; PF from the player rows summed)
+
+**Gate (site 2025 = 2024-25, the overlap season with full balldontlie
+coverage, 1,320/1,321 games).** Join ours to `advagg.json.gz` season 2025 on
+ESPN id; sample = players with ≥ 500 ESPN regular-season minutes present in
+both. Per stat, Pearson r and median |ours − theirs|:
+- pure box ratios (`ts_pct`, `efg_pct`, `ftr`, `to_ratio`): r ≥ 0.995 and
+  median |diff| ≤ 0.005 (to_ratio: ≤ 0.5)
+- `ast_to`: r ≥ 0.99
+- on-floor share estimates (`usg_pct`, `ast_pct`, `orb_pct`, `drb_pct`,
+  `reb_pct`): r ≥ 0.97 — ours approximates on-court team totals by the
+  minutes share, theirs counts them exactly from tracking
+- `pie`: r ≥ 0.98 (theirs is a minutes-weighted mean of game PIEs; ours is
+  the season ratio of sums)
+
+**Consequence.** A stat that passes renders on /stats and /leaders for the
+ESPN seasons (2024-25 → live) from our rebuild, and the live season's
+"dated trial snapshot" flag drops for it. A stat that fails does not render
+for the live season; the miss gets the data vs handling vs modeling
+diagnosis before any retry. Thresholds do not move after the read.
