@@ -2168,3 +2168,56 @@ mean, is the less biased target. The fix the literature uses is a volume-aware
 target (shrink toward the mean of players with similar volume), a candidate
 for a later §17-c. Shot-*mix* rates (3PA rate, corner-3 and pull-up shares,
 self-created share) don't carry that volume bias, and attempts win there.
+
+## §21 — the on-floor walk on clock-ordered events (pre-registered 2026-11-16, before any re-run)
+
+**Why.** The §1 handling gates failed in every season: possessions 86.4%
+within ±2 of pbpstats (bar 95%), player minutes median |Δ| 7.2 min (bar
+0.5). `possessions.py` and `lineups_build.py` still order events by ESPN
+`seq`, which §19-b showed is not time order (late scorer corrections are
+appended; the score falls mid-feed in 2,634 of 2,921 games). The minutes
+measurement also has two handling defects: a stint's duration runs from its
+first event to its last event (the gap to the next substitution is lost),
+and rows with a sub-minute clock carry no time.
+
+**Changes (fixed before the run; nothing else changes).**
+- H1 *Order*: every game's events sorted by `creation.ordered()` (period,
+  game clock descending, running score, seq) in both `possessions.py` and
+  `lineups_build.py`, so stint row indices mean the same thing in both.
+- H2 *Clock*: `clock_sec` refilled by `creation.clock_seconds()`;
+  `period_elapsed` refilled from it (as in the bake's `load()`).
+- H3 *Stint time* (minutes gate only): each stint gets `t0` = elapsed game
+  time at its first row and `t1` = the next stint's `t0` in the same period,
+  else the period's end (720 s regulation, 300 s overtime). A player's
+  minutes = Σ (t1 − t0) over stints where their side lists exactly five
+  players, poisoned stints included (they are real floor time; the poisoned
+  flag only matters for lineup attribution).
+
+The possession rules, the evidence-based substitution correction and the
+§0f gate code are untouched.
+
+**Data.** 2024-25 regular season (site 2025), the season §1 failed on.
+Forward check: 2026-27 to date (minutes and §0f only; pbpstats has no
+2026-27 possession counts in hand). Outputs carry the label `clock` and
+never overwrite the production `stints_*` / `possessions_*` files or
+`lineups.json.gz` until this passes.
+
+**Gates (unchanged from §1 and §0f).**
+1. Possessions vs pbpstats: ≥ 95% of team-games within ±2; MAE < 1.5.
+2. Player stint-minutes vs box MIN: median |Δ| ≤ 0.5 min.
+3. §0f on the clock-ordered walk: minutes structural ≥ 0.95, possessions in
+   band ≥ 0.95, score exact ≥ 0.99.
+
+**Iteration rule.** If a gate fails, the failure is diagnosed (data vs
+handling vs modeling) and logged here with its numbers before any further
+handling change; at most three further logged iterations; bars never move.
+No model reads these stints until all three gates pass.
+
+**Shipping rule.** All pass on 2024-25 → clock order becomes the default in
+both scripts, `/lineups` and on/off rebuild on the new walk (noted to the
+lineup lane), and Phase 1 (rotation fingerprint, §22) is unblocked. Any
+fail → no production change.
+
+**Expected.** Possessions within ±2 at or above 95% (misordered corrections
+split and merge possessions); minutes median |Δ| well under 1 min, mostly
+from H3. Risk: the incomplete substitution log, which ordering cannot fix.
