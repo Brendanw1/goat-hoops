@@ -70,6 +70,14 @@ def clock_seconds(p: pd.DataFrame) -> pd.Series:
     return p.clock_sec.fillna(sub)
 
 
+def clock_frame(p: pd.DataFrame) -> pd.DataFrame:
+    """Refilled clocks and canonical order in one step (§19-b, §21): needs
+    clock_display, clock_sec, period_elapsed, period, scores, seq, game_id."""
+    p = p.assign(clock_sec=clock_seconds(p))
+    p["period_elapsed"] = p.period_elapsed.fillna((p.period <= 4) * 420 + 300 - p.clock_sec)
+    return ordered(p)
+
+
 def ordered(p: pd.DataFrame) -> pd.DataFrame:
     """Canonical play order: period, game clock descending, total score, seq.
     ESPN appends late corrections with a higher `seq` but an earlier game

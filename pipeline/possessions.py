@@ -45,8 +45,13 @@ def norm_team(abbr):
     return None if pd.isna(abbr) else XWALK.get(abbr, abbr)
 
 
-def derive_possessions(periods, types, tids, is_scoring, pts_att, score_val):
-    """Play arrays -> possession segments [{team, pts:dict, end_i, dead_ball}]."""
+# §21 H4: rows that never change possession but can carry the "other" team's id
+STRICT_NON_CONTROL = ("jumpball", "jump ball", "technical", "defensive goaltending", "lane", "review")
+
+
+def derive_possessions(periods, types, tids, is_scoring, pts_att, score_val, strict=False):
+    """Play arrays -> possession segments [{team, pts:dict, end_i, dead_ball}].
+    strict=True adds STRICT_NON_CONTROL (§21 iteration 1)."""
     n = len(types)
     poss, cur = [], None
 
@@ -71,7 +76,8 @@ def derive_possessions(periods, types, tids, is_scoring, pts_att, score_val):
         is_foul = ("foul" in tl) and not is_turnover
         is_block = tl == "block"
         non_control = (is_foul or is_block or "timeout" in tl or "kicked" in tl
-                       or "challenge" in tl or "replay" in tl or "delay" in tl)
+                       or "challenge" in tl or "replay" in tl or "delay" in tl
+                       or (strict and not is_turnover and any(k in tl for k in STRICT_NON_CONTROL)))
         is_ft = bool(is_scoring[i]) and (pts_att[i] or 0) == 1
 
         def add_pts(bucket, team, val):
@@ -114,7 +120,8 @@ def derive_possessions(periods, types, tids, is_scoring, pts_att, score_val):
 
 def derive_stints(periods, types, tids, p1s, p2s, is_scoring, starters,
                   home_tid, away_tid):
-    """Play arrays + starters -> stints with evidence-based drift correction."""
+    """Play arrays + starters -> (kept stints, diag, every stint incl. poisoned)
+    with evidence-based drift correction."""
     n = len(types)
     stints = []
     oncourt = None
@@ -195,12 +202,27 @@ def derive_stints(periods, types, tids, p1s, p2s, is_scoring, starters,
             and s["end_i"] > s["start_i"]]
     diag["stints"] = len(stints)
     diag["stints_kept"] = len(good)
-    return good, diag
+    return good, diag, stints
+
+
+def stint_times(stints, elapsed, periods) -> None:
+    """§21 H3: t0 = elapsed time at the stint's first row (0 at a period's
+    first stint), t1 = the next stint's t0 in the same period, else the
+    period's end (720 s regulation, 300 s OT). Mutates the stint dicts."""
+    for k, s in enumerate(stints):
+        first = k == 0 or stints[k - 1]["period"] != s["period"]
+        s["t0"] = 0.0 if first else float(elapsed[s["start_i"]])
+    for k, s in enumerate(stints):
+        nxt = stints[k + 1] if k + 1 < len(stints) else None
+        s["t1"] = nxt["t0"] if nxt is not None and nxt["period"] == s["period"] else (720.0 if s["period"] <= 4 else 300.0)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2025)
+    ap.add_argument("--order", choices=("seq", "clock"), default="clock",
+                    help="clock = §21 (creation.clock_frame order + interval stint minutes); "
+                         "seq = the §1 walk (kept for reproducing old reads)")
     ap.add_argument("--label", default="",
                     help="suffix every output (stints_{season}_{label}.parquet, gate_*) — "
                          "control/bisect runs must never overwrite the validated production files")
@@ -210,15 +232,21 @@ def main() -> None:
     games = g[(g.season_year == a.season) & (g.season_type == 2) & g.completed & (g.n_plays > 0)]
     pg = pd.read_parquet(MART / "player_game.parquet")
     pb = pd.read_parquet(MART / "pbp.parquet")
+    clock = a.order == "clock"
+    if clock:
+        from creation import clock_frame
+        pb = clock_frame(pb[pb.game_id.isin(games.game_id)])
+    print(f"order {a.order}", flush=True)
     print(f"season {a.season}: {len(games)} regular games with PBP", flush=True)
 
-    rows_poss, rows_stint = [], []
+    rows_poss, rows_stint, interval_rows = [], [], []
     diag_tot = {"subs_applied": 0, "subs_skipped": 0, "evidence_adds": 0,
                 "evictions": 0, "poisoned_stints": 0, "stints": 0, "stints_kept": 0}
     games_ok = 0
     for gr in games.itertuples():
         gid = gr.game_id
-        one = pb[pb.game_id == gid].sort_values(["period", "seq"]).reset_index(drop=True)
+        one = (pb[pb.game_id == gid] if clock else
+               pb[pb.game_id == gid].sort_values(["period", "seq"])).reset_index(drop=True)
         prow = pg[(pg.game_id == gid) & pg.pts.notna()]
         starters, ok = {}, True
         for tid, rr in prow.groupby("team_id"):
@@ -233,13 +261,20 @@ def main() -> None:
         poss = derive_possessions(one.period.tolist(), one.type_text.tolist(),
                                   one.team_id.tolist(), one.is_scoring.tolist(),
                                   one.points_attempted.tolist(),
-                                  one.score_value.tolist())
-        stints, diag = derive_stints(one.period.tolist(), one.type_text.tolist(),
+                                  one.score_value.tolist(), strict=clock)
+        stints, diag, all_st = derive_stints(one.period.tolist(), one.type_text.tolist(),
                                      one.team_id.tolist(), one.p1.tolist(),
                                      one.p2.tolist(), one.is_scoring.tolist(),
                                      starters, home_tid, away_tid)
         for k, v in diag.items():
             diag_tot[k] = diag_tot.get(k, 0) + v
+        if clock:
+            stint_times(all_st, one.period_elapsed.tolist(), one.period.tolist())
+            for s in all_st:
+                for side in ("home", "away"):
+                    if len(s[side]) == 5:
+                        interval_rows += [{"athlete_id": pid, "game_id": gid, "secs": s["t1"] - s["t0"]}
+                                          for pid in s[side]]
         for p in poss:
             rows_poss.append({"game_id": gid, "team": p["team"],
                               "home": p["team"] == home_tid,
@@ -254,7 +289,8 @@ def main() -> None:
                                "home_pts": sum(p["pts"].get(home_tid, 0) for p in mine),
                                "away_pts": sum(p["pts"].get(away_tid, 0) for p in mine),
                                "n_poss": len(live),
-                               "start_i": s["start_i"], "end_i": s["end_i"]})
+                               "start_i": s["start_i"], "end_i": s["end_i"],
+                               **({"t0": s["t0"], "t1": s["t1"]} if clock else {})})
         games_ok += 1
 
     st = pd.DataFrame(rows_stint)
@@ -301,8 +337,8 @@ def main() -> None:
                 "pass": gate == "PASS"}))
 
     # ---- gate 2: player minutes from stint spans vs box MIN ------------
-    minute_rows = []
-    for gr in games.itertuples():
+    minute_rows = interval_rows if clock else []
+    for gr in ([] if clock else games.itertuples()):
         gid = gr.game_id
         one = pb[pb.game_id == gid].sort_values(["period", "seq"]).reset_index(drop=True)
         el = one.period_elapsed.tolist()

@@ -1720,10 +1720,8 @@ def load():
     pb = pd.read_parquet(MART / "pbp.parquet")
     # play order by game clock and sub-minute clocks filled (RESULTS-HOOPS §19-b):
     # ESPN appends late corrections with a higher seq, and "SS.T" clocks parse to null
-    from creation import clock_seconds, ordered
-    pb["clock_sec"] = clock_seconds(pb)
-    pb["period_elapsed"] = pb.period_elapsed.fillna((pb.period <= 4) * 420 + 300 - pb.clock_sec)
-    pb = ordered(pb)
+    from creation import clock_frame
+    pb = clock_frame(pb)
     sh = pd.read_parquet(MART / "shots.parquet")
     g = g[g.completed].copy()
     id2abbr = {}

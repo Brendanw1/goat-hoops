@@ -150,7 +150,9 @@ box over clutch events (`pipeline/clutch.py` → `team_clutch.json`).
 **Player on/off (player page, §0f, descriptive).** Team net rating per 100
 possessions with the player on vs off the floor, on-court ORtg/DRtg, where
 the swing ranks among teammates past the same floor, and the player's
-most-used five-man units, all from the §0f stint walk of ESPN play-by-play.
+most-used five-man units, all from the §0f stint walk of ESPN play-by-play
+(events in clock order since §21: possessions within ±2 of pbpstats in 96.7%
+of 2024-25 team-games, player minutes within a median 0.35 min of the box).
 Floors: 1,500 on-court and 500 off-court possessions; under ~2,500 on-court is
 flagged small; units under 500 possessions are labelled anecdotes. Raw, not
 adjusted for teammates or opponents (RAPM, which would, has not passed its

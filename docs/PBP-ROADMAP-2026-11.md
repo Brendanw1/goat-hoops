@@ -107,14 +107,14 @@ it ships. Bars are fixed when the pre-registration is committed and never move a
 
 **Build:** the §1 walk re-run on clock-ordered events, with interval times on every stint.
 
-- [ ] 0.1 Pre-register **§21** in RESULTS-HOOPS before running: same bars as §1's handling
+- [x] 0.1 Pre-register **§21** in RESULTS-HOOPS before running: same bars as §1's handling
   gates, read on 2024-25 (site 2025), forward-checked on 2026-27.
-- [ ] 0.2 Patch `possessions.py` to load through `creation.ordered()` and
+- [x] 0.2 Patch `possessions.py` to load through `creation.ordered()` and
   `creation.clock_seconds()`; add `t0`, `t1` (game seconds) to every stint row. Log the change
   for the lineup lane in `COLLABORATION.md` (their file).
-- [ ] 0.3 Run 2024-25 and 2026-27; write `gate_possessions_*`, `gate_minutes_*` JSON.
-- [ ] 0.4 Run 2025-26 (missing from `/lineups` today).
-- [ ] 0.5 Diagnose any failure as data, handling or modeling before any change.
+- [x] 0.3 Run 2024-25 and 2026-27; write `gate_possessions_*`, `gate_minutes_*` JSON.
+- [x] 0.4 Run 2025-26 (missing from `/lineups` today).
+- [x] 0.5 Diagnose any failure as data, handling or modeling before any change.
 
 **Acceptance (all must hold):**
 - Team-game possessions within ±2 of pbpstats in ≥ 95% of games; MAE < 1.5.
@@ -123,6 +123,13 @@ it ships. Bars are fixed when the pre-registration is committed and never move a
 
 **If it passes:** `/lineups` and on/off rebuild on the new walk (with a note to their owner),
 and possessions become eligible for Phase 2's pre-registration.
+
+**Result (2026-11-16): PASS on iteration 1.** Possessions 96.7% within ±2 (MAE 0.84),
+minutes median |Δ| 0.35 min, §0f passes. Iteration 0 (clock order alone) reached 93.9%; the
+diagnosis found jump balls, technicals, defensive goaltending, lane violations and reviews
+splitting possessions, and making them non-control (H4) closed the gap. 2025-26 passes every
+bar as an independent season and joins `/lineups`. Watch item: 2026-27 possessions 91.5% on
+71 joined games (report only). Full read in RESULTS-HOOPS §21.
 
 ### Phase 1 — Rotation fingerprint and stint chart (Tier 1, #1)
 

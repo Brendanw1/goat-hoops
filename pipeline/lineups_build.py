@@ -58,6 +58,10 @@ def main() -> int:
     ap.add_argument("--season", type=int, default=2025)
     ap.add_argument("--label", default="",
                     help="read stints_{season}_{label}/possessions_{season}_{label}")
+    ap.add_argument("--order", choices=("seq", "clock"), default="clock",
+                    help="must match the walk that wrote the stints (§21)")
+    ap.add_argument("--no-write", action="store_true",
+                    help="run the §0f gate and print it; leave lineups.json.gz untouched")
     args = ap.parse_args()  # not `a`: the on/off loop below binds `a`
     season, sfx = args.season, (f"_{args.label}" if args.label else "")
     games = pd.read_parquet(MART / "games.parquet")
@@ -69,7 +73,14 @@ def main() -> int:
                          columns=["game_id", "team_id", "athlete_id", "pts"])
     pb = pd.read_parquet(MART / "pbp.parquet",
                          columns=["game_id", "period", "seq",
-                                  "is_scoring", "score_value", "team_id"])
+                                  "is_scoring", "score_value", "team_id",
+                                  "clock_display", "clock_sec", "period_elapsed",
+                                  "home_score", "away_score"])
+    if args.order == "clock":  # same order as the walk, so stint indices line up
+        from creation import clock_frame
+        pb = clock_frame(pb[pb.game_id.isin(gs.game_id)])
+    else:
+        pb = pb.sort_values(["game_id", "period", "seq"])
 
     board = json.load(open(OUT / "players.json"))
     names: dict[str, str] = {}
@@ -81,9 +92,7 @@ def main() -> int:
     ps["live"] = ~ps["dead_ball"].astype(bool)
     seg_by_game = {g: d for g, d in ps.groupby("game_id")}
 
-    pb_by_game = {g: d.reset_index(drop=True) for g, d in pb.groupby("game_id")}
-
-    pb = pb.sort_values(["game_id", "period", "seq"]).reset_index(drop=True)
+    pb_by_game = {g: d.reset_index(drop=True) for g, d in pb.groupby("game_id", sort=False)}
     home_slot = {g: str(d["home_tid"].iloc[0]) for g, d in st.groupby("game_id")}
 
     # full game rosters — the OFF side of on/off needs every rostered player,
@@ -204,8 +213,8 @@ def main() -> int:
           and (gate["score_exact"] or 0) >= 0.99)
     gate["verdict"] = "PASS" if ok else "FAIL"
     print(json.dumps(gate, indent=1))
-    if not ok:
-        return 1
+    if not ok or args.no_write:
+        return 0 if ok else 1
 
     doc_teams: dict[str, dict] = {}
     for (abbr, pids), u in units.items():

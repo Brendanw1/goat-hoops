@@ -2221,3 +2221,75 @@ fail → no production change.
 **Expected.** Possessions within ±2 at or above 95% (misordered corrections
 split and merge possessions); minutes median |Δ| well under 1 min, mostly
 from H3. Risk: the incomplete substitution log, which ordering cannot fix.
+
+### §21 read, iteration 0 (2026-11-16): two of three gates pass; possessions short by 1.1 points
+
+Run: `python pipeline/possessions.py --season 2025 --order clock --label clock`,
+then `python pipeline/lineups_build.py --season 2025 --order clock --label clock --no-write`.
+
+| gate | §1 (seq order) | §21 iteration 0 | bar | verdict |
+|---|---|---|---|---|
+| possessions within ±2 of pbpstats | 86.4% | **93.9%** | ≥ 95% | FAIL |
+| possessions MAE | 1.28 | **0.98** | < 1.5 | pass |
+| player minutes median \|Δ\| vs box | 7.17 min | **0.35 min** | ≤ 0.5 | PASS |
+| §0f minutes structural / poss in band / score exact | 1.000 / 0.980 / 0.9992 | **1.000 / 0.983 / 0.9992** | 0.95 / 0.95 / 0.99 | PASS |
+
+Index mismatches skipped by §0f fell from 35 to 3.
+
+**A second ordering defect found on the way (data).** ESPN's raw play array
+is chronological: on the score-falls test it matches clock order (307 vs 303
+games with a falling score, 26 vs 26 games ending off the final, 0 games with
+the clock running backwards) while seq order fails all three (2,635 / 375 /
+2,484). Production `lineups_build.py` grouped plays in raw order while
+`possessions.py` indexed stints in seq order, so the two disagreed in 2,758
+games; §0f's score gate cannot see this, because stint windows tile the game
+and always sum to the final. Clock order in both scripts removes the
+mismatch.
+
+**Diagnosis of the possession miss (handling).** We over-count (mean +0.23 per
+team-game; misses at +3 outnumber −3 89 to 37), spread across all four
+quarters, so not a period-boundary effect. Across team-games, the miss
+correlates with the count of the team's own jump balls (r 0.12), defensive
+3-seconds technicals (0.08), opponent technical free throws (0.08) and
+defensive goaltending (0.06–0.08). The code explains it: the non-control
+list (fouls, blocks, timeouts, kicked balls, challenges, replays, delays)
+misses these events, so a row carrying the "other" team's id splits a
+possession. A jump-ball row carries the first-named player's team, not the
+winner's; "Defensive 3-Seconds Technical" has no "foul" in its name.
+
+**Iteration 1 change (H4, the only change).** Under `--order clock`, these
+rows are non-control too: jump balls, any technical, defensive goaltending,
+lane violations and referee reviews. Possession then passes on the next
+control event, as for fouls and timeouts. Bars unchanged.
+
+### §21 read, iteration 1 (2026-11-16): PASS — clock order becomes the walk's default
+
+| gate | iteration 0 | **iteration 1 (H4)** | bar | verdict |
+|---|---|---|---|---|
+| possessions within ±2 of pbpstats (1,229 games) | 93.9% | **96.7%** | ≥ 95% | PASS |
+| possessions MAE | 0.98 | **0.84** | < 1.5 | PASS |
+| player minutes median \|Δ\| (26,370 player-games) | 0.35 | **0.35 min** | ≤ 0.5 | PASS |
+| §0f minutes / poss in band / score exact | 1.000 / 0.983 / 0.9992 | **1.000 / 0.976 / 0.9992** | 0.95 / 0.95 / 0.99 | PASS |
+
+Forward check, 2026-27 to date (197 games): minutes median |Δ| **0.35**
+(4,431 player-games) PASS; §0f **1.000 / 0.969 / 1.000** PASS. Report only,
+not a gate: pbpstats turned out to hold 71 games of 2026-27, and possessions
+there were 91.5% within ±2 (MAE 1.01). That is below the 2024-25 level on a
+small sample; re-read it when the season has ~400 joined games, and treat
+any live-season possession count as provisional until then.
+
+Read: the §1 handling failures were mostly ordering (minutes 7.2 → 0.35 min,
+possessions 86.4% → 93.9%) plus a short non-control list (93.9% → 96.7%).
+Per the shipping rule, `--order clock` becomes the default in
+`possessions.py` and `lineups_build.py`; `/lineups` and on/off rebuild on
+the new walk (the lineup lane is notified in COLLABORATION.md); the previous
+production files are backed up in `data/derived/_backup_2026-11-16/`. Phase 1
+(§22, rotation fingerprint) is unblocked. Stints now carry `t0`/`t1`, which
+also makes real on-court minutes available to `/lineups` in place of its
+possession-proportional estimate (a later change, not part of this read).
+
+Addendum (same day): 2025-26, not part of §21's registered read, was walked
+after the PASS with the identical code. Possessions 95.8% within ±2 of
+pbpstats (MAE 0.90, 1,186 games), minutes median |Δ| 0.33 (25,808
+player-games), §0f 1.000 / 0.976 / 0.9983: it clears every bar as an
+independent season, and `/lineups` gains 2025-26 under §0f, its ship gate.
