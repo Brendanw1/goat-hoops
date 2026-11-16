@@ -1890,3 +1890,64 @@ that reach the line. The stat is honest as "free-throw fouls drawn"; it can't
 see offensive fouls or non-bonus fouls drawn, and the page says so. And-ones
 ride the same accounting. Sanity (2025-26, ≥ 1,500 min): and-one leaders
 Avdija 68, Randle 65, Dončić 63; median putback rate 0.34 (descriptive).
+
+## §19 — Win probability and player WPA (pre-registered 2026-11-16, before any computation)
+
+**What.** Catalog C5. An in-game home win probability for every play, a WP
+line on each game page's run chart, and player win probability added.
+
+**States.** Every regular-season ESPN play-by-play row, in `seq` order, after
+the play: home margin m; time left t in seconds (regulation: (4 − period)·720
++ clock; overtime: the OT clock); τ = max(t, 1) / 2880. Outcome = the home
+team won (games.parquet final). Ball state b = +1 if the next field-goal
+attempt, free throw or turnover in the same period belongs to the home team,
+−1 if to the away team, 0 if none remains (a state indicator, not a
+possession table; nothing is counted or emitted as possessions — AGENTS
+rule 6). Pre-game strength s = home minus away season-to-date net rating per
+100 possessions over each team's *prior* games only (Oliver estimate, both
+sides averaged), shrunk n/(n + 10) toward 0; 0 before a team's first game.
+
+**Models (logistic regression, sklearn, C = 1e6, no shooter/team identity).**
+- Baseline B (score and time): features m/√τ and √τ.
+- Model M: B + s·√τ + b/√τ.
+
+**Gate.** Fit both on site 2025, score on site 2026 (held out in time). Each
+game weighs the same (state weight 1 / states in the game). **Pass when:**
+(1) Brier(M) < Brier(B) with the 95% game-bootstrap interval (200 resamples,
+seed 0) of Brier(M) − Brier(B) entirely below 0; and (2) M is calibrated:
+ten equal-weight bins of predicted WP, max |mean predicted − observed| ≤
+0.02. Pass → the M line renders on game pages and player WPA (the change in
+home WP across each play, credited to the play's primary player p1 with the
+sign of their team; substitutions and timeouts excluded; assists and steals
+not split) renders on `/leaders` as gated (§19). Fail → nothing renders;
+data / handling / modeling diagnosis. Production refits M on every completed
+season with the same spec; the gate doesn't re-run. Bars do not move.
+
+## §20 — Per-shot quality: xeFG with shot type and distance (pre-registered 2026-11-16, before any model is fit)
+
+**What.** Catalog C2: upgrade §9's zone-only expected eFG to a per-shot make
+probability, excluding shooter identity; xeFG = mean over a player's FGA of
+p·(1.5 if a three else 1); shot-making = eFG − xeFG.
+
+**Leakage guard (fixed now, from a label audit of make rates only).** ESPN's
+descriptive labels are partly written after the fact ("Bank", "Finger Roll",
+"Reverse" read as descriptions of makes), so raw `type_text` is not a
+feature. Labels collapse to outcome-neutral families: finish ∈ {dunk, layup
+(incl. finger roll), hook, tip, jumper}; binary actions {driving, running,
+cutting, pullup, stepback, turnaround, fadeaway, floating, alleyoop,
+putback}; "bank", "reverse", "finger roll" dropped as descriptors.
+
+**Baseline (§9 at shot grain).** P(make) = the training season's league FG%
+in the shot's zone (rim, paint, mid, corner 3, above-break 3).
+**Model.** sklearn HistGradientBoostingClassifier (max_iter 300, learning
+rate 0.05, random_state 0) on: distance from the rim (ft), |angle|, zone,
+3PA flag, finish family, the ten action flags. Heaves excluded as in §0i.
+
+**Gate.** Fit on site 2025, score on site 2026. **Pass when:** (1) log loss(M)
+is at least 1.0% below log loss(baseline) with the 95% game-bootstrap
+interval (200 resamples, seed 0) of the difference entirely below 0; and (2)
+M is calibrated: ten equal-count bins, max |mean predicted − observed| ≤
+0.02. Pass → xeFG and shot-making render on `/leaders` (FGA floor 200, scaled
+for the live season) and the player page as gated (§20). Fail → §9 stays as
+is; diagnosis recorded. Production refits on every completed season with the
+same spec. Bars do not move.
